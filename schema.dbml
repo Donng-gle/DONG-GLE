@@ -1,0 +1,137 @@
+// 동글 DB 스키마 (PostgreSQL)
+// 탈퇴 처리: Hard delete + CASCADE (MVP), 추후 soft delete로 전환 예정
+
+Enum place_category {
+  관광지
+  식당
+  카페
+  액티비티
+  문화공간
+  축제행사
+}
+
+Table place {
+  id               bigint           [pk, increment]
+  content_id       varchar(20)      [unique, not null, note: 'TourAPI contentid']
+  content_type_id  smallint         [not null, note: '12/14/15/28/38/39']
+  category         place_category   [not null, note: '동글 내부 카테고리']
+  name             varchar(200)     [not null, note: 'title']
+  addr1            varchar(100)
+  addr2            varchar(100)
+  lat              double           [note: 'mapy']
+  lng              double           [note: 'mapx']
+  tel              varchar(50)      [note: '행사축제(15)는 100% 채워짐, 나머지 타입은 대부분 없음']
+  main_image_url   text             [note: 'firstimage']
+  overview         text             [note: 'detailCommon2.overview']
+  homepage         text             [note: '적재 시 URL만 파싱해서 저장']
+  lcls_systm1      varchar(10)      [note: '신분류체계 1 (category 매핑 참고용)']
+  lcls_systm2      varchar(10)
+  lcls_systm3      varchar(10)
+  event_start_date date             [note: '행사축제(15)만. searchFestival2 수집']
+  event_end_date   date
+  visit_log_count  int              [not null, default: 0, note: '서비스 로직에서 관리']
+  synced_at        timestamp
+}
+
+Table place_image {
+  id         bigint [pk, increment]
+  place_id   bigint [not null, ref: > place.id]
+  img_url    text   [not null, note: 'originimgurl (== smallimageurl)']
+  sort_order int    [not null, default: 0, note: '0 이상']
+
+  indexes {
+    (place_id, img_url) [unique]
+  }
+}
+
+Table place_emotion_tag {
+  id       bigint      [pk, increment]
+  place_id bigint      [not null, ref: > place.id]
+  tag      varchar(50) [not null]
+  count    int         [not null, default: 1, note: '1 이상, 상위 태그 선정에 사용']
+
+  indexes {
+    (place_id, tag) [unique]
+  }
+}
+
+Table user {
+  id                bigint       [pk, increment]
+  user_id           varchar(50)  [not null, unique, note: '서비스 사용자 ID']
+  nickname          varchar(50)  [not null]
+  email             varchar(200)
+  oauth_provider    varchar(20)  [not null, note: "CHECK: 'kakao' | 'google'"]
+  oauth_id          varchar(100) [not null]
+  profile_image_url text
+  created_at        timestamp    [not null, default: `now()`]
+  updated_at        timestamp    [not null, default: `now()`, note: 'UPDATE 시 자동 갱신']
+
+  indexes {
+    (oauth_provider, oauth_id) [unique]
+  }
+}
+
+Table user_preference {
+  id         bigint      [pk, increment]
+  user_id    bigint      [not null, ref: > user.id]
+  tag        varchar(50) [not null]
+  score      float       [not null, note: '스와이프 누적 점수, 상위 2-3개 태그를 대표 취향으로 사용']
+  updated_at timestamp   [not null, default: `now()`, note: 'UPDATE 시 자동 갱신']
+
+  indexes {
+    (user_id, tag) [unique]
+  }
+}
+
+Table place_like {
+  id         bigint    [pk, increment]
+  user_id    bigint    [not null, ref: > user.id]
+  place_id   bigint    [not null, ref: > place.id]
+  created_at timestamp [not null, default: `now()`]
+
+  indexes {
+    (user_id, place_id) [unique]
+  }
+}
+
+Table visit_log {
+  id         bigint       [pk, increment]
+  user_id    bigint       [not null, ref: > user.id]
+  place_id   bigint       [not null, ref: > place.id]
+  photo_url  text
+  one_line   varchar(100)
+  visited_at timestamp    [not null, default: `now()`]
+}
+
+Table log_emotion_tag {
+  id           bigint      [pk, increment]
+  visit_log_id bigint      [not null, ref: > visit_log.id]
+  tag          varchar(50) [not null]
+
+  indexes {
+    (visit_log_id, tag) [unique]
+  }
+}
+
+Table course {
+  id          bigint       [pk, increment]
+  user_id     bigint       [not null, ref: > user.id]
+  title       varchar(200) [not null]
+  source      varchar(20)  [not null, note: "CHECK: 'ai' | 'ai_edited' | 'user'"]
+  travel_date date
+  created_at  timestamp    [not null, default: `now()`]
+  updated_at  timestamp    [not null, default: `now()`, note: 'UPDATE 시 자동 갱신']
+}
+
+Table course_place {
+  id           bigint [pk, increment]
+  course_id    bigint [not null, ref: > course.id]
+  place_id     bigint [not null, ref: > place.id]
+  visit_order  int    [not null, note: '1 이상']
+  planned_time time
+
+  indexes {
+    (course_id, visit_order) [unique]
+    (place_id)
+  }
+}
