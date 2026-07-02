@@ -16,14 +16,25 @@ DONG-GLE/
 
 ---
 
+## 문서 읽는 순서
+
+1. `docs/ssot.md` — 지금 확정된 기준
+2. `docs/milestone.md` — 아직 결정해야 할 일과 일정
+3. `docs/decision-log.md` — 왜 그렇게 결정했는지 기록
+4. `CONTRIBUTING.md` — GitHub 협업 방식
+
+---
+
 ## 팀 구성 및 담당
 
-| 이름 | 역할 | 담당 브랜치 |
-|------|------|------------|
-| 설만수 | 풀스택 (백엔드 + 프론트) | `server`, `client` |
-| - | 데이터 | `data` |
-| - | AI | `ai` |
-| - | 디자인 | - (Figma) |
+| 이름 | 역할 | 기본 파트 브랜치 | 실제 작업 브랜치 예시 |
+|------|------|------------------|------------------------|
+| 설만수 | 풀스택 (백엔드 + 프론트) | `server`, `client` | `feat/place-detail-api`, `fix/login-error` |
+| 이수연 | 데이터 | `data` | `data/tourapi-sync`, `feat/homepage-parser` |
+| 김지광 | AI | `ai` | `feat/emotion-tagging`, `fix/prompt-tuning` |
+| 전성빈 | 디자인 | `-` | Figma 작업 |
+
+> `server`, `client`, `data`, `ai`는 장기 파트 브랜치입니다. 실제 개발은 짧은 작업 브랜치를 만들어 진행한 뒤 PR로 머지합니다.
 
 ---
 
@@ -38,79 +49,17 @@ dev       ← 통합 브랜치. 각 파트 작업 완성 후 머지.
   ai      ← AI 분석 파이프라인 작업
 ```
 
-### 작업 흐름
-
-```bash
-# 1. 자기 브랜치로 이동 후 최신화
-git checkout server   # 본인 브랜치로
-git pull origin server
-
-# 2. 작업 후 커밋
-git add .
-git commit -m "feat(place): 장소 상세 API 구현"
-git push origin server
-
-# 3. 기능 완성되면 → dev로 PR 오픈
-# 4. dev 안정 확인 후 → main으로 PR 오픈
-```
+- `main`은 최종 제출본입니다.
+- `dev`는 여러 파트를 합쳐서 확인하는 통합본입니다.
+- `server`, `client`, `data`, `ai`는 파트별 작업 기준 브랜치입니다.
+- 실제 코드를 수정할 때는 `feat/...`, `fix/...` 같은 짧은 작업 브랜치를 새로 만들어 사용합니다.
 
 ---
 
 ## 커밋 컨벤션
 
-```
-타입(스코프): 메시지
-```
-
-### 타입
-
-| 타입 | 설명 |
-|------|------|
-| `feat` | 새 기능 |
-| `fix` | 버그 수정 |
-| `refactor` | 코드 개선 (기능 변화 없음) |
-| `chore` | 빌드·패키지·환경설정 |
-| `docs` | 문서 작성·수정 |
-| `test` | 테스트 추가·수정 |
-| `data` | 데이터 적재·파이프라인 |
-
-### 예시
-
-```
-feat(place): 지도 뷰포트 기반 장소 핀 조회 API 추가
-fix(auth): refresh token 만료 시 401 미반환 버그 수정
-data(sync): 관광공사 OpenAPI 안동 지역 장소 최초 적재
-docs(api): OpenAPI YAML v1.2.0 업데이트
-chore(infra): Supabase 환경변수 설정 및 .env.example 추가
-```
-
----
-
-## PR 규칙
-
-### PR 제목 형식
-```
-[feat] 스와이프 일정짜기 기능 구현
-[fix] JWT refresh token 만료 처리
-```
-
-### PR 설명 템플릿
-```
-## 무엇을 했나요?
-
-## 왜 했나요?
-
-## 테스트
-- [ ] 로컬에서 확인
-- [ ] 엣지케이스 확인
-
-## 관련
-- Closes #이슈번호
-```
-
-### 머지 조건
-- `dev → main`: 리뷰어 1명 이상 승인 필수
-- `각 브랜치 → dev`: 코드리뷰 권장
+- 형식: `타입: 메시지`
+- 상세 타입과 PR/브랜치 규칙은 `CONTRIBUTING.md` 참고
 
 ---
 
@@ -126,29 +75,30 @@ chore(infra): Supabase 환경변수 설정 및 .env.example 추가
 ## 기술 스택
 
 ### 백엔드 (`server-back/`)
-- TBD
+- Kotlin
+- Spring Boot
 
 ### 프론트엔드 (`client-front/`)
-- TBD
+- 추후 확정 (`docs/ssot.md` 기준으로 업데이트)
 
 ### 데이터 (`data/`)
 - Python
 - 한국관광공사 OpenAPI
 
 ### AI (`ai/`)
-- VLM (Vision Language Model) — TBD
+- VLM (Vision Language Model) — 모델 추후 확정
 - 감성 태그 자동 분석
 
 ### 인프라
-- DB: Supabase (PostgreSQL)
-- Storage: Supabase Storage
+- DB: PostgreSQL (호스팅 환경 미확정)
 - 지도: TMAP API
 
 ---
 
 ## API 명세
 
-`docs/galrae_openapi.yaml` 참고
+- API 명세 파일: `docs/galrae_openapi.yaml`
+- 현재는 저장소에 아직 반영 전이며, 문서 경로는 선점해서 유지
 
 Swagger UI로 확인하는 방법:
 1. [editor.swagger.io](https://editor.swagger.io) 접속
@@ -156,8 +106,26 @@ Swagger UI로 확인하는 방법:
 
 ---
 
+## 협업 가이드
+
+브랜치 전략, 커밋 규칙, PR 규칙, 리뷰 방식 → [CONTRIBUTING.md](./CONTRIBUTING.md)
+
+---
+
 ## 관련 문서
 
+- [SSOT](./docs/ssot.md)
+- [마일스톤](./docs/milestone.md)
+- [Decision Log](./docs/decision-log.md)
 - [API 명세 (OpenAPI YAML)](./docs/galrae_openapi.yaml)
 - [유저플로우](./docs/galrae_userflow.html)
+- [협업 가이드](./CONTRIBUTING.md)
 - Figma 디자인: (링크 추가 예정)
+
+---
+
+## 현재 문서 상태
+
+- 프로젝트 운영 문서는 준비됨
+- API 명세서와 유저플로우는 실제 사용 중이며, 저장소 반영만 남아 있음
+- 새 문서를 만들면 `README.md`와 함께 링크를 갱신
