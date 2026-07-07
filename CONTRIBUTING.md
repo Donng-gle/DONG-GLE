@@ -104,7 +104,7 @@ git push origin feat/place-detail-api
 ### 머지 흐름 예시
 
 - 백엔드 API 작업: `feat/place-detail-api → server → dev → main`
-- 데이터 적재 작업: `data/tourapi-sync → data → dev → main`
+- 데이터 적재 작업: `feat/tourapi-sync → data → dev → main`
 
 ### 운영 원칙
 
