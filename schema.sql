@@ -24,6 +24,7 @@ CREATE TABLE place (
     event_start_date DATE,                                 -- 행사축제(15)만. searchFestival2로 수집
     event_end_date   DATE,
     visit_log_count  INT              NOT NULL DEFAULT 0,  -- 서비스 로직에서 관리, 수집 시 건드리지 않음
+    hidden_score     FLOAT,                                -- 숨은명소 점수, 데이터 파트가 산출하여 적재
     synced_at        TIMESTAMP
 );
 
@@ -65,6 +66,7 @@ CREATE TABLE "user" (
     oauth_provider    VARCHAR(20)  NOT NULL CHECK (oauth_provider IN ('kakao', 'google')),
     oauth_id          VARCHAR(100) NOT NULL,
     profile_image_url TEXT,
+    has_onboarded     BOOLEAN      NOT NULL DEFAULT FALSE,  -- 앱 재시작 시 온보딩 완료 여부 판단
     created_at        TIMESTAMP    NOT NULL DEFAULT NOW(),
     updated_at        TIMESTAMP    NOT NULL DEFAULT NOW(),
     UNIQUE (oauth_provider, oauth_id)
@@ -104,6 +106,7 @@ CREATE TABLE visit_log (
     place_id   BIGINT       NOT NULL REFERENCES place (id) ON DELETE CASCADE,
     photo_url  TEXT,
     one_line   VARCHAR(100),
+    is_public  BOOLEAN      NOT NULL DEFAULT TRUE,  -- 유사 사용자 탐색(GET /explore/similar-logs)에서 공개 기록만 노출
     visited_at TIMESTAMP    NOT NULL DEFAULT NOW()
 );
 
@@ -150,6 +153,28 @@ CREATE TABLE course_place (
 
 CREATE INDEX idx_course_place_course ON course_place (course_id);
 CREATE INDEX idx_course_place_place ON course_place (place_id);
+
+
+-- 온보딩 카드 (AI 파트가 사전 분석하여 적재. 온보딩 런타임에 AI 호출 없음)
+-- place_id: nullable — 특정 장소에 종속되지 않는 분위기 카드 허용
+-- 태그별 최소 4장, is_seed=true 카드 7장(태그별 대표 1장씩) 필수
+CREATE TABLE onboarding_card (
+    id          BIGSERIAL PRIMARY KEY,
+    place_id    BIGINT    REFERENCES place (id) ON DELETE SET NULL,
+    image_url   TEXT      NOT NULL,
+    is_seed     BOOLEAN   NOT NULL DEFAULT FALSE,
+    relaxing    FLOAT     NOT NULL DEFAULT 0,
+    lively      FLOAT     NOT NULL DEFAULT 0,
+    romantic    FLOAT     NOT NULL DEFAULT 0,
+    local       FLOAT     NOT NULL DEFAULT 0,
+    photogenic  FLOAT     NOT NULL DEFAULT 0,
+    traditional FLOAT     NOT NULL DEFAULT 0,
+    modern      FLOAT     NOT NULL DEFAULT 0,
+    created_at  TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_onboarding_card_seed  ON onboarding_card (is_seed);
+CREATE INDEX idx_onboarding_card_place ON onboarding_card (place_id);
 
 
 -- 공통 updated_at 자동 갱신
