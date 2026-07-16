@@ -109,7 +109,8 @@
 
 `관광지` / `식당` / `카페` / `액티비티` / `문화공간` / `축제행사`
 
-> 문화공간: 박물관, 미술관 등 포함. schema.sql ENUM 전환 필요.
+> 문화공간: 박물관, 미술관 등 포함. schema.sql에 `place_category` ENUM으로 반영 완료.
+> 쇼핑(TourAPI contentTypeId=38) 27건은 이 6종 중 해당 카테고리 없음 — 매핑 결정 전까지 적재 제외 (`docs/milestone.md` M0 참고)
 
 ---
 
