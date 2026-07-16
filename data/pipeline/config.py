@@ -29,3 +29,17 @@ def get_tourapi_config() -> TourApiConfig:
         mobile_os=os.getenv("TOURAPI_MOBILE_OS", "ETC").strip() or "ETC",
         mobile_app=os.getenv("TOURAPI_MOBILE_APP", "DONG-GLE").strip() or "DONG-GLE",
     )
+
+
+@dataclass(frozen=True)
+class KakaoConfig:
+    rest_api_key: str
+    base_url: str = "https://dapi.kakao.com/v2/local"
+
+
+def get_kakao_config() -> KakaoConfig:
+    rest_api_key = os.getenv("KAKAO_REST_API_KEY", "").strip()
+    if not rest_api_key:
+        raise ValueError("KAKAO_REST_API_KEY is required")
+
+    return KakaoConfig(rest_api_key=rest_api_key)
