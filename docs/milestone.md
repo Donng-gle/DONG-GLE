@@ -40,7 +40,7 @@
 | PLACE_IMAGE 적재 | 🟡 스크립트 완료 (firstimage 없는 21건 중 실제 추가 이미지 있는 1건만 적재, 나머지 20건은 TourAPI 원본에 이미지 없음 확인) |
 | 행사축제 날짜 적재 (event_start/end_date) | ✅ 완료 (2026-07-17, 8/8건) — `searchFestival2`가 지역코드 체계 불일치로 0건만 반환하던 버그 발견, `detailIntro2` 방식으로 수정 |
 | homepage URL 파싱 적재 | ✅ 완료 (2026-07-17) |
-| 음식점 tel 카카오 로컬 API 보완 (`fetch_kakao_tel.py`) | 🟡 스크립트 작성 완료, `KAKAO_REST_API_KEY` 발급 후 실행 필요 |
+| 음식점 tel 카카오 로컬 API 보완 (`fetch_kakao_tel.py`) | ✅ 완료 (2026-07-17, 28/33건 매칭). 이름 불일치 검증 추가해 오탐 제거 (거리만으로 매칭 시 다른 업체와 혼동되는 사례 발견해 수정) |
 
 **백엔드**
 
