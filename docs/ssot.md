@@ -3,7 +3,7 @@
 > 팀 전체의 확정 사항만 기록.
 > 미확정 항목의 존재 여부만 적고, 상세 진행은 `milestone.md`에서 관리.
 > 변경 시 반드시 팀 의논 후 수정. 수정 후 팀 공유.
-> 최근 수정: 2026-07-02
+> 최근 수정: 2026-07-17
 
 ---
 
@@ -37,8 +37,9 @@
 
 - 프론트엔드 프레임워크
 - AI 모델 구체 선택
-- 음식점 보완 방식
 - 코스 추천 알고리즘 방향
+- 지도/경로 API (TMAP vs 카카오)
+- 쇼핑(TourAPI contentTypeId=38) 27건 category 매핑
 
 ---
 
@@ -70,7 +71,14 @@
 | `areaBasedList2` | 장소 목록 수집 |
 | `detailCommon2` | overview, homepage 추가 수집 |
 | `detailImage2` | 추가 이미지 수집 (firstimage 없는 장소) |
-| `searchFestival2` | 행사축제 날짜 수집 |
+| `detailIntro2` | 행사축제 날짜 수집 (searchFestival2는 지역코드 체계 불일치로 미사용) |
+
+### 음식점 데이터 보완 (확정)
+
+- TourAPI 음식점(39) 33건은 그대로 유지 (장소 자체 확장 안 함)
+- tel 필드만 카카오 로컬 API(키워드 장소검색)로 보완 — 이름+좌표 기반, 이름 불일치 시 매칭 제외
+- API 키 위치: `.env` → `KAKAO_REST_API_KEY`
+- 지도/경로 기능에 쓸 API(TMAP vs 카카오)와는 별개 결정. 그건 아직 미정
 
 ## DB 스키마 (확정된 기준만)
 
