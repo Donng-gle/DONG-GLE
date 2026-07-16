@@ -257,6 +257,16 @@
           <td class="note">설만수 담당, 확정되면 <code>load_places.py</code> 바로 실행 가능</td>
         </tr>
         <tr>
+          <td>음식점 보완 방식 결정</td>
+          <td class="status"><span class="badge done">완료</span></td>
+          <td class="note">장소 확장 없이 카카오 로컬 API로 tel만 보완하기로 결정 (사진 미제공이라 장소 확장은 보류)</td>
+        </tr>
+        <tr>
+          <td>음식점 tel 카카오 로컬 API 보완 스크립트</td>
+          <td class="status"><span class="badge progress">진행중</span></td>
+          <td class="note"><code>fetch_kakao_tel.py</code> 작성 완료, <code>KAKAO_REST_API_KEY</code> 발급 후 실행 필요</td>
+        </tr>
+        <tr>
           <td>감성태그 분석 파이프라인 & PLACE_EMOTION_TAG 적재</td>
           <td class="status"><span class="badge todo">M2 예정</span></td>
           <td class="note">-</td>
@@ -271,6 +281,19 @@
   <!-- ============================================= -->
   <section>
     <h2><span class="emoji">🗓️</span>진행 기록 (최신순)</h2>
+
+    <div class="entry">
+      <div class="date">2026-07-17 (2)</div>
+      <h3>음식점 보완 방식 결정 + 카카오 tel 보완 스크립트 <span class="tag">data</span></h3>
+      <ul>
+        <li>PR #2(<code>feat/place-load-and-verify → data</code>) 머지 완료, 이슈 #1 자동 클로즈</li>
+        <li>TourAPI 음식점(39) 33건 tel 전수 확인 → <b>100% 누락</b> 발견 (totalCount로 안동시 전체 결과인 것도 재확인, 수집 버그 아님)</li>
+        <li>카카오 로컬 API로 장소 자체를 확장할지 검토 → 사진을 제공하지 않아 감성태그/온보딩 카드에 못 쓴다는 한계로 <b>범위 확장은 보류, tel 보완만 채택</b> (decision-log 기록)</li>
+        <li><code>fetch_kakao_tel.py</code> 신규 작성 — 이름+좌표 기반 키워드 검색(반경 300m, 최근접 매칭)으로 tel 수집</li>
+        <li><code>load_places.py</code>가 TourAPI tel 없으면 카카오 결과로 폴백하도록 반영</li>
+        <li><code>KAKAO_REST_API_KEY</code> 발급 대기 중이라 아직 실행은 못 함 (스크립트만 준비 완료)</li>
+      </ul>
+    </div>
 
     <div class="entry">
       <div class="date">2026-07-17</div>
@@ -332,6 +355,8 @@
       <tbody>
         <tr><td>쇼핑(38) category 매핑 팀 논의</td><td class="note">결정되면 <code>load_places.py</code>의 <code>CONTENT_TYPE_CATEGORY</code> 한 줄 추가</td></tr>
         <tr><td>DB 접속 환경 확정 후 운영 DB에 <code>load_places.py</code> 실행</td><td class="note">설만수 담당 항목 대기</td></tr>
+        <tr><td>카카오 REST API 키 발급 후 <code>fetch_kakao_tel.py</code> 실행</td><td class="note">음식점 tel 채워서 재적재</td></tr>
+        <tr><td>지도/경로 API 결정 (TMAP vs 카카오)</td><td class="note">다음 조사 대상</td></tr>
         <tr><td>감성태그 분석 파이프라인 설계 (M2)</td><td class="note">PLACE_EMOTION_TAG 적재</td></tr>
       </tbody>
     </table>

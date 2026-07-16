@@ -3,7 +3,7 @@ import re
 from datetime import datetime
 
 from pipeline.db import get_connection
-from pipeline.paths import TOURAPI_ROOT
+from pipeline.paths import RAW_ROOT, TOURAPI_ROOT
 
 
 # 쇼핑(38)은 PLACE.category enum(관광지/식당/카페/액티비티/문화공간/축제행사)에
@@ -46,7 +46,7 @@ def parse_homepage(html: str | None) -> str | None:
     return match.group(1) if match else None
 
 
-def load_raw() -> tuple[list[dict], dict, dict, dict]:
+def load_raw() -> tuple[list[dict], dict, dict, dict, dict]:
     places_payload = json.loads((TOURAPI_ROOT / "places.json").read_text())
     all_items = [
         (content_type_id, item)
@@ -63,10 +63,20 @@ def load_raw() -> tuple[list[dict], dict, dict, dict]:
         for entry in json.loads(festivals_path.read_text())["items"]:
             festival_dates[entry["contentid"]] = entry
 
-    return all_items, common, images, festival_dates
+    # TourAPI 음식점(39)은 tel이 거의 항상 비어 있어 카카오 로컬 API로 보완
+    # (fetch_kakao_tel.py). 파일 없으면(카카오 키 미설정 등) 그냥 건너뜀.
+    kakao_tel: dict[str, str] = {}
+    kakao_tel_path = RAW_ROOT / "kakao" / "restaurant_tel.json"
+    if kakao_tel_path.exists():
+        for content_id, entry in json.loads(kakao_tel_path.read_text())["items"].items():
+            kakao_tel[content_id] = entry["phone"]
+
+    return all_items, common, images, festival_dates, kakao_tel
 
 
-def build_place_row(content_type_id: str, item: dict, common: dict, festival_dates: dict) -> dict | None:
+def build_place_row(
+    content_type_id: str, item: dict, common: dict, festival_dates: dict, kakao_tel: dict
+) -> dict | None:
     category = resolve_category(content_type_id, item)
     if category is None:
         return None
@@ -84,7 +94,7 @@ def build_place_row(content_type_id: str, item: dict, common: dict, festival_dat
         "addr2": item.get("addr2") or None,
         "lat": parse_float(item.get("mapy")),
         "lng": parse_float(item.get("mapx")),
-        "tel": item.get("tel") or None,
+        "tel": item.get("tel") or kakao_tel.get(content_id) or None,
         "main_image_url": item.get("firstimage") or None,
         "overview": detail.get("overview") or None,
         "homepage": parse_homepage(detail.get("homepage")),
@@ -135,7 +145,7 @@ ON CONFLICT (place_id, img_url) DO NOTHING;
 
 
 def main() -> None:
-    all_items, common, images, festival_dates = load_raw()
+    all_items, common, images, festival_dates, kakao_tel = load_raw()
 
     skipped_types: dict[str, int] = {}
     place_rows = []
@@ -143,7 +153,7 @@ def main() -> None:
         if content_type_id in SKIPPED_CONTENT_TYPES:
             skipped_types[content_type_id] = skipped_types.get(content_type_id, 0) + 1
             continue
-        row = build_place_row(content_type_id, item, common, festival_dates)
+        row = build_place_row(content_type_id, item, common, festival_dates, kakao_tel)
         if row is None:
             skipped_types[content_type_id] = skipped_types.get(content_type_id, 0) + 1
             continue
