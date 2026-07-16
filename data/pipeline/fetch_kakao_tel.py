@@ -1,4 +1,5 @@
 import json
+import re
 from datetime import datetime
 
 import requests
@@ -12,6 +13,20 @@ KAKAO_ROOT.mkdir(parents=True, exist_ok=True)
 
 SEARCH_RADIUS_M = 300
 CONTENT_TYPE_ID = "39"  # 음식점(식당/카페)만 대상
+
+NAME_CHARS_PATTERN = re.compile(r"[^0-9a-zA-Z가-힣]")
+
+
+def normalize_name(name: str) -> str:
+    return NAME_CHARS_PATTERN.sub("", name or "").lower()
+
+
+def is_same_place(title: str, place_name: str) -> bool:
+    # 좌표가 가까워도 다른 업체(옆 건물, 폐업 후 다른 업체 입점 등)일 수 있어
+    # 거리만으로 신뢰하지 않고 이름 포함 관계로 한 번 더 검증한다.
+    normalized_title = normalize_name(title)
+    normalized_place = normalize_name(place_name)
+    return normalized_title in normalized_place or normalized_place in normalized_title
 
 
 def search_keyword(query: str, x: str, y: str) -> list[dict]:
@@ -28,13 +43,11 @@ def search_keyword(query: str, x: str, y: str) -> list[dict]:
 
 def find_phone(title: str, mapx: str, mapy: str) -> dict | None:
     documents = search_keyword(title, mapx, mapy)
-    if not documents:
+    candidates = [d for d in documents if d.get("phone") and is_same_place(title, d.get("place_name", ""))]
+    if not candidates:
         return None
 
-    closest = min(documents, key=lambda d: int(d.get("distance") or 10**9))
-    if not closest.get("phone"):
-        return None
-
+    closest = min(candidates, key=lambda d: int(d.get("distance") or 10**9))
     return {
         "phone": closest["phone"],
         "matched_name": closest.get("place_name"),
