@@ -1,0 +1,23 @@
+spring:
+  application:
+    name: dongle-server
+
+  datasource:
+    url: jdbc:postgresql://localhost:5433/dongle?stringtype=unspecified
+    username: seolmansu
+    password:
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: none # schema.sql(레포 루트)이 기준. 스키마 변경은 데이터/백엔드 파트 사전 협의 후 schema.sql에 반영
+    properties:
+      hibernate:
+        format_sql: true
+
+  jackson:
+    property-naming-strategy: SNAKE_CASE
+
+logging:
+  level:
+    org.hibernate.SQL: debug
