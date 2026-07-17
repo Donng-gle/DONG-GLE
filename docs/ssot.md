@@ -30,16 +30,15 @@
 |---|---|
 | DB | PostgreSQL |
 | 백엔드 | Kotlin + Spring Boot |
+| 프론트엔드 | React |
 | 탈퇴 처리 | Hard delete + CASCADE (MVP), 추후 soft delete 전환 |
 | 데이터↔백엔드 적재 방식 | 데이터 파트가 DB에 직접 적재 |
 
 ## 현재 미확정 큰 항목
 
-- 프론트엔드 프레임워크
 - AI 모델 구체 선택
-- 코스 추천 알고리즘 방향
-- 지도/경로 API (TMAP vs 카카오)
-- 쇼핑(TourAPI contentTypeId=38) 27건 category 매핑
+- 코스 추천 알고리즘 방향 (김지광 확정 예정)
+- 지도/경로 API (TMAP vs 구글맵, 김지광 확정 예정)
 
 ---
 
@@ -110,7 +109,7 @@
 `관광지` / `식당` / `카페` / `액티비티` / `문화공간` / `축제행사`
 
 > 문화공간: 박물관, 미술관 등 포함. schema.sql에 `place_category` ENUM으로 반영 완료.
-> 쇼핑(TourAPI contentTypeId=38) 27건은 이 6종 중 해당 카테고리 없음 — 매핑 결정 전까지 적재 제외 (`docs/milestone.md` M0 참고)
+> 쇼핑(TourAPI contentTypeId=38) 27건 매핑 확정 (2026-07-17): 브랜드 프랜차이즈 매장 19건은 적재 제외, 전통시장·특산물직판장·소품샵 8건은 `문화공간`으로 편입. 구현(`load_places.py` 반영)은 아직 안 됨 — decision-log 참고
 
 ---
 
