@@ -32,6 +32,7 @@
 | 백엔드 | Kotlin + Spring Boot |
 | 탈퇴 처리 | Hard delete + CASCADE (MVP), 추후 soft delete 전환 |
 | 데이터↔백엔드 적재 방식 | 데이터 파트가 DB에 직접 적재 |
+| 로컬 개발 DB | PostgreSQL 로컬 설치, `dongle` 데이터베이스, 포트 5433 (배포용 클라우드 DB는 미확정) |
 
 ## 현재 미확정 큰 항목
 
