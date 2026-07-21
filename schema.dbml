@@ -73,6 +73,16 @@ Table user {
   }
 }
 
+Table refresh_token {
+  id         bigint       [pk, increment]
+  user_id    bigint       [not null, ref: > user.id]
+  token      varchar(500) [not null, unique]
+  expires_at timestamp    [not null]
+  created_at timestamp    [not null, default: `now()`]
+
+  Note: '로그아웃 시 무효화 처리용 서버 측 화이트리스트'
+}
+
 Table user_preference {
   id         bigint      [pk, increment]
   user_id    bigint      [not null, ref: > user.id]

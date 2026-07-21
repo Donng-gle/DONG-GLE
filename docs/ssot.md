@@ -33,10 +33,10 @@
 | 탈퇴 처리 | Hard delete + CASCADE (MVP), 추후 soft delete 전환 |
 | 데이터↔백엔드 적재 방식 | 데이터 파트가 DB에 직접 적재 |
 | 로컬 개발 DB | PostgreSQL 로컬 설치, `dongle` 데이터베이스, 포트 5433 (배포용 클라우드 DB는 미확정) |
+| 프론트엔드 | React Native (Expo) |
 
 ## 현재 미확정 큰 항목
 
-- 프론트엔드 프레임워크
 - AI 모델 구체 선택
 - 음식점 보완 방식
 - 코스 추천 알고리즘 방향

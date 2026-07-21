@@ -79,7 +79,7 @@ dev       ← 통합 브랜치. 각 파트 작업 완성 후 머지.
 - Spring Boot
 
 ### 프론트엔드 (`client-front/`)
-- 추후 확정 (`docs/ssot.md` 기준으로 업데이트)
+- React Native (Expo)
 
 ### 데이터 (`data/`)
 - Python

@@ -73,6 +73,18 @@ CREATE TABLE "user" (
 );
 
 
+-- 리프레시 토큰 (로그아웃 시 무효화 처리용 서버 측 화이트리스트)
+CREATE TABLE refresh_token (
+    id         BIGSERIAL    PRIMARY KEY,
+    user_id    BIGINT       NOT NULL REFERENCES "user" (id) ON DELETE CASCADE,
+    token      VARCHAR(500) NOT NULL UNIQUE,
+    expires_at TIMESTAMP    NOT NULL,
+    created_at TIMESTAMP    NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_refresh_token_user ON refresh_token (user_id);
+
+
 -- 사용자 취향 (온보딩 스와이프 결과)
 CREATE TABLE user_preference (
     id         BIGSERIAL   PRIMARY KEY,
