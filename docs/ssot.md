@@ -30,7 +30,7 @@
 |---|---|
 | DB | PostgreSQL |
 | 백엔드 | Kotlin + Spring Boot |
-| 프론트엔드 | React |
+| 프론트엔드 | React Native (Expo) — 모바일 앱 |
 | 탈퇴 처리 | Hard delete + CASCADE (MVP), 추후 soft delete 전환 |
 | 데이터↔백엔드 적재 방식 | 데이터 파트가 DB에 직접 적재 |
 
