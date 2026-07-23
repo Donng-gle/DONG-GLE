@@ -97,6 +97,7 @@
 - [x] 지도/경로 API 확정 — 구글맵
 - [ ] 코스 추천 알고리즘 방향 확정
 - [ ] 감성태그 판단 기준/프롬프트 설계
+- [ ] **`ai/` 폴더에 `analyze_image(image_url) -> dict[tag, score]` 구현** (2026-07-23 결정: AI 코드는 `data/` 안이 아니라 별도 `ai/` 폴더로 분리, decision-log 참고). `data/pipeline/analyze_place_emotion.py`의 `stub_analyzer`를 이 함수로 교체하면 파이프라인 연결 완료
 
 **백엔드 (설만수)**
 - [x] 공용 클라우드 DB 세팅 (2026-07-23, Supabase)

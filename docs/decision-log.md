@@ -198,6 +198,14 @@
 
 ---
 
+## 2026-07-23 | 감성태그 분석 AI 코드 위치: 별도 `ai/` 폴더
+
+- **결정**: 감성태그 분석 AI 모델/프롬프트 구현(`analyze_image(image_url) -> dict[tag, score]`)은 `data/pipeline/` 안에 두지 않고 별도 `ai/` 폴더에 구현한다. `data/pipeline/analyze_place_emotion.py`는 이 함수를 import해서 쓰는 구조로 간다
+- **이유**: (1) `server-back`↔`server`, `client-front`↔`client`처럼 파트별 폴더 구조 관례에 맞춤 (`ai` 브랜치가 이미 존재). (2) AI 모델 SDK 의존성을 데이터 파트 `requirements.txt`와 분리. (3) 방문 로그 실시간 감성태그 분석(`log_emotion_tag`) 등 다른 곳에서도 재사용 가능하도록 독립시킴. (4) 김지광의 잦은 프롬프트 수정이 `data` 브랜치와 충돌하지 않도록 경계 분리
+- **영향**: 김지광이 `ai/` 폴더에 `analyze_image` 구현. `analyze_place_emotion.py`의 `stub_analyzer`를 실제 import로 교체만 하면 됨 (인터페이스는 이미 확정돼 있어 전환 비용 적음)
+
+---
+
 <!-- 결정되면 아래 양식으로 추가 -->
 <!--
 ## YYYY-MM-DD | 제목
