@@ -125,10 +125,10 @@
 **데이터 (이수연)** — 1번은 김지광 AI 모델 전제
 1. [ ] `analyze_place_emotion.py`를 실제 AI로 연결, Supabase에 `PLACE_EMOTION_TAG` 적재
 2. [ ] `onboarding_card` 시드 데이터 스크립트 신규 작성 — PLACE_IMAGE 후보 조회 → AI 점수 → 태그별 대표 사진 선정 적재. 스키마 제약(태그별 최소 4장, `is_seed=true` 7장) 충족 방법 확인 필요
-3. [ ] 결과 검증 (태그 분포, 온보딩 카드 선정 품질 — 전성빈 협업)
+3. [ ] 결과 검증 (태그 분포, 온보딩 카드 선정 품질)
 
 **백엔드 (설만수)**
-- [ ] `api_1.3.1v.yaml` TMAP→구글맵 스펙 수정
+- [x] `api_1.3.1v.yaml` TMAP→구글맵 스펙 수정 (2026-07-23)
 - [ ] 카카오/구글 OAuth 앱 자격증명 발급 + 로그인 E2E 검증
 - [ ] presigned URL 업로드 API (S3)
 - [ ] 온보딩 API 구현 (`/onboarding/*`) — `onboarding_card` 데이터는 데이터 파트 담당(위 2번)
