@@ -4,6 +4,7 @@ import com.dongle.server.auth.jwt.JwtAuthenticationFilter
 import com.dongle.server.auth.jwt.JwtTokenProvider
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.http.HttpMethod
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity
 import org.springframework.security.config.http.SessionCreationPolicy
@@ -16,14 +17,17 @@ class SecurityConfig(
     private val jwtTokenProvider: JwtTokenProvider,
     private val restAuthenticationEntryPoint: RestAuthenticationEntryPoint,
 ) {
-    // GET /places, /places/** 는 비인증 조회 허용 (PlaceController security: [] 참고)
     private val permitAllPaths = arrayOf(
         "/auth/oauth/kakao",
         "/auth/oauth/google",
         "/auth/refresh",
+        "/error",
+    )
+
+    // 장소 조회(GET)는 비인증 허용 (PlaceController security: [] 참고). POST/DELETE(좋아요 등)는 인증 필요
+    private val permitAllGetPaths = arrayOf(
         "/places",
         "/places/**",
-        "/error",
     )
 
     @Bean
@@ -33,6 +37,7 @@ class SecurityConfig(
             .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
             .authorizeHttpRequests {
                 it.requestMatchers(*permitAllPaths).permitAll()
+                it.requestMatchers(HttpMethod.GET, *permitAllGetPaths).permitAll()
                 it.anyRequest().authenticated()
             }
             .exceptionHandling { it.authenticationEntryPoint(restAuthenticationEntryPoint) }
