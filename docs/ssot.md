@@ -3,7 +3,7 @@
 > 팀 전체의 확정 사항만 기록.
 > 미확정 항목의 존재 여부만 적고, 상세 진행은 `milestone.md`에서 관리.
 > 변경 시 반드시 팀 의논 후 수정. 수정 후 팀 공유.
-> 최근 수정: 2026-07-17
+> 최근 수정: 2026-07-23
 
 ---
 
@@ -33,7 +33,7 @@
 | 프론트엔드 | React |
 | 탈퇴 처리 | Hard delete + CASCADE (MVP), 추후 soft delete 전환 |
 | 데이터↔백엔드 적재 방식 | 데이터 파트가 DB에 직접 적재 |
-| 로컬 개발 DB | PostgreSQL 로컬 설치, `dongle` 데이터베이스, 포트 5433 (배포용 클라우드 DB는 미확정) |
+| DB 호스팅 | Supabase (공용, `DONG-GLE-DB` 프로젝트, ap-southeast-2). 접속은 pooler(`aws-0-ap-southeast-2.pooler.supabase.com`) 사용, 접속 정보는 팀 채팅 공유 |
 
 ## 현재 미확정 큰 항목
 

@@ -158,6 +158,14 @@
 
 ---
 
+## 2026-07-23 | 공용 클라우드 DB: Supabase
+
+- **결정**: 각자 로컬 PostgreSQL 대신 팀 공용 Supabase(PostgreSQL) 프로젝트(`DONG-GLE-DB`, ap-southeast-2)로 전환. `refresh_token` 테이블 포함 전체 스키마 반영 완료
+- **이유**: 로컬-각자 방식이라 데이터 파트 적재 결과가 팀에 공유되지 않는 문제 해결 (이번 주 스프린트 최우선 항목)
+- **영향**: `server-back`은 `DB_URL`/`DB_USERNAME`/`DB_PASSWORD`를 `.env`로 주입받도록 변경 (커밋 금지, `.env.example` 참고). 접속 정보는 팀 채팅으로 공유. 리전 특성상 direct 연결(`db.<ref>.supabase.co`)이 아닌 pooler 연결(`aws-0-ap-southeast-2.pooler.supabase.com`)을 사용해야 함
+
+---
+
 <!-- 결정되면 아래 양식으로 추가 -->
 <!--
 ## YYYY-MM-DD | 제목
