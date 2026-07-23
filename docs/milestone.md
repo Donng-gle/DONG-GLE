@@ -1,7 +1,7 @@
 # 마일스톤
 
 > 공모전 제출 마감: 2026년 9월 20일
-> 최근 수정: 2026-07-17 · 이수연, 설만수
+> 최근 수정: 2026-07-23 · 설만수
 
 ---
 
@@ -84,7 +84,7 @@
 
 **최우선 (다른 파트 작업을 막고 있음)**
 - 김지광: AI 모델 확정(감성태그 분석용 이미지 인식/멀티모달 모델), 지도/경로 API 확정(TMAP vs 구글맵), 코스 추천 알고리즘 방향 확정
-- 설만수: 공용 클라우드 DB 전환 (Supabase/Neon 등) — 현재 로컬-각자 방식이라 데이터 파트 적재 결과가 팀에 공유 안 됨
+- ~~설만수: 공용 클라우드 DB 전환~~ ✅ 완료 (2026-07-23) — Supabase로 전환, 접속 정보 팀 채팅 공유 예정. 데이터 파트는 이제 공용 DB에 바로 적재 가능
 
 **데이터 (이수연)**
 - [ ] 쇼핑 카테고리 매핑 구현 (`load_places.py` 반영, 중복 데이터 2건 처리)
@@ -98,13 +98,13 @@
 - [ ] 감성태그 판단 기준/프롬프트 설계
 
 **백엔드 (설만수)**
-- [ ] 공용 클라우드 DB 세팅
-- [ ] 소셜 로그인 인증 구현 (`/auth/oauth/kakao`, `/auth/oauth/google`, `/auth/refresh`, `/auth/logout`)
-- [ ] 내 정보 API (`GET/PATCH /users/me`)
+- [x] 공용 클라우드 DB 세팅 (2026-07-23, Supabase)
+- [x] 소셜 로그인 인증 구현 (`/auth/oauth/kakao`, `/auth/oauth/google`, `/auth/refresh`, `/auth/logout`) — 카카오/구글 앱 자격증명 발급 전이라 실 로그인 E2E는 아직 미검증
+- [ ] 내 정보 API (`GET/PATCH /users/me`) — GET만 완료, PATCH 남음
 - [ ] PLACE 나머지 엔드포인트 (`/places/map`, `/places/featured`, `/places/search`, `/places/{placeId}/like`)
 - [ ] 업로드용 presigned URL 발급 (`/uploads/presigned-url`)
 
-**프론트**: 이번 주 보류 (백엔드 먼저 진행)
+**프론트 (설만수)**: React Native(Expo)로 로그인 화면 선작업 시작 (2026-07-23) — 원래 "이번 주 보류"였으나 백엔드 로그인 API와 함께 진행. 프레임워크는 decision-log의 "React" 표기와 달리 React Native로 진행 중이라 팀 확인 필요
 
 **디자인 (전성빈)**
 - [ ] 주요 화면(온보딩 스와이프, 장소 탐색, 코스 추천) 시안 작업 시작
