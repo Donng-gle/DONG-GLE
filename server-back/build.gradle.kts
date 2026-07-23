@@ -27,7 +27,6 @@ dependencies {
 	implementation("org.jetbrains.kotlin:kotlin-reflect")
 	implementation("tools.jackson.module:jackson-module-kotlin")
 	implementation("io.jsonwebtoken:jjwt-api:0.12.6")
-	implementation("me.paulschwarz:spring-dotenv:4.0.0")
 	runtimeOnly("io.jsonwebtoken:jjwt-impl:0.12.6")
 	runtimeOnly("io.jsonwebtoken:jjwt-gson:0.12.6")
 	runtimeOnly("org.postgresql:postgresql")
@@ -51,6 +50,25 @@ allOpen {
 	annotation("jakarta.persistence.Embeddable")
 }
 
+// 로컬 개발용: .env 파일을 읽어서 bootRun/test 프로세스의 환경변수로 주입.
+// 배포 환경에서는 호스팅 플랫폼이 직접 환경변수를 주입하므로 .env 파일이 필요 없음.
+fun loadEnvFile(): Map<String, String> {
+	val envFile = rootProject.file(".env")
+	if (!envFile.exists()) return emptyMap()
+	return envFile.readLines()
+		.filter { it.isNotBlank() && !it.trimStart().startsWith("#") }
+		.mapNotNull { line ->
+			val idx = line.indexOf('=')
+			if (idx < 0) null else line.substring(0, idx).trim() to line.substring(idx + 1).trim()
+		}
+		.toMap()
+}
+
+tasks.named<org.springframework.boot.gradle.tasks.run.BootRun>("bootRun") {
+	environment(loadEnvFile())
+}
+
 tasks.withType<Test> {
 	useJUnitPlatform()
+	environment(loadEnvFile())
 }
