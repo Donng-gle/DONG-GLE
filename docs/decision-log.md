@@ -158,6 +158,22 @@
 
 ---
 
+## 2026-07-23 | 공용 클라우드 DB: Supabase
+
+- **결정**: 각자 로컬 PostgreSQL 대신 팀 공용 Supabase(PostgreSQL) 프로젝트(`DONG-GLE-DB`, ap-southeast-2)로 전환. `refresh_token` 테이블 포함 전체 스키마 반영 완료
+- **이유**: 로컬-각자 방식이라 데이터 파트 적재 결과가 팀에 공유되지 않는 문제 해결 (이번 주 스프린트 최우선 항목)
+- **영향**: `server-back`은 `DB_URL`/`DB_USERNAME`/`DB_PASSWORD`를 `.env`로 주입받도록 변경 (커밋 금지, `.env.example` 참고). 접속 정보는 팀 채팅으로 공유. 리전 특성상 direct 연결(`db.<ref>.supabase.co`)이 아닌 pooler 연결(`aws-0-ap-southeast-2.pooler.supabase.com`)을 사용해야 함
+
+---
+
+## 2026-07-23 | GET /places/featured 개인화 보류
+
+- **결정**: 인증 유저 개인화 추천(`user_preference` 상위 태그 매칭)은 온보딩 기능 구현 전까지 보류. 인증 여부와 무관하게 `visit_log_count` 내림차순 인기순으로 고정, `is_personalized`는 항상 `false` 반환
+- **이유**: 온보딩/`user_preference` 적재 로직이 아직 없어서 개인화 로직을 지금 구현해도 실제로 동작할 데이터가 없음. 빈 로직을 미리 만드는 대신 API 계약(응답 형태)만 맞춰두고 실제 개인화는 온보딩 완료 후 추가
+- **영향**: 온보딩 기능 구현 시 `PlaceService.featured()`에 개인화 분기 추가 필요 (코드에 TODO 표시해둠)
+
+---
+
 <!-- 결정되면 아래 양식으로 추가 -->
 <!--
 ## YYYY-MM-DD | 제목
