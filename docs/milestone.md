@@ -122,10 +122,11 @@
 - [ ] 감성태그 판단 기준/프롬프트 설계
 - [ ] 코스 추천 알고리즘 방향 확정 + 초안 설계
 
-**데이터 (이수연)** — 1번은 김지광 AI 모델 전제
-1. [ ] `analyze_place_emotion.py`를 실제 AI로 연결, Supabase에 `PLACE_EMOTION_TAG` 적재
-2. [ ] `onboarding_card` 시드 데이터 스크립트 신규 작성 — PLACE_IMAGE 후보 조회 → AI 점수 → 태그별 대표 사진 선정 적재. 스키마 제약(태그별 최소 4장, `is_seed=true` 7장) 충족 방법 확인 필요
-3. [ ] 결과 검증 (태그 분포, 온보딩 카드 선정 품질)
+**데이터 (이수연)** — 2~4번은 김지광 AI 모델 전제
+1. [ ] 온보딩 카드용 사진 풀 확장 — 현재 대부분 장소가 사진 1장(firstimage)뿐이라 AI가 고를 후보가 부족함. 전체 장소 대상으로 `detailImage2` 추가 호출해 후보 이미지 확보 (AI 모델과 무관하게 지금 시작 가능)
+2. [ ] `analyze_place_emotion.py`를 실제 AI로 연결, Supabase에 `PLACE_EMOTION_TAG` 적재
+3. [ ] `onboarding_card` 시드 데이터 스크립트 신규 작성 — PLACE_IMAGE 후보 조회 → AI 점수 → 태그별 대표 사진 선정 적재. 스키마 제약(태그별 최소 4장, `is_seed=true` 7장) 충족 방법 확인 필요
+4. [ ] 결과 검증 (태그 분포, 온보딩 카드 선정 품질)
 
 **백엔드 (설만수)**
 - [x] `api_1.3.1v.yaml` TMAP→구글맵 스펙 수정 (2026-07-23)
