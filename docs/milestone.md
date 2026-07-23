@@ -100,9 +100,9 @@
 **백엔드 (설만수)**
 - [x] 공용 클라우드 DB 세팅 (2026-07-23, Supabase)
 - [x] 소셜 로그인 인증 구현 (`/auth/oauth/kakao`, `/auth/oauth/google`, `/auth/refresh`, `/auth/logout`) — 카카오/구글 앱 자격증명 발급 전이라 실 로그인 E2E는 아직 미검증
-- [ ] 내 정보 API (`GET/PATCH /users/me`) — GET만 완료, PATCH 남음
-- [ ] PLACE 나머지 엔드포인트 (`/places/map`, `/places/featured`, `/places/search`, `/places/{placeId}/like`)
-- [ ] 업로드용 presigned URL 발급 (`/uploads/presigned-url`)
+- [x] 내 정보 API (`GET/PATCH /users/me`) (2026-07-23)
+- [x] PLACE 나머지 엔드포인트 (`/places/map`, `/places/featured`, `/places/search`, `/places/{placeId}/like`) (2026-07-23) — `/places/featured`는 온보딩/취향 데이터가 없어 개인화 없이 인기순(`visit_log_count`) 고정, `is_personalized`는 항상 false
+- [ ] 업로드용 presigned URL 발급 (`/uploads/presigned-url`) — S3 사용 예정(API 명세 기준), 자격증명 필요
 
 **프론트 (설만수)**: React Native(Expo)로 로그인 화면 선작업 시작 (2026-07-23) — 원래 "이번 주 보류"였으나 백엔드 로그인 API와 함께 진행. 프레임워크는 decision-log의 "React" 표기와 달리 React Native로 진행 중이라 팀 확인 필요
 
