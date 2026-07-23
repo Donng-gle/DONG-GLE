@@ -24,4 +24,43 @@ interface PlaceRepository : JpaRepository<Place, Long> {
         @Param("travelDate") travelDate: LocalDate,
         pageable: Pageable,
     ): Page<Place>
+
+    @Query(
+        """
+        select p from Place p
+        where p.lat between :swLat and :neLat
+          and p.lng between :swLng and :neLng
+        """
+    )
+    fun findWithinBounds(
+        @Param("swLat") swLat: Double,
+        @Param("swLng") swLng: Double,
+        @Param("neLat") neLat: Double,
+        @Param("neLng") neLng: Double,
+    ): List<Place>
+
+    @Query(
+        """
+        select p from Place p
+        where p.lat between :swLat and :neLat
+          and p.lng between :swLng and :neLng
+          and p.category = :category
+        """
+    )
+    fun findWithinBoundsAndCategory(
+        @Param("swLat") swLat: Double,
+        @Param("swLng") swLng: Double,
+        @Param("neLat") neLat: Double,
+        @Param("neLng") neLng: Double,
+        @Param("category") category: PlaceCategory,
+    ): List<Place>
+
+    @Query(
+        """
+        select p from Place p
+        where lower(p.name) like lower(concat('%', :keyword, '%'))
+           or lower(p.addr1) like lower(concat('%', :keyword, '%'))
+        """
+    )
+    fun search(@Param("keyword") keyword: String, pageable: Pageable): Page<Place>
 }

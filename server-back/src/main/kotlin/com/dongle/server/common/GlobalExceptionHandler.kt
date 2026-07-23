@@ -2,6 +2,8 @@ package com.dongle.server.common
 
 import com.dongle.server.auth.InvalidOAuthCodeException
 import com.dongle.server.auth.InvalidRefreshTokenException
+import com.dongle.server.place.PlaceAlreadyLikedException
+import com.dongle.server.place.PlaceLikeNotFoundException
 import com.dongle.server.place.PlaceNotFoundException
 import com.dongle.server.user.UserNotFoundException
 import org.springframework.http.HttpStatus
@@ -33,6 +35,16 @@ class GlobalExceptionHandler {
     fun handleInvalidRefreshToken(ex: InvalidRefreshTokenException): ResponseEntity<ErrorResponse> =
         ResponseEntity.status(HttpStatus.UNAUTHORIZED)
             .body(ErrorResponse(code = "INVALID_REFRESH_TOKEN", message = ex.message ?: "유효하지 않은 리프레시 토큰입니다."))
+
+    @ExceptionHandler(PlaceAlreadyLikedException::class)
+    fun handlePlaceAlreadyLiked(ex: PlaceAlreadyLikedException): ResponseEntity<ErrorResponse> =
+        ResponseEntity.status(HttpStatus.CONFLICT)
+            .body(ErrorResponse(code = "PLACE_ALREADY_LIKED", message = ex.message ?: "이미 좋아요한 장소입니다."))
+
+    @ExceptionHandler(PlaceLikeNotFoundException::class)
+    fun handlePlaceLikeNotFound(ex: PlaceLikeNotFoundException): ResponseEntity<ErrorResponse> =
+        ResponseEntity.status(HttpStatus.NOT_FOUND)
+            .body(ErrorResponse(code = "PLACE_LIKE_NOT_FOUND", message = ex.message ?: "좋아요 기록이 없습니다."))
 
     @ExceptionHandler(MethodArgumentNotValidException::class)
     fun handleInvalidRequest(ex: MethodArgumentNotValidException): ResponseEntity<ErrorResponse> =

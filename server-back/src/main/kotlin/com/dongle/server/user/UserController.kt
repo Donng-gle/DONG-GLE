@@ -1,28 +1,27 @@
 package com.dongle.server.user
 
+import com.dongle.server.user.dto.UpdateProfileRequest
 import com.dongle.server.user.dto.UserProfileResponse
+import jakarta.validation.Valid
 import org.springframework.security.core.Authentication
 import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PatchMapping
+import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 
 @RestController
 @RequestMapping("/users")
 class UserController(
-    private val userRepository: UserRepository,
+    private val userService: UserService,
 ) {
     @GetMapping("/me")
-    fun me(authentication: Authentication): UserProfileResponse {
-        val userId = authentication.principal as Long
-        val user = userRepository.findById(userId).orElseThrow { UserNotFoundException(userId) }
+    fun me(authentication: Authentication): UserProfileResponse =
+        userService.getProfile(authentication.principal as Long)
 
-        return UserProfileResponse(
-            id = user.id,
-            nickname = user.nickname,
-            profileImageUrl = user.profileImageUrl,
-            oauthProvider = user.oauthProvider.name,
-            hasOnboarded = user.hasOnboarded,
-            createdAt = user.createdAt,
-        )
-    }
+    @PatchMapping("/me")
+    fun updateMe(
+        authentication: Authentication,
+        @Valid @RequestBody request: UpdateProfileRequest,
+    ): UserProfileResponse = userService.updateProfile(authentication.principal as Long, request)
 }
