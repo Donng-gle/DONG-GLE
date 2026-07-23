@@ -624,7 +624,7 @@ components:
         transport:
           type: string
           enum: [car, walk, public]
-          description: 이동 수단. TMAP 경로 계산 시 보행자/자동차/대중교통 API 분기에 사용됨.
+          description: 이동 수단. 구글맵 Directions API 호출 시 보행자/자동차/대중교통 모드 분기에 사용됨.
         mood_tags:
           type: array
           items:
@@ -745,7 +745,7 @@ components:
         transport:
           type: string
           enum: [car, walk, public]
-          description: 이동 수단. TMAP 경유지 최적화 API 호출 시 사용됨.
+          description: 이동 수단. 구글맵 Directions API 경유지 최적화(waypoints optimize) 호출 시 사용됨.
 
     CoursePlaceItem:
       type: object
@@ -842,7 +842,7 @@ components:
             user: 사용자가 직접 구성한 코스.
         places:
           type: array
-          description: 저장할 장소 목록. TMAP 응답(이동시간/거리)은 저장하지 않으며 장소 목록과 순서만 저장함.
+          description: 저장할 장소 목록. 구글맵 응답(이동시간/거리)은 저장하지 않으며 장소 목록과 순서만 저장함.
           items:
             type: object
             required: [place_id, visit_order]
@@ -893,7 +893,7 @@ components:
 
     CourseDetail:
       type: object
-      description: 코스 상세 화면 데이터. 조회 시마다 TMAP API를 재호출하여 최신 경로 정보를 포함함.
+      description: 코스 상세 화면 데이터. 조회 시마다 구글맵 API를 재호출하여 최신 경로 정보를 포함함.
       properties:
         id:
           type: integer
@@ -909,7 +909,7 @@ components:
           enum: [ai, ai_edited, user]
         places:
           type: array
-          description: 방문 순서대로 정렬된 장소 목록. 각 장소에 TMAP 재계산 결과(이동시간/거리)가 포함됨.
+          description: 방문 순서대로 정렬된 장소 목록. 각 장소에 구글맵 재계산 결과(이동시간/거리)가 포함됨.
           items:
             $ref: '#/components/schemas/CoursePlaceItem'
         total_distance_km:
@@ -921,7 +921,7 @@ components:
         polyline:
           type: string
           nullable: true
-          description: TMAP 재계산 응답 폴리라인. 지도에 경로선을 그리는 데 사용됨.
+          description: 구글맵 재계산 응답 폴리라인(인코딩된 polyline). 지도에 경로선을 그리는 데 사용됨.
         updated_at:
           type: string
           format: date-time
@@ -2270,10 +2270,10 @@ paths:
           - 사용자 취향 태그와 장소 속성 매칭
           - must 장소 반드시 포함
           - 방문 로그 수 기반 숨은 장소 비율 조절 (visit_log_count가 낮은 장소 우선 포함)
-          - TMAP 경유지 최적화 API로 이동 거리 최소화 및 방문 순서 계산
+          - 구글맵 Directions API 경유지 최적화로 이동 거리 최소화 및 방문 순서 계산
           - 카테고리 균형 (관광지-식당-카페 등 적절히 배분)
 
-        TMAP API 응답 원본은 서버에 저장하지 않으며, 코스 저장(POST /courses) 시에도
+        구글맵 API 응답 원본은 서버에 저장하지 않으며, 코스 저장(POST /courses) 시에도
         장소 목록과 방문 순서만 저장된다. 이동시간/거리 정보는 코스 조회 시 매번 재계산된다.
 
         세션 만료(24시간 초과) 후 요청 시 410을 반환한다.
@@ -2318,8 +2318,8 @@ paths:
       summary: 코스 저장
       description: |
         생성된 코스 후보 중 마음에 드는 코스를 저장한다.
-        장소 목록과 방문 순서만 저장하며 TMAP 이동시간/거리 원본은 저장하지 않는다.
-        저장된 코스를 다시 열 때마다 TMAP API를 재호출하여 최신 경로 정보를 제공한다.
+        장소 목록과 방문 순서만 저장하며 구글맵 이동시간/거리 원본은 저장하지 않는다.
+        저장된 코스를 다시 열 때마다 구글맵 API를 재호출하여 최신 경로 정보를 제공한다.
         travel_date가 지정된 경우 해당 날짜 당일 아침에 course_reminder 알림이 발송된다 (알림 설정이 켜진 경우).
       requestBody:
         required: true
@@ -2354,7 +2354,7 @@ paths:
           - 직접: 좋아요 목록에서 원하는 장소 선택 → 순서 직접 배치 → 저장
 
         직접 코스의 경우 source=user로 저장되며,
-        TMAP 경로 계산은 GET /courses/:courseId 조회 시 동일하게 재계산됨.
+        구글맵 경로 계산은 GET /courses/:courseId 조회 시 동일하게 재계산됨.
       requestBody:
         required: true
         content:
@@ -2414,7 +2414,7 @@ paths:
       summary: 코스 상세 조회 (경로 재계산)
       description: |
         저장된 코스의 상세 정보를 반환한다.
-        호출 시마다 저장된 장소 목록을 기준으로 TMAP API를 재호출하여
+        호출 시마다 저장된 장소 목록을 기준으로 구글맵 API를 재호출하여
         최신 이동 시간, 이동 거리, 폴리라인을 계산하여 포함한다.
         이를 통해 도로 상황 변경이나 장소 이전에도 항상 최신 경로 정보를 제공할 수 있다.
       parameters:
