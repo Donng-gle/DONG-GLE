@@ -3,9 +3,11 @@ spring:
     name: dongle-server
 
   datasource:
-    url: jdbc:postgresql://localhost:5433/dongle?stringtype=unspecified
-    username: seolmansu
-    password:
+    # 팀 공용 Supabase(PostgreSQL)를 기본값으로 사용. .env의 DB_* 값으로 덮어쓸 수 있음
+    # (개인 로컬 PostgreSQL로 돌리고 싶으면 .env에 DB_URL 등을 로컬 값으로 지정)
+    url: ${DB_URL:CHANGE_ME}
+    username: ${DB_USERNAME:CHANGE_ME}
+    password: ${DB_PASSWORD:CHANGE_ME}
 
   jpa:
     open-in-view: false
@@ -17,6 +19,22 @@ spring:
 
   jackson:
     property-naming-strategy: SNAKE_CASE
+
+jwt:
+  # 로컬 개발용 기본값. 운영에서는 반드시 .env의 JWT_SECRET으로 덮어쓸 것 (32바이트 이상)
+  secret: ${JWT_SECRET:local-only-dev-secret-please-change-32bytes+}
+  access-token-expiry-seconds: 3600 # 1시간
+  refresh-token-expiry-seconds: 2592000 # 30일
+
+oauth:
+  kakao:
+    client-id: ${KAKAO_CLIENT_ID:CHANGE_ME}
+    client-secret: ${KAKAO_CLIENT_SECRET:}
+    redirect-uri: ${KAKAO_REDIRECT_URI:CHANGE_ME}
+  google:
+    client-id: ${GOOGLE_CLIENT_ID:CHANGE_ME}
+    client-secret: ${GOOGLE_CLIENT_SECRET:CHANGE_ME}
+    redirect-uri: ${GOOGLE_REDIRECT_URI:CHANGE_ME}
 
 logging:
   level:
