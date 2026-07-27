@@ -1,0 +1,9 @@
+# 루트에서도 비밀 파일이 실수로 커밋되지 않도록 제외한다.
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+**/secrets/
+*.pem

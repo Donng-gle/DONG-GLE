@@ -1,0 +1,20 @@
+[project]
+name = "hidden-score"
+version = "1.0.0"
+description = "Hidden Score 계산 모듈"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.7.0",
+]
+
+[build-system]
+requires = ["setuptools>=69.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["hidden_score*"]
+
+[tool.pytest.ini_options]
+testpaths = ["hidden_score/tests"]
+pythonpath = ["."]
