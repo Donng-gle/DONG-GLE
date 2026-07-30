@@ -36,6 +36,12 @@ oauth:
     client-secret: ${GOOGLE_CLIENT_SECRET:CHANGE_ME}
     redirect-uri: ${GOOGLE_REDIRECT_URI:CHANGE_ME}
 
+aws:
+  region: ${AWS_REGION:ap-northeast-2}
+  access-key-id: ${AWS_ACCESS_KEY_ID:CHANGE_ME}
+  secret-access-key: ${AWS_SECRET_ACCESS_KEY:CHANGE_ME}
+  s3-bucket: ${S3_BUCKET_NAME:CHANGE_ME}
+
 logging:
   level:
     org.hibernate.SQL: debug

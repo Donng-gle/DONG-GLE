@@ -5,6 +5,7 @@ import com.dongle.server.auth.InvalidRefreshTokenException
 import com.dongle.server.place.PlaceAlreadyLikedException
 import com.dongle.server.place.PlaceLikeNotFoundException
 import com.dongle.server.place.PlaceNotFoundException
+import com.dongle.server.upload.UnsupportedContentTypeException
 import com.dongle.server.user.UserNotFoundException
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
@@ -45,6 +46,11 @@ class GlobalExceptionHandler {
     fun handlePlaceLikeNotFound(ex: PlaceLikeNotFoundException): ResponseEntity<ErrorResponse> =
         ResponseEntity.status(HttpStatus.NOT_FOUND)
             .body(ErrorResponse(code = "PLACE_LIKE_NOT_FOUND", message = ex.message ?: "좋아요 기록이 없습니다."))
+
+    @ExceptionHandler(UnsupportedContentTypeException::class)
+    fun handleUnsupportedContentType(ex: UnsupportedContentTypeException): ResponseEntity<ErrorResponse> =
+        ResponseEntity.status(HttpStatus.BAD_REQUEST)
+            .body(ErrorResponse(code = "UNSUPPORTED_CONTENT_TYPE", message = ex.message ?: "지원하지 않는 파일 형식입니다."))
 
     @ExceptionHandler(MethodArgumentNotValidException::class)
     fun handleInvalidRequest(ex: MethodArgumentNotValidException): ResponseEntity<ErrorResponse> =
