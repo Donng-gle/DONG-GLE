@@ -2,6 +2,8 @@ package com.dongle.server.common
 
 import com.dongle.server.auth.InvalidOAuthCodeException
 import com.dongle.server.auth.InvalidRefreshTokenException
+import com.dongle.server.onboarding.OnboardingCardAlreadySwipedException
+import com.dongle.server.onboarding.OnboardingCardNotFoundException
 import com.dongle.server.place.PlaceAlreadyLikedException
 import com.dongle.server.place.PlaceLikeNotFoundException
 import com.dongle.server.place.PlaceNotFoundException
@@ -51,6 +53,16 @@ class GlobalExceptionHandler {
     fun handleUnsupportedContentType(ex: UnsupportedContentTypeException): ResponseEntity<ErrorResponse> =
         ResponseEntity.status(HttpStatus.BAD_REQUEST)
             .body(ErrorResponse(code = "UNSUPPORTED_CONTENT_TYPE", message = ex.message ?: "지원하지 않는 파일 형식입니다."))
+
+    @ExceptionHandler(OnboardingCardNotFoundException::class)
+    fun handleOnboardingCardNotFound(ex: OnboardingCardNotFoundException): ResponseEntity<ErrorResponse> =
+        ResponseEntity.status(HttpStatus.NOT_FOUND)
+            .body(ErrorResponse(code = "ONBOARDING_CARD_NOT_FOUND", message = ex.message ?: "온보딩 카드를 찾을 수 없습니다."))
+
+    @ExceptionHandler(OnboardingCardAlreadySwipedException::class)
+    fun handleOnboardingCardAlreadySwiped(ex: OnboardingCardAlreadySwipedException): ResponseEntity<ErrorResponse> =
+        ResponseEntity.status(HttpStatus.CONFLICT)
+            .body(ErrorResponse(code = "ONBOARDING_CARD_ALREADY_SWIPED", message = ex.message ?: "이미 스와이프한 카드입니다."))
 
     @ExceptionHandler(MethodArgumentNotValidException::class)
     fun handleInvalidRequest(ex: MethodArgumentNotValidException): ResponseEntity<ErrorResponse> =

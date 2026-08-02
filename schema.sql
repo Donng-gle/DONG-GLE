@@ -189,6 +189,21 @@ CREATE INDEX idx_onboarding_card_seed  ON onboarding_card (is_seed);
 CREATE INDEX idx_onboarding_card_place ON onboarding_card (place_id);
 
 
+-- 온보딩 스와이프 이력 (진행 상태 복원 + 수렴 판정용. 최근 3장 변화량 계산에 사용)
+-- onboarding/reset 시 유저의 이 이력 전체를 삭제하고 재시작
+CREATE TABLE onboarding_swipe_log (
+    id            BIGSERIAL    PRIMARY KEY,
+    user_id       BIGINT       NOT NULL REFERENCES "user" (id) ON DELETE CASCADE,
+    card_id       BIGINT       NOT NULL REFERENCES onboarding_card (id) ON DELETE CASCADE,
+    action        VARCHAR(10)  NOT NULL CHECK (action IN ('like', 'dislike')),
+    change_amount FLOAT        NOT NULL,  -- 이번 스와이프로 인한 벡터 변화량 Σ|after-before|/7
+    created_at    TIMESTAMP    NOT NULL DEFAULT NOW(),
+    UNIQUE (user_id, card_id)
+);
+
+CREATE INDEX idx_onboarding_swipe_log_user ON onboarding_swipe_log (user_id, created_at);
+
+
 -- 공통 updated_at 자동 갱신
 CREATE OR REPLACE FUNCTION set_updated_at()
 RETURNS TRIGGER AS $$
