@@ -214,6 +214,22 @@
 
 ---
 
+## 2026-08-02 | 음식점 tel Google Places API 재적재 완료, 예미정 1건 수동 보정
+
+- **결정**: `GOOGLE_MAPS_API_KEY` 발급받아 `fetch_restaurant_tel.py` 실행, Supabase에 재적재 완료 (26/33건 매칭). 기존 카카오 결과(28/33건)와 스팟체크 비교한 결과 겹치는 22건 중 5건 전화번호 불일치 발견 — 웹 검색으로 4곳 확인해 구글 2건(헛제사밥까치구멍집, 맘모스베이커리) 정답, 카카오 1건(밀레니엄안동찜닭) 정답 확인. 예미정은 카카오/구글 둘 다 오답이라 `054-822-0500`(예미정 본채, 주소로 확인)으로 수동 수정
+- **이유**: provider 전환 후 실제 매칭 품질이 기존과 비슷한 수준인지 확인 필요했음. 예미정처럼 지점이 여러 개인 곳은 반경 300m 키워드 검색 방식(카카오/구글 공통 로직) 자체의 한계로 오매칭 발생 확인
+- **영향**: `data/raw/tel/restaurant_tel.json`의 `2671162`(예미정) 항목만 수동 수정 후 `load_places.py` 재실행, Supabase `place.tel` 반영 완료. 반경 검색 로직 자체를 개선하지 않는 한 지점 많은 장소는 앞으로도 수동 확인 필요할 수 있음
+
+---
+
+## 2026-08-02 | 감성태그 분석 AI 연동: ai/semantic_vector 재사용
+
+- **결정**: `data/pipeline/analyze_place_emotion.py`의 `stub_analyzer`를 `ai/semantic_vector`의 GPT Vision 분석(`analyze_image_with_vision`, 35개 세부 태그) → `calculate_major_scores`(7개 대분류 평균) 조합으로 교체
+- **이유**: `ai/semantic_vector`의 `MAJOR_TAG_ORDER`(relaxing/lively/romantic/local/photogenic/traditional/modern)가 `analyze_place_emotion.py`의 `EMOTION_TAGS`와 정확히 일치하고, 35개 세부 태그 판단 기준도 `ssot.md` 감성태그셋의 "AI 판단 기준 5가지"와 대응됨. 김지광이 이 파이프라인을 감성태그 분석용으로 확인
+- **영향**: `data/.venv`에 `openai`, `pydantic`, `pydantic-settings`, `qdrant-client` 추가 설치 필요 (semantic_vector 패키지 `__init__.py`가 `analyzer.py`를 미리 import해서 Qdrant 미사용에도 `qdrant-client` 필요). `data/requirements.txt`엔 반영 안 함 (AI SDK 의존성 분리 원칙 유지, 2026-07-23 결정 참고). `OPENAI_API_KEY`/`QDRANT_URL` 발급 후 `python -m pipeline.analyze_place_emotion` 실행 가능 — 아직 실제 키로 실행/검증은 안 함
+
+---
+
 <!-- 결정되면 아래 양식으로 추가 -->
 <!--
 ## YYYY-MM-DD | 제목

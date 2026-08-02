@@ -63,7 +63,7 @@
 | PLACE_IMAGE 적재 | 🟡 스크립트 완료 (firstimage 없는 21건 중 실제 추가 이미지 있는 1건만 적재, 나머지 20건은 TourAPI 원본에 이미지 없음 확인) |
 | 행사축제 날짜 적재 (event_start/end_date) | ✅ 완료 (2026-07-17, 8/8건) — `searchFestival2`가 지역코드 체계 불일치로 0건만 반환하던 버그 발견, `detailIntro2` 방식으로 수정 |
 | homepage URL 파싱 적재 | ✅ 완료 (2026-07-17) |
-| 음식점 tel 보완 | ✅ 완료 (2026-07-17, 카카오 로컬 API로 28/33건 매칭). 이름 불일치 검증 추가해 오탐 제거. **2026-08-02 Google Places API(`fetch_restaurant_tel.py`)로 전환** — 카카오 결과는 더 이상 안 쓰임, `GOOGLE_MAPS_API_KEY` 발급 후 재수집 필요 |
+| 음식점 tel 보완 | ✅ 완료 (2026-07-17, 카카오 로컬 API로 28/33건 매칭). 이름 불일치 검증 추가해 오탐 제거. **2026-08-02 Google Places API로 전환 및 재적재 완료** (26/33건 매칭, Supabase 반영). 카카오 대비 스팟체크 결과 큰 차이 없음, 예미정 1건은 둘 다 오매칭이라 수동 보정 (decision-log 참고) |
 
 **백엔드**
 
@@ -124,7 +124,7 @@
 
 **데이터 (이수연)** — 2~4번은 김지광 AI 모델 전제
 1. [x] 온보딩 카드용 사진 풀 확장 (2026-08-02) — 전체 장소(209건) 대상 `detailImage2` 호출로 확장, 161개 장소·총 1,012장 확보 (기존 1장→평균 6.3장). Supabase `place_image`에 전량 적재 완료. 대표 3장 선정은 AI 모델 확정 후 진행 예정(스키마상 우선순위는 아직 안 정함)
-2. [ ] `analyze_place_emotion.py`를 실제 AI로 연결, Supabase에 `PLACE_EMOTION_TAG` 적재
+2. [~] `analyze_place_emotion.py`를 실제 AI로 연결 (2026-08-02) — `ai/semantic_vector`(GPT Vision, 35개 세부 태그→7개 대분류 평균) 재사용해 `stub_analyzer` 교체 완료. `OPENAI_API_KEY`/`QDRANT_URL` 없어서 실행 검증은 아직 못 함, 키 받으면 실행 후 Supabase `PLACE_EMOTION_TAG` 적재 확인 필요
 3. [ ] `onboarding_card` 시드 데이터 스크립트 신규 작성 — PLACE_IMAGE 후보 조회 → AI 점수 → 태그별 대표 사진 선정 적재. 스키마 제약(태그별 최소 4장, `is_seed=true` 7장) 충족 방법 확인 필요
 4. [ ] 결과 검증 (태그 분포, 온보딩 카드 선정 품질)
 5. [x] `ai` 브랜치(hidden_score, semantic_vector) → `dev` 병합 (2026-08-02) — `ai`가 repo init 시점부터 `dev`와 공통 조상 없이 분기돼 있어 충돌 9건 발생, 수동 해결. `load_places.py`의 `semantic_vector_sync` 자동 연동은 제외(데이터 파트 의존성 분리 원칙 유지, decision-log 참고), 백필은 `scripts/backfill_semantic_vectors.py`로 별도 실행

@@ -61,10 +61,17 @@ python -m pipeline.fetch_restaurant_tel  # → raw/tel/restaurant_tel.json
 
 # 5단계: DB 적재 (PLACE / PLACE_IMAGE, content_id 기준 upsert, 재실행해도 안전)
 python -m pipeline.load_places
+
+# 6단계 (선택, M2): 감성태그 분석 → PLACE_EMOTION_TAG 적재
+# ai/semantic_vector(GPT Vision)를 재사용하므로 아래 추가 설치/설정 필요:
+#   - pip install openai pydantic pydantic-settings qdrant-client
+#     (data/requirements.txt엔 일부러 안 넣음, ai 쪽 SDK 의존성 분리 원칙 — decision-log 참고)
+#   - .env에 OPENAI_API_KEY, QDRANT_URL 필요 (Qdrant는 실제로 호출 안 하지만
+#     SemanticVectorConfig 필수 필드라 값이 있어야 함)
+python -m pipeline.analyze_place_emotion
 ```
 
 ## 다음 단계
 
-- 쇼핑(contentTypeId=38) 27건 category 매핑 팀 결정 (`docs/milestone.md` M0 참고) → 결정되면 `load_places.py`의 `CONTENT_TYPE_CATEGORY` 반영
 - `GOOGLE_MAPS_API_KEY` 설정 후 `fetch_restaurant_tel.py` 실행 → 음식점 tel 채워서 재적재
-- 감성태그 분석 파이프라인 & `PLACE_EMOTION_TAG` 적재 (M2)
+- `analyze_place_emotion.py` 결과 검증 (태그 분포 확인)
