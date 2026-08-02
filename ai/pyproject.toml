@@ -1,0 +1,23 @@
+[project]
+name = "hidden-score"
+version = "1.0.0"
+description = "동글 AI 모듈 (hidden_score, semantic_vector)"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.7.0",
+    "pydantic-settings>=2.3.0",
+    "openai>=1.40.0",
+    "qdrant-client>=1.10.0",
+]
+
+[build-system]
+requires = ["setuptools>=69.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["hidden_score*", "semantic_vector*"]
+
+[tool.pytest.ini_options]
+testpaths = ["hidden_score/tests", "semantic_vector/tests"]
+pythonpath = ["."]

@@ -32,14 +32,14 @@ def get_tourapi_config() -> TourApiConfig:
 
 
 @dataclass(frozen=True)
-class KakaoConfig:
-    rest_api_key: str
-    base_url: str = "https://dapi.kakao.com/v2/local"
+class GoogleConfig:
+    api_key: str
+    base_url: str = "https://maps.googleapis.com/maps/api/place"
 
 
-def get_kakao_config() -> KakaoConfig:
-    rest_api_key = os.getenv("KAKAO_REST_API_KEY", "").strip()
-    if not rest_api_key:
-        raise ValueError("KAKAO_REST_API_KEY is required")
+def get_google_config() -> GoogleConfig:
+    api_key = os.getenv("GOOGLE_MAPS_API_KEY", "").strip()
+    if not api_key:
+        raise ValueError("GOOGLE_MAPS_API_KEY is required")
 
-    return KakaoConfig(rest_api_key=rest_api_key)
+    return GoogleConfig(api_key=api_key)

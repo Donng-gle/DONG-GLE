@@ -206,6 +206,14 @@
 
 ---
 
+## 2026-08-02 | 음식점 tel 보완 API: 카카오 로컬 API → Google Places API 전환
+
+- **결정**: 음식점(TourAPI 39) tel 보완에 쓰던 카카오 로컬 API(`fetch_kakao_tel.py`)를 Google Places API(`fetch_restaurant_tel.py`)로 교체한다. 2026-07-17 결정("음식점 보완 방식: 카카오 로컬 API로 전화번호만 보완")을 대체함
+- **이유**: 김지광이 `ai/feat/semantic-vector` 작업 중 Google 쪽으로 통일해 구현. 매칭 로직(반경 300m, 이름 포함 관계 검증)은 기존 카카오 버전과 동일하게 유지됨
+- **영향**: `data/pipeline/config.py`의 `KakaoConfig`/`get_kakao_config`를 `GoogleConfig`/`get_google_config`로 교체, `.env`는 `KAKAO_REST_API_KEY` 대신 `GOOGLE_MAPS_API_KEY` 필요. 기존 카카오 결과(`raw/kakao/restaurant_tel.json`, 28/33건 매칭)는 더 이상 쓰이지 않고 `raw/tel/restaurant_tel.json`로 재수집 필요. `GOOGLE_MAPS_API_KEY` 발급/공유 필요 (담당: 김지광)
+
+---
+
 <!-- 결정되면 아래 양식으로 추가 -->
 <!--
 ## YYYY-MM-DD | 제목
