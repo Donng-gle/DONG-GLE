@@ -3,7 +3,8 @@ import re
 from datetime import datetime
 
 from pipeline.db import get_connection
-from pipeline.paths import RAW_ROOT, TOURAPI_ROOT
+from pipeline.paths import TOURAPI_ROOT
+from pipeline.tel_enrichment import load_restaurant_tel
 
 
 CONTENT_TYPE_CATEGORY = {
@@ -75,19 +76,15 @@ def load_raw() -> tuple[list[dict], dict, dict, dict, dict]:
         for entry in json.loads(festivals_path.read_text())["items"]:
             festival_dates[entry["contentid"]] = entry
 
-    # TourAPI 음식점(39)은 tel이 거의 항상 비어 있어 카카오 로컬 API로 보완
-    # (fetch_kakao_tel.py). 파일 없으면(카카오 키 미설정 등) 그냥 건너뜀.
-    kakao_tel: dict[str, str] = {}
-    kakao_tel_path = RAW_ROOT / "kakao" / "restaurant_tel.json"
-    if kakao_tel_path.exists():
-        for content_id, entry in json.loads(kakao_tel_path.read_text())["items"].items():
-            kakao_tel[content_id] = entry["phone"]
+    # TourAPI 음식점(39)은 tel이 거의 항상 비어 있어 Google Places API로 보완
+    # (fetch_restaurant_tel.py). 파일 없으면(API 키 미설정 등) 그냥 건너뜀.
+    supplemental_tel = load_restaurant_tel()
 
-    return all_items, common, images, festival_dates, kakao_tel
+    return all_items, common, images, festival_dates, supplemental_tel
 
 
 def build_place_row(
-    content_type_id: str, item: dict, common: dict, festival_dates: dict, kakao_tel: dict
+    content_type_id: str, item: dict, common: dict, festival_dates: dict, supplemental_tel: dict
 ) -> dict | None:
     category = resolve_category(content_type_id, item)
     if category is None:
@@ -106,7 +103,7 @@ def build_place_row(
         "addr2": item.get("addr2") or None,
         "lat": parse_float(item.get("mapy")),
         "lng": parse_float(item.get("mapx")),
-        "tel": item.get("tel") or kakao_tel.get(content_id) or None,
+        "tel": item.get("tel") or supplemental_tel.get(content_id) or None,
         "main_image_url": item.get("firstimage") or None,
         "overview": detail.get("overview") or None,
         "homepage": parse_homepage(detail.get("homepage")),
@@ -156,13 +153,55 @@ ON CONFLICT (place_id, img_url) DO NOTHING;
 """
 
 
+def save_places_to_db(
+    place_rows: list[dict],
+    images: dict[str, list[dict]],
+) -> tuple[list[dict], int]:
+    """place / place_image를 DB에 upsert하고 저장된 place 메타데이터를 반환한다."""
+    saved_places: list[dict] = []
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            content_id_to_place_id: dict[str, int] = {}
+            for row in place_rows:
+                cur.execute(UPSERT_PLACE_SQL, row)
+                db_id = cur.fetchone()[0]
+                content_id_to_place_id[row["content_id"]] = db_id
+                saved_places.append(
+                    {
+                        "id": db_id,
+                        "content_id": row["content_id"],
+                        "name": row["name"],
+                        "category": row["category"],
+                        "main_image_url": row["main_image_url"],
+                    }
+                )
+
+            image_count = 0
+            for content_id, image_items in images.items():
+                place_id = content_id_to_place_id.get(content_id)
+                if place_id is None:
+                    continue
+                for sort_order, image_item in enumerate(image_items):
+                    img_url = image_item.get("originimgurl")
+                    if not img_url:
+                        continue
+                    cur.execute(
+                        UPSERT_PLACE_IMAGE_SQL,
+                        {"place_id": place_id, "img_url": img_url, "sort_order": sort_order},
+                    )
+                    image_count += 1
+
+    return saved_places, image_count
+
+
 def main() -> None:
-    all_items, common, images, festival_dates, kakao_tel = load_raw()
+    all_items, common, images, festival_dates, supplemental_tel = load_raw()
 
     skipped_types: dict[str, int] = {}
     place_rows = []
     for content_type_id, item in all_items:
-        row = build_place_row(content_type_id, item, common, festival_dates, kakao_tel)
+        row = build_place_row(content_type_id, item, common, festival_dates, supplemental_tel)
         if row is None:
             skipped_types[content_type_id] = skipped_types.get(content_type_id, 0) + 1
             continue
@@ -182,27 +221,7 @@ def main() -> None:
         deduped_rows.append(row)
     place_rows = deduped_rows
 
-    with get_connection() as conn:
-        with conn.cursor() as cur:
-            content_id_to_place_id: dict[str, int] = {}
-            for row in place_rows:
-                cur.execute(UPSERT_PLACE_SQL, row)
-                content_id_to_place_id[row["content_id"]] = cur.fetchone()[0]
-
-            image_count = 0
-            for content_id, image_items in images.items():
-                place_id = content_id_to_place_id.get(content_id)
-                if place_id is None:
-                    continue
-                for sort_order, image_item in enumerate(image_items):
-                    img_url = image_item.get("originimgurl")
-                    if not img_url:
-                        continue
-                    cur.execute(
-                        UPSERT_PLACE_IMAGE_SQL,
-                        {"place_id": place_id, "img_url": img_url, "sort_order": sort_order},
-                    )
-                    image_count += 1
+    _, image_count = save_places_to_db(place_rows, images)
 
     print(f"place upserted: {len(place_rows)}건")
     for content_type_id, count in sorted(skipped_types.items()):

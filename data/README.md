@@ -23,7 +23,7 @@ data/
     ├── fetch_places.py  # areaBasedList2 수집
     ├── fetch_detail.py  # detailCommon2 / detailImage2 / detailIntro2(축제 날짜) 수집
     ├── validate_places.py
-    ├── fetch_kakao_tel.py # 카카오 로컬 API로 음식점 tel 보완
+    ├── fetch_restaurant_tel.py # Google Places API로 음식점 tel 보완
     └── load_places.py   # PLACE / PLACE_IMAGE DB 적재 (content_id 기준 upsert)
 ```
 
@@ -35,7 +35,7 @@ data/
 - `TOURAPI_MOBILE_OS`
 - `TOURAPI_MOBILE_APP`
 - `DATABASE_URL` (`load_places.py` 실행 시 필요, 예: `postgresql://user:password@host:5432/dongle`)
-- `KAKAO_REST_API_KEY` (`fetch_kakao_tel.py` 실행 시 필요, Kakao Developers에서 발급)
+- `GOOGLE_MAPS_API_KEY` (`fetch_restaurant_tel.py` 실행 시 필요, Places API 활성화 필요)
 
 ## 실행 순서
 
@@ -56,8 +56,8 @@ python -m pipeline.fetch_detail     # → raw/tourapi/detail_common.json
                                     #    raw/tourapi/detail_images.json
                                     #    raw/tourapi/festival_dates.json
 
-# 4단계 (선택): 음식점 tel 카카오 로컬 API로 보완 (TourAPI tel 누락 보정)
-python -m pipeline.fetch_kakao_tel  # → raw/kakao/restaurant_tel.json
+# 4단계 (선택): 음식점 tel Google Places API로 보완 (TourAPI tel 누락 보정)
+python -m pipeline.fetch_restaurant_tel  # → raw/tel/restaurant_tel.json
 
 # 5단계: DB 적재 (PLACE / PLACE_IMAGE, content_id 기준 upsert, 재실행해도 안전)
 python -m pipeline.load_places
@@ -66,5 +66,5 @@ python -m pipeline.load_places
 ## 다음 단계
 
 - 쇼핑(contentTypeId=38) 27건 category 매핑 팀 결정 (`docs/milestone.md` M0 참고) → 결정되면 `load_places.py`의 `CONTENT_TYPE_CATEGORY` 반영
-- `KAKAO_REST_API_KEY` 발급 후 `fetch_kakao_tel.py` 실행 → 음식점 tel 채워서 재적재
+- `GOOGLE_MAPS_API_KEY` 설정 후 `fetch_restaurant_tel.py` 실행 → 음식점 tel 채워서 재적재
 - 감성태그 분석 파이프라인 & `PLACE_EMOTION_TAG` 적재 (M2)
