@@ -108,13 +108,11 @@ def run_common(all_items: list[dict]) -> None:
 
 
 def run_images(all_items: list[dict]) -> None:
-    no_image_ids = [
-        item["contentid"]
-        for item in all_items
-        if not item.get("firstimage") and item.get("contentid")
-    ]
+    # 온보딩 카드 후보 이미지 풀 확보를 위해 firstimage 유무와 상관없이
+    # 전체 장소를 대상으로 호출한다 (2026-07 스프린트2, milestone.md 참고).
+    content_ids = [item["contentid"] for item in all_items if item.get("contentid")]
     image_results: dict[str, list[dict]] = {}
-    for content_id in no_image_ids:
+    for content_id in content_ids:
         images = fetch_images(content_id)
         if images:
             image_results[content_id] = images
