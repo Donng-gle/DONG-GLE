@@ -56,26 +56,28 @@ class PlaceApiIntegrationTest {
         return jwtTokenProvider.generateAccessToken(user.id)
     }
 
+    // 공용 Supabase DB를 대상으로 실행되므로(실제 데이터가 계속 쌓임), total/개수 같은 절대값 대신
+    // 테스트 전용 고유 이름으로 "포함 여부"만 확인해야 실제 데이터 적재와 무관하게 안정적으로 통과함
     @Test
     fun `뷰포트 안의 장소만 지도 핀으로 반환한다`() {
-        place("MAP001", "하회마을", 36.5389, 128.5169)
-        place("MAP002", "안동역", 36.5684, 128.7294) // 뷰포트 밖
+        place("MAP001", "테스트전용지도장소-포함", 36.5389, 128.5169)
+        place("MAP002", "테스트전용지도장소-제외", 36.5684, 128.7294) // 뷰포트 밖
 
         mockMvc.perform(get("/places/map").param("bounds", "36.50,128.50,36.55,128.55"))
             .andExpect(status().isOk)
-            .andExpect(jsonPath("$.total").value(1))
-            .andExpect(jsonPath("$.pins[0].name").value("하회마을"))
+            .andExpect(jsonPath("$.pins[?(@.name == '테스트전용지도장소-포함')]").exists())
+            .andExpect(jsonPath("$.pins[?(@.name == '테스트전용지도장소-제외')]").doesNotExist())
     }
 
     @Test
     fun `키워드로 장소를 검색할 수 있다`() {
-        place("SEARCH001", "하회마을", 36.5389, 128.5169)
+        place("SEARCH001", "테스트전용검색키워드ZZZ-하회마을", 36.5389, 128.5169)
         place("SEARCH002", "병산서원", 36.5, 128.5)
 
-        mockMvc.perform(get("/places/search").param("q", "하회"))
+        mockMvc.perform(get("/places/search").param("q", "테스트전용검색키워드ZZZ"))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.places.length()").value(1))
-            .andExpect(jsonPath("$.places[0].name").value("하회마을"))
+            .andExpect(jsonPath("$.places[0].name").value("테스트전용검색키워드ZZZ-하회마을"))
     }
 
     @Test
