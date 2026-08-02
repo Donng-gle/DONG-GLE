@@ -28,6 +28,7 @@ class SecurityConfig(
     private val permitAllGetPaths = arrayOf(
         "/places",
         "/places/**",
+        "/tags",
     )
 
     @Bean
