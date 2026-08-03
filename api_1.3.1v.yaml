@@ -56,6 +56,8 @@ tags:
     description: 유사 사용자 기록 탐색
   - name: Upload
     description: 파일 업로드 (Presigned URL)
+  - name: Image
+    description: 외부 이미지 프록시 (Google Places 사진)
   - name: Event
     description: 행사 및 축제 일정
   - name: Admin
@@ -2733,6 +2735,52 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '401':
           description: 인증 필요
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /images/proxy:
+    get:
+      tags: [Image]
+      summary: Google Places 사진 프록시
+      description: |
+        Google Places Photo API 사진을 서버가 대신 요청해 중계한다.
+        Google Photo API는 URL 자체에 API 키(key=...)가 필요해서, 이 키를 그대로 DB/앱에 노출하지 않기 위한 용도다.
+
+        `place_image.img_url`에는 Google 원본 URL 대신 이 프록시 엔드포인트 URL(ref=photo_reference 포함)을 저장한다.
+        앱은 별도 인증 없이 이 URL을 `<Image>` 컴포넌트의 소스로 바로 사용하면 된다.
+      parameters:
+        - name: ref
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Google Places API의 photo_reference 값
+        - name: maxWidth
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 800
+            minimum: 100
+            maximum: 1600
+      responses:
+        '200':
+          description: 이미지 바이너리 (Content-Type은 Google 응답 기준)
+          content:
+            image/*:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: photo_reference 누락
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: Google Places API 요청 실패
           content:
             application/json:
               schema:
