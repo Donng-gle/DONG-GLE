@@ -2,6 +2,8 @@ package com.dongle.server.common
 
 import com.dongle.server.auth.InvalidOAuthCodeException
 import com.dongle.server.auth.InvalidRefreshTokenException
+import com.dongle.server.image.ImageProxyUpstreamException
+import com.dongle.server.image.InvalidPhotoReferenceException
 import com.dongle.server.onboarding.OnboardingCardAlreadySwipedException
 import com.dongle.server.onboarding.OnboardingCardNotFoundException
 import com.dongle.server.place.PlaceAlreadyLikedException
@@ -63,6 +65,16 @@ class GlobalExceptionHandler {
     fun handleOnboardingCardAlreadySwiped(ex: OnboardingCardAlreadySwipedException): ResponseEntity<ErrorResponse> =
         ResponseEntity.status(HttpStatus.CONFLICT)
             .body(ErrorResponse(code = "ONBOARDING_CARD_ALREADY_SWIPED", message = ex.message ?: "이미 스와이프한 카드입니다."))
+
+    @ExceptionHandler(InvalidPhotoReferenceException::class)
+    fun handleInvalidPhotoReference(ex: InvalidPhotoReferenceException): ResponseEntity<ErrorResponse> =
+        ResponseEntity.status(HttpStatus.BAD_REQUEST)
+            .body(ErrorResponse(code = "INVALID_PHOTO_REFERENCE", message = ex.message ?: "잘못된 photo_reference입니다."))
+
+    @ExceptionHandler(ImageProxyUpstreamException::class)
+    fun handleImageProxyUpstream(ex: ImageProxyUpstreamException): ResponseEntity<ErrorResponse> =
+        ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+            .body(ErrorResponse(code = "IMAGE_PROXY_UPSTREAM_ERROR", message = ex.message ?: "이미지를 가져오지 못했습니다."))
 
     @ExceptionHandler(MethodArgumentNotValidException::class)
     fun handleInvalidRequest(ex: MethodArgumentNotValidException): ResponseEntity<ErrorResponse> =

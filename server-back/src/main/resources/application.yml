@@ -42,6 +42,10 @@ aws:
   secret-access-key: ${AWS_SECRET_ACCESS_KEY:CHANGE_ME}
   s3-bucket: ${S3_BUCKET_NAME:CHANGE_ME}
 
+google:
+  # Google Places 사진 프록시(/images/proxy)용. 데이터 파트가 음식점 tel 보완에 쓰는 것과 동일한 키 재사용 가능
+  places-api-key: ${GOOGLE_MAPS_API_KEY:CHANGE_ME}
+
 logging:
   level:
     org.hibernate.SQL: debug
