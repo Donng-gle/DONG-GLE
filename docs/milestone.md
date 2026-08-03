@@ -1,7 +1,7 @@
 # 마일스톤
 
 > 공모전 제출 마감: 2026년 9월 20일
-> 최근 수정: 2026-08-02 · 이수연
+> 최근 수정: 2026-08-02 · 이수연 (스프린트3 계획 추가)
 
 ---
 
@@ -114,7 +114,7 @@
 
 ---
 
-## 스프린트 2 (~2026-07-31, 다음 회의까지)
+## 스프린트 2 (~2026-07-31, 종료) — 미완료분 스프린트3로 이월
 
 **알고리즘 (김지광)**
 - [ ] AI 모델 확정
@@ -140,6 +140,45 @@
 
 **디자인 (전성빈)**
 - [ ] 주요 화면 시안 — 진행 상황 회의에서 확인
+
+---
+
+## 스프린트 3 (~2026-08-07, 다음 회의까지)
+
+**최우선 (다른 파트 작업을 막고 있음)**
+- 설만수: `feat/onboarding-api`, `feat/presigned-upload` → `server` 머지 완료 (2026-08-03 확인). 이제 `server`→`dev` 통합해야 프론트 온보딩 화면 작업 시작 가능
+- 김지광: 코스 추천 알고리즘 방향 아직 미확정 (스프린트1부터 계속 이월)
+
+**데이터 (이수연)**
+1. [ ] `analyze_place_emotion.py` 전체 배치 실행 (분석 대상 171건) → Supabase `PLACE_EMOTION_TAG` 적재. `OPENAI_API_KEY`/`QDRANT_URL` 확보 완료, 단일 이미지 테스트 성공 확인 (2026-08-02)
+2. [ ] 결과 검증 (7개 태그 분포, 이상치 확인)
+3. [ ] `onboarding_card` 시드 데이터 스크립트 신규 작성 — PLACE_IMAGE 후보 조회 → AI 점수 → 태그별 대표 사진 선정 적재. 스키마 제약(태그별 최소 4장, `is_seed=true` 7장) 충족 방법 확인 필요 (AI 연동 완료로 착수 가능해짐)
+4. [ ] `fetch_unanalyzed_places` 로직 개선 — `main_image_url` 없어도 `place_image` 후보가 있으면 폴백해서 분석 대상에 포함 (부용대 1건 발견, 우선순위 낮음)
+
+**알고리즘 (김지광)**
+- [x] AI 모델 확정 — OpenAI GPT Vision(`gpt-4.1-mini`) 기반, `ai/semantic_vector`로 구현 완료 (2026-08-02 데이터 파트에서 실제 연동·검증함, decision-log 참고)
+- [x] 감성태그 판단 기준/프롬프트 설계 — `ai/semantic_vector/prompt.py`에 35개 세부 태그(7개 대분류×5개) 기준으로 구현됨, `ssot.md` 감성태그셋과 대응 확인
+- [x] `ai/` 폴더에 `analyze_image(image_url) -> dict[tag, score]` 구현 — `ai/semantic_vector` 재사용으로 데이터 파트에서 연동 완료
+- [ ] 코스 추천 알고리즘 방향 확정 + 초안 설계 (최우선, 계속 이월)
+
+**백엔드 (설만수)**
+- [x] `feat/onboarding-api` → `server` 머지 완료 (2026-08-03) — 온보딩 API v2.0.0 알고리즘 전체 구현 (스와이프, 카드 선택, 감성 벡터 업데이트), `schema.sql`/`schema.dbml`에 `onboarding_card`/`user_preference` 반영됨
+- [x] `feat/presigned-upload` → `server` 머지 완료 (2026-08-03) — S3 presigned URL 업로드 API
+- [ ] `server` → `dev` 통합
+- [ ] 카카오/구글 OAuth 앱 자격증명 발급 + 로그인 E2E 검증 (스프린트2부터 이월)
+- [ ] **여행 기록(방문 로그) 관련 제외한 나머지 엔드포인트 전부 구현** (설만수 확인, 2026-08-02) — `api_1.3.1v.yaml` 기준 미구현 상태 확인된 것들:
+  - 코스 추천: `/courses/generate`, `/courses`, `/courses/manual`, `/courses/{courseId}`, `/swipe/candidates`, `/swipe/sessions/{sessionId}`, `/swipe/sessions/{sessionId}/results`
+  - 내 정보 확장: `/users/me/preferences`, `/users/me/likes`, `/users/me/courses`, `/users/me/notification`, `/users/me/device-token`
+  - 온보딩 명세 중 미구현분: `/onboarding/cards`, `/onboarding/preferences` (`feat/onboarding-api`에 아직 없음, 설계 의도 재확인 필요)
+  - 기타: `/events`, `/admin/sync/places`, `/health`
+  - **제외 (여행 기록 관련)**: `/users/me/logs`, `/places/{placeId}/logs`, `/logs/{logId}`, `/explore/similar-logs`(유사 사용자 탐색, 방문 로그 기반이라 같이 제외)
+
+**프론트 (설만수)**
+- [ ] 온보딩 API `dev` 머지되는 대로 온보딩 스와이프 화면 구현 착수
+- [ ] 디자인 시안 나오는 대로 탐색/코스 화면 작업 시작 (계속 이월)
+
+**디자인 (전성빈)**
+- [ ] 주요 화면(온보딩 스와이프, 장소 탐색, 코스 추천) 시안 계속 진행
 
 ---
 
