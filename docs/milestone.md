@@ -1,7 +1,7 @@
 # 마일스톤
 
 > 공모전 제출 마감: 2026년 9월 20일
-> 최근 수정: 2026-08-03 · 이수연 (백엔드 진행 반영, 이미지 프록시 이슈 추가)
+> 최근 수정: 2026-08-04 · 설만수 (백엔드 스프린트3 엔드포인트 진행 반영: 이미지 프록시·Render 배포·나머지 엔드포인트 1차분 완료)
 
 ---
 
@@ -146,8 +146,8 @@
 ## 스프린트 3 (~2026-08-07, 다음 회의까지)
 
 **최우선 (다른 파트 작업을 막고 있음)**
-- 설만수: `feat/onboarding-api`, `feat/presigned-upload` → `server` 머지 완료 (2026-08-03 확인). 이제 `server`→`dev` 통합해야 프론트 온보딩 화면 작업 시작 가능
-- 설만수: **이미지 프록시 엔드포인트 구현 필요** (2026-08-03, decision-log 참고) — Google Places 사진 URL은 API 키가 노출돼서 서버가 중계해야 함. 이거 없으면 데이터 파트가 사진 없는 18개 장소를 못 채움
+- 설만수: `feat/onboarding-api`, `feat/presigned-upload` → `server` 머지 완료 (2026-08-03 확인). `server`→`dev` 통합은 아직 미완료 — 프론트 온보딩 화면 작업 시작하려면 필요 (계속 이월)
+- ~~설만수: 이미지 프록시 엔드포인트 구현 필요~~ ✅ 완료 (2026-08-04) — `GET /images/proxy?ref={photo_reference}&maxWidth=`. Render(`https://dong-gle.onrender.com`)에 배포·검증까지 완료. 데이터 파트 사진 없는 18개 장소 보완 작업 블로커 해제
 - 김지광: 코스 추천 알고리즘 방향 아직 미확정 (스프린트1부터 계속 이월)
 
 **데이터 (이수연)**
@@ -155,7 +155,7 @@
 2. [ ] 결과 검증 (7개 태그 분포, 이상치 확인)
 3. [ ] `onboarding_card` 시드 데이터 스크립트 신규 작성 — PLACE_IMAGE 후보 조회 → AI 점수 → 태그별 대표 사진 선정 적재. 스키마 제약(태그별 최소 4장, `is_seed=true` 7장) 충족 방법 확인 필요 (AI 연동 완료로 착수 가능해짐)
 4. [ ] `fetch_unanalyzed_places` 로직 개선 — `main_image_url` 없어도 `place_image` 후보가 있으면 폴백해서 분석 대상에 포함 (부용대 1건 발견, 우선순위 낮음)
-5. [ ] ⛔ **`place_image` 정리** (2026-08-03) — 사진 전무 18건은 Google Places로 보완, 3장 이상인 159건은 GPT Vision 감성 벡터로 가장 뚜렷한 3장만 남기고 트림. **설만수 이미지 프록시 엔드포인트 구현 전까지 보류** (decision-log 참고)
+5. [ ] **`place_image` 정리** (2026-08-03) — 사진 전무 18건은 Google Places로 보완, 3장 이상인 159건은 GPT Vision 감성 벡터로 가장 뚜렷한 3장만 남기고 트림. **✅ 설만수 이미지 프록시 엔드포인트 구현 완료(2026-08-04)로 블로커 해제**, 착수 가능 — `img_url`은 `https://dong-gle.onrender.com/images/proxy?ref={photo_reference}` 형태로 저장 (원본 URL/key 절대 저장 금지). 무료 플랜이라 비활성 시 슬립되어 첫 요청 50초+ 걸릴 수 있음, 스크립트 타임아웃 넉넉히 잡을 것
 
 **알고리즘 (김지광)**
 - [x] AI 모델 확정 — OpenAI GPT Vision(`gpt-4.1-mini`) 기반, `ai/semantic_vector`로 구현 완료 (2026-08-02 데이터 파트에서 실제 연동·검증함, decision-log 참고)
@@ -166,14 +166,19 @@
 **백엔드 (설만수)**
 - [x] `feat/onboarding-api` → `server` 머지 완료 (2026-08-03) — 온보딩 API v2.0.0 알고리즘 전체 구현 (스와이프, 카드 선택, 감성 벡터 업데이트), `schema.sql`/`schema.dbml`에 `onboarding_card`/`user_preference` 반영됨
 - [x] `feat/presigned-upload` → `server` 머지 완료 (2026-08-03) — S3 presigned URL 업로드 API
-- [ ] `server` → `dev` 통합
+- [x] **이미지 프록시 엔드포인트 구현** (2026-08-04) — `GET /images/proxy?ref={photo_reference}&maxWidth=`. Google Places Photo API 키는 서버사이드에서만 다루고 이미지 바이너리를 중계하는 방식. `server` 머지 완료
+- [x] **백엔드 Render 배포** (2026-08-04) — `https://dong-gle.onrender.com` (무료 플랜, Docker 멀티스테이지 빌드, `server` 브랜치 push 시 자동 배포). 무료 플랜 512MB 메모리 제한으로 배포 직후 OOM(Exit 137) 발생 확인 → JVM 힙/GC 옵션 조정으로 해결. `main`은 아직 서버 코드가 반영 안 된 상태라 배포 소스는 임시로 `server` 사용 중 — `dev`/`main` 통합되면 배포 브랜치 전환 필요
+- [ ] `server` → `dev` 통합 (계속 이월, 의도적으로 보류 중)
 - [ ] 카카오/구글 OAuth 앱 자격증명 발급 + 로그인 E2E 검증 (스프린트2부터 이월)
-- [ ] **여행 기록(방문 로그) 관련 제외한 나머지 엔드포인트 전부 구현** (설만수 확인, 2026-08-02) — `api_1.3.1v.yaml` 기준 미구현 상태 확인된 것들:
-  - 코스 추천: `/courses/generate`, `/courses`, `/courses/manual`, `/courses/{courseId}`, `/swipe/candidates`, `/swipe/sessions/{sessionId}`, `/swipe/sessions/{sessionId}/results`
-  - 내 정보 확장: `/users/me/preferences`, `/users/me/likes`, `/users/me/courses`, `/users/me/notification`, `/users/me/device-token`
-  - 온보딩 명세 중 미구현분: `/onboarding/cards`, `/onboarding/preferences` (`feat/onboarding-api`에 아직 없음, 설계 의도 재확인 필요)
-  - 기타: `/events`, `/admin/sync/places`, `/health`
-  - **제외 (여행 기록 관련)**: `/users/me/logs`, `/places/{placeId}/logs`, `/logs/{logId}`, `/explore/similar-logs`(유사 사용자 탐색, 방문 로그 기반이라 같이 제외)
+- [x] **여행 기록(방문 로그) 관련 제외한 나머지 엔드포인트 — 1차분 구현 완료** (2026-08-04):
+  - `GET /users/me/preferences`, `GET /users/me/likes`, `GET /events` (월별 축제 목록, d_day 계산)
+  - 코스 CRUD 신규 구현: `GET /users/me/courses`, `POST /courses`, `POST /courses/manual`, `GET/PATCH/DELETE /courses/{courseId}` — 구글맵 Directions 경로 재계산(이동시간/거리/폴리라인)은 스코프 제외, 코드에 TODO로 명시(항상 null 반환)
+  - `GET/PATCH /users/me/notification`, `POST /users/me/device-token` — `notification_setting`/`device_token` 테이블 신규 추가(`schema.sql`/`schema.dbml` 반영, 공용 Supabase에도 적용 완료). 설정값/토큰 저장까지만 구현, 실제 푸시 발송(FCM 연동, `course_reminder` 크론 등)은 스코프 외
+  - `GET /health`
+- [ ] **미구현 잔여분 — 보류** (2026-08-04 재확인):
+  - `/courses/generate`, `/swipe/candidates`, `/swipe/sessions/{sessionId}`, `/swipe/sessions/{sessionId}/results` — 코스 추천 알고리즘 미확정이 선행 조건(김지광 담당). 스와이프 세션 저장용 테이블도 아직 없음
+  - `/onboarding/cards`, `/onboarding/preferences` — api 스펙 자체에 `[DEPRECATED 가능성]` 표기됨. `Onboarding Algo.md`(v2.0.0)가 스와이프 방식(`/onboarding/next` 등)만 다루고 이 두 엔드포인트를 전혀 언급하지 않음 — 예전 카드 다중선택 방식의 흔적으로 추정되며, `/onboarding/complete`가 이미 같은 역할(결과 저장 + `has_onboarded` 갱신)을 스와이프 방식으로 수행 중이라 사실상 대체된 것으로 보임. 실제 필요 여부 팀 확인 후 스펙 정리 필요
+  - `/admin/sync/places` — TourAPI 재동기화 트리거 기능인데, "데이터 파트가 DB에 직접 적재" 결정(2026-06-29)과 책임이 겹침. 응답 스펙의 `deactivated`(비활성화 수)를 반영할 soft-delete 컬럼도 `place` 테이블에 없어 스키마 추가까지 필요 — 정말 필요한 기능인지 재검토 필요
 
 **프론트 (설만수)**
 - [ ] 온보딩 API `dev` 머지되는 대로 온보딩 스와이프 화면 구현 착수
