@@ -1,6 +1,8 @@
 package com.dongle.server.user
 
 import com.dongle.server.user.dto.UpdateProfileRequest
+import com.dongle.server.user.dto.UserPreferenceTagResponse
+import com.dongle.server.user.dto.UserPreferencesResponse
 import com.dongle.server.user.dto.UserProfileResponse
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -9,9 +11,16 @@ import org.springframework.transaction.annotation.Transactional
 @Transactional(readOnly = true)
 class UserService(
     private val userRepository: UserRepository,
+    private val userPreferenceRepository: UserPreferenceRepository,
 ) {
     fun getProfile(userId: Long): UserProfileResponse =
         findUser(userId).toResponse()
+
+    fun getPreferences(userId: Long): UserPreferencesResponse =
+        UserPreferencesResponse(
+            preferences = userPreferenceRepository.findByUserId(userId)
+                .map { UserPreferenceTagResponse(tag = it.tag, score = it.score) }
+        )
 
     @Transactional
     fun updateProfile(userId: Long, request: UpdateProfileRequest): UserProfileResponse {

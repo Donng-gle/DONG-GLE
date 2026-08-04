@@ -101,6 +101,21 @@ class PlaceService(
         )
     }
 
+    fun myLikedPlaces(userId: Long, page: Int, size: Int): PlacesResponse {
+        val pageable = PageRequest.of((page - 1).coerceAtLeast(0), size)
+        val result = placeRepository.findLikedPlaces(userId, pageable)
+
+        return PlacesResponse(
+            places = result.content.map { it.toListItemResponse(setOf(it.id)) },
+            meta = PaginationMeta(
+                total = result.totalElements,
+                page = page,
+                size = size,
+                hasNext = result.hasNext(),
+            ),
+        )
+    }
+
     private fun likedPlaceIds(userId: Long?, placeIds: List<Long>): Set<Long> =
         if (userId == null || placeIds.isEmpty()) emptySet()
         else placeLikeRepository.findLikedPlaceIds(userId, placeIds)
