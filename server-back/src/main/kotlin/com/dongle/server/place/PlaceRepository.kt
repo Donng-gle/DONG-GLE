@@ -63,4 +63,23 @@ interface PlaceRepository : JpaRepository<Place, Long> {
         """
     )
     fun search(@Param("keyword") keyword: String, pageable: Pageable): Page<Place>
+
+    @Query("select pl.place from PlaceLike pl where pl.user.id = :userId order by pl.createdAt desc")
+    fun findLikedPlaces(@Param("userId") userId: Long, pageable: Pageable): Page<Place>
+
+    @Query(
+        """
+        select p from Place p
+        where p.category = :category
+          and p.eventEndDate >= :monthStart
+          and p.eventStartDate <= :monthEnd
+        order by p.eventStartDate asc
+        """
+    )
+    fun findEventsInMonth(
+        @Param("category") category: PlaceCategory,
+        @Param("monthStart") monthStart: LocalDate,
+        @Param("monthEnd") monthEnd: LocalDate,
+        pageable: Pageable,
+    ): Page<Place>
 }

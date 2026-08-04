@@ -2,6 +2,9 @@ package com.dongle.server.common
 
 import com.dongle.server.auth.InvalidOAuthCodeException
 import com.dongle.server.auth.InvalidRefreshTokenException
+import com.dongle.server.course.CourseAccessDeniedException
+import com.dongle.server.course.CourseNotFoundException
+import com.dongle.server.course.InvalidCourseSourceException
 import com.dongle.server.image.ImageProxyUpstreamException
 import com.dongle.server.image.InvalidPhotoReferenceException
 import com.dongle.server.onboarding.OnboardingCardAlreadySwipedException
@@ -75,6 +78,21 @@ class GlobalExceptionHandler {
     fun handleImageProxyUpstream(ex: ImageProxyUpstreamException): ResponseEntity<ErrorResponse> =
         ResponseEntity.status(HttpStatus.BAD_GATEWAY)
             .body(ErrorResponse(code = "IMAGE_PROXY_UPSTREAM_ERROR", message = ex.message ?: "이미지를 가져오지 못했습니다."))
+
+    @ExceptionHandler(CourseNotFoundException::class)
+    fun handleCourseNotFound(ex: CourseNotFoundException): ResponseEntity<ErrorResponse> =
+        ResponseEntity.status(HttpStatus.NOT_FOUND)
+            .body(ErrorResponse(code = "COURSE_NOT_FOUND", message = ex.message ?: "코스를 찾을 수 없습니다."))
+
+    @ExceptionHandler(CourseAccessDeniedException::class)
+    fun handleCourseAccessDenied(ex: CourseAccessDeniedException): ResponseEntity<ErrorResponse> =
+        ResponseEntity.status(HttpStatus.FORBIDDEN)
+            .body(ErrorResponse(code = "COURSE_ACCESS_DENIED", message = ex.message ?: "본인 코스가 아닙니다."))
+
+    @ExceptionHandler(InvalidCourseSourceException::class)
+    fun handleInvalidCourseSource(ex: InvalidCourseSourceException): ResponseEntity<ErrorResponse> =
+        ResponseEntity.status(HttpStatus.BAD_REQUEST)
+            .body(ErrorResponse(code = "INVALID_COURSE_SOURCE", message = ex.message ?: "잘못된 source 값입니다."))
 
     @ExceptionHandler(MethodArgumentNotValidException::class)
     fun handleInvalidRequest(ex: MethodArgumentNotValidException): ResponseEntity<ErrorResponse> =

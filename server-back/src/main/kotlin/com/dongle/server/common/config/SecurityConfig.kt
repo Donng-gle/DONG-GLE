@@ -32,6 +32,7 @@ class SecurityConfig(
         "/places/**",
         "/tags",
         "/images/proxy",
+        "/events",
     )
 
     @Bean
