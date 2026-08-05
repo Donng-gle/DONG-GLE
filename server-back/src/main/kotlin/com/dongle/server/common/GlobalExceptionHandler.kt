@@ -14,6 +14,8 @@ import com.dongle.server.place.PlaceLikeNotFoundException
 import com.dongle.server.place.PlaceNotFoundException
 import com.dongle.server.upload.UnsupportedContentTypeException
 import com.dongle.server.user.UserNotFoundException
+import com.dongle.server.visitlog.VisitLogAccessDeniedException
+import com.dongle.server.visitlog.VisitLogNotFoundException
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.http.converter.HttpMessageNotReadableException
@@ -93,6 +95,16 @@ class GlobalExceptionHandler {
     fun handleInvalidCourseSource(ex: InvalidCourseSourceException): ResponseEntity<ErrorResponse> =
         ResponseEntity.status(HttpStatus.BAD_REQUEST)
             .body(ErrorResponse(code = "INVALID_COURSE_SOURCE", message = ex.message ?: "잘못된 source 값입니다."))
+
+    @ExceptionHandler(VisitLogNotFoundException::class)
+    fun handleVisitLogNotFound(ex: VisitLogNotFoundException): ResponseEntity<ErrorResponse> =
+        ResponseEntity.status(HttpStatus.NOT_FOUND)
+            .body(ErrorResponse(code = "VISIT_LOG_NOT_FOUND", message = ex.message ?: "여행 기록을 찾을 수 없습니다."))
+
+    @ExceptionHandler(VisitLogAccessDeniedException::class)
+    fun handleVisitLogAccessDenied(ex: VisitLogAccessDeniedException): ResponseEntity<ErrorResponse> =
+        ResponseEntity.status(HttpStatus.FORBIDDEN)
+            .body(ErrorResponse(code = "VISIT_LOG_ACCESS_DENIED", message = ex.message ?: "본인 기록이 아닙니다."))
 
     @ExceptionHandler(MethodArgumentNotValidException::class)
     fun handleInvalidRequest(ex: MethodArgumentNotValidException): ResponseEntity<ErrorResponse> =
