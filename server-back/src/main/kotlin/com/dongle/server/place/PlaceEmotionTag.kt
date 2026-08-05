@@ -25,5 +25,5 @@ class PlaceEmotionTag(
     val tag: String,
 
     @Column(nullable = false)
-    val count: Int = 1,
+    var count: Int = 1,
 )

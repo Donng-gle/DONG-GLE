@@ -52,7 +52,7 @@ class Place(
     val eventEndDate: LocalDate? = null,
 
     @Column(name = "visit_log_count", nullable = false)
-    val visitLogCount: Int = 0,
+    var visitLogCount: Int = 0,
 
     @OneToMany(mappedBy = "place", fetch = FetchType.LAZY)
     @OrderBy("sortOrder asc")
