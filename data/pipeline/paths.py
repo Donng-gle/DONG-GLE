@@ -6,5 +6,7 @@ DATA_ROOT = PACKAGE_ROOT.parent
 RAW_ROOT = DATA_ROOT / "raw"
 TOURAPI_ROOT = RAW_ROOT / "tourapi"
 TEL_ROOT = RAW_ROOT / "tel"
+GOOGLE_ROOT = RAW_ROOT / "google"
 TOURAPI_ROOT.mkdir(parents=True, exist_ok=True)
 TEL_ROOT.mkdir(parents=True, exist_ok=True)
+GOOGLE_ROOT.mkdir(parents=True, exist_ok=True)
