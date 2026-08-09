@@ -45,6 +45,22 @@ CREATE TABLE place_image (
 CREATE INDEX idx_place_image_place ON place_image (place_id);
 
 
+-- 영업시간 (Google Places opening_hours.periods 기준, 요일별 여러 구간 가능)
+-- 브레이크타임 등 세부 휴게시간 데이터는 소스(TourAPI/Google) 어디에도 사실상 없어 미반영 (decision-log 참고)
+-- close_day/close_time이 NULL이면 해당 open_day는 24시간 영업
+CREATE TABLE place_hours (
+    id         BIGSERIAL PRIMARY KEY,
+    place_id   BIGINT    NOT NULL REFERENCES place (id) ON DELETE CASCADE,
+    open_day   SMALLINT  NOT NULL CHECK (open_day BETWEEN 0 AND 6),  -- 0=일요일 ~ 6=토요일 (Google 기준)
+    open_time  TIME      NOT NULL,
+    close_day  SMALLINT  CHECK (close_day BETWEEN 0 AND 6),          -- 자정 넘어가는 영업(예: 금 22:00~토 02:00) 표현용
+    close_time TIME,
+    UNIQUE (place_id, open_day, open_time)
+);
+
+CREATE INDEX idx_place_hours_place ON place_hours (place_id);
+
+
 -- 감성 태그 (방문 로그 AI 분석 결과 누적)
 CREATE TABLE place_emotion_tag (
     id       BIGSERIAL PRIMARY KEY,
