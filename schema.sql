@@ -183,6 +183,29 @@ CREATE INDEX idx_course_place_course ON course_place (course_id);
 CREATE INDEX idx_course_place_place ON course_place (place_id);
 
 
+-- 알림 설정 (유저당 1행, GET/PATCH /users/me/notification)
+-- push_enabled=false면 event_alert/course_reminder 값과 무관하게 알림 미발송
+CREATE TABLE notification_setting (
+    id              BIGSERIAL PRIMARY KEY,
+    user_id         BIGINT    NOT NULL UNIQUE REFERENCES "user" (id) ON DELETE CASCADE,
+    push_enabled    BOOLEAN   NOT NULL DEFAULT FALSE,
+    event_alert     BOOLEAN   NOT NULL DEFAULT TRUE,
+    course_reminder BOOLEAN   NOT NULL DEFAULT TRUE,
+    updated_at      TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+
+-- FCM 디바이스 토큰 (플랫폼별 최신 토큰만 유지, POST /users/me/device-token)
+CREATE TABLE device_token (
+    id         BIGSERIAL    PRIMARY KEY,
+    user_id    BIGINT       NOT NULL REFERENCES "user" (id) ON DELETE CASCADE,
+    platform   VARCHAR(10)  NOT NULL CHECK (platform IN ('ios', 'android')),
+    fcm_token  VARCHAR(500) NOT NULL,
+    updated_at TIMESTAMP    NOT NULL DEFAULT NOW(),
+    UNIQUE (user_id, platform)
+);
+
+
 -- 온보딩 카드 (AI 파트가 사전 분석하여 적재. 온보딩 런타임에 AI 호출 없음)
 -- place_id: nullable — 특정 장소에 종속되지 않는 분위기 카드 허용
 -- 태그별 최소 4장, is_seed=true 카드 7장(태그별 대표 1장씩) 필수
@@ -203,6 +226,21 @@ CREATE TABLE onboarding_card (
 
 CREATE INDEX idx_onboarding_card_seed  ON onboarding_card (is_seed);
 CREATE INDEX idx_onboarding_card_place ON onboarding_card (place_id);
+
+
+-- 온보딩 스와이프 이력 (진행 상태 복원 + 수렴 판정용. 최근 3장 변화량 계산에 사용)
+-- onboarding/reset 시 유저의 이 이력 전체를 삭제하고 재시작
+CREATE TABLE onboarding_swipe_log (
+    id            BIGSERIAL    PRIMARY KEY,
+    user_id       BIGINT       NOT NULL REFERENCES "user" (id) ON DELETE CASCADE,
+    card_id       BIGINT       NOT NULL REFERENCES onboarding_card (id) ON DELETE CASCADE,
+    action        VARCHAR(10)  NOT NULL CHECK (action IN ('like', 'dislike')),
+    change_amount FLOAT        NOT NULL,  -- 이번 스와이프로 인한 벡터 변화량 Σ|after-before|/7
+    created_at    TIMESTAMP    NOT NULL DEFAULT NOW(),
+    UNIQUE (user_id, card_id)
+);
+
+CREATE INDEX idx_onboarding_swipe_log_user ON onboarding_swipe_log (user_id, created_at);
 
 
 -- 공통 updated_at 자동 갱신

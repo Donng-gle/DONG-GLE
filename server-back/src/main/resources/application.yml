@@ -8,6 +8,11 @@ spring:
     url: ${DB_URL:CHANGE_ME}
     username: ${DB_USERNAME:CHANGE_ME}
     password: ${DB_PASSWORD:CHANGE_ME}
+    hikari:
+      # 기본값(10)이면 테스트가 서로 다른 Spring 컨텍스트를 여러 개 띄울 때(@TestConfiguration 등)
+      # 컨텍스트별로 별도 풀이 생겨 공용 Supabase 커넥션 풀 한도를 넘기고 일부 컨텍스트가
+      # 기동 실패하는 현상이 재현됨. 풀 크기를 낮춰서 여유를 둠
+      maximum-pool-size: 5
 
   jpa:
     open-in-view: false
@@ -35,6 +40,16 @@ oauth:
     client-id: ${GOOGLE_CLIENT_ID:CHANGE_ME}
     client-secret: ${GOOGLE_CLIENT_SECRET:CHANGE_ME}
     redirect-uri: ${GOOGLE_REDIRECT_URI:CHANGE_ME}
+
+aws:
+  region: ${AWS_REGION:ap-northeast-2}
+  access-key-id: ${AWS_ACCESS_KEY_ID:CHANGE_ME}
+  secret-access-key: ${AWS_SECRET_ACCESS_KEY:CHANGE_ME}
+  s3-bucket: ${S3_BUCKET_NAME:CHANGE_ME}
+
+google:
+  # Google Places 사진 프록시(/images/proxy)용. 데이터 파트가 음식점 tel 보완에 쓰는 것과 동일한 키 재사용 가능
+  places-api-key: ${GOOGLE_MAPS_API_KEY:CHANGE_ME}
 
 logging:
   level:

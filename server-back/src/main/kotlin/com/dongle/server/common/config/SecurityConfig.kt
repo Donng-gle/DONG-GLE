@@ -22,12 +22,17 @@ class SecurityConfig(
         "/auth/oauth/google",
         "/auth/refresh",
         "/error",
+        "/health",
     )
 
     // 장소 조회(GET)는 비인증 허용 (PlaceController security: [] 참고). POST/DELETE(좋아요 등)는 인증 필요
+    // 이미지 프록시도 앱 <Image> 컴포넌트가 JWT 없이 바로 로드해야 해서 비인증 허용
     private val permitAllGetPaths = arrayOf(
         "/places",
         "/places/**",
+        "/tags",
+        "/images/proxy",
+        "/events",
     )
 
     @Bean
