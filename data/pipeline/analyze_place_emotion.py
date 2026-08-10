@@ -69,11 +69,21 @@ def fetch_unanalyzed_places(cur) -> list[tuple[int, str]]:
     # 한계: 분석 결과 7개 태그가 전부 threshold 미만이면 행이 하나도 안 생겨서
     # "미분석"과 구분이 안 되고, 재실행할 때마다 계속 재분석 대상에 잡힌다.
     # 실제로 자주 발생하면 place에 분석 완료 여부(예: emotion_analyzed_at) 컬럼 추가 필요.
+    #
+    # main_image_url이 없어도 place_image 후보가 있으면 그중 sort_order가 가장
+    # 앞선 것으로 폴백한다 (예: 부용대, detailImage2로만 확보된 경우).
     cur.execute(
         """
-        SELECT id, main_image_url FROM place
-        WHERE main_image_url IS NOT NULL
-          AND id NOT IN (SELECT DISTINCT place_id FROM place_emotion_tag)
+        SELECT p.id, COALESCE(p.main_image_url, first_image.img_url) AS image_url
+        FROM place p
+        LEFT JOIN LATERAL (
+            SELECT img_url FROM place_image
+            WHERE place_id = p.id
+            ORDER BY sort_order
+            LIMIT 1
+        ) first_image ON p.main_image_url IS NULL
+        WHERE COALESCE(p.main_image_url, first_image.img_url) IS NOT NULL
+          AND p.id NOT IN (SELECT DISTINCT place_id FROM place_emotion_tag)
         """
     )
     return cur.fetchall()
@@ -91,15 +101,31 @@ def main(analyze_image: AnalyzeImage | None = None) -> None:
         with conn.cursor() as cur:
             places = fetch_unanalyzed_places(cur)
 
-            tag_count = 0
-            for place_id, image_url in places:
-                scores = resolved_analyze_image(image_url)
+    # 장소별로 커넥션/커밋을 분리한다. 외부 이미지 소스(TourAPI/프록시) 타임아웃이
+    # 종종 발생하는데, 하나로 묶으면 실패 시 이미 처리한 것까지 전부 롤백되어
+    # 재실행할 때마다 처음부터 다시 돌게 된다.
+    tag_count = 0
+    failures: list[tuple[int, str]] = []
+    for place_id, image_url in places:
+        try:
+            scores = resolved_analyze_image(image_url)
+        except Exception as error:
+            print(f"place_id={place_id} 분석 실패: {type(error).__name__}: {error}")
+            failures.append((place_id, str(error)))
+            continue
+
+        with get_connection() as conn:
+            with conn.cursor() as cur:
                 for tag in present_tags(scores):
                     cur.execute(UPSERT_EMOTION_TAG_SQL, {"place_id": place_id, "tag": tag})
                     tag_count += 1
 
     print(f"분석 대상 장소: {len(places)}건")
     print(f"place_emotion_tag upserted: {tag_count}건")
+    if failures:
+        print(f"분석 실패: {len(failures)}건 (재실행하면 자동으로 다시 시도됨)")
+        for place_id, message in failures:
+            print(f"  - place_id={place_id}: {message}")
 
 
 if __name__ == "__main__":
