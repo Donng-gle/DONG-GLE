@@ -169,19 +169,12 @@ def save_places_to_db(
     with get_connection() as conn:
         with conn.cursor() as cur:
             content_id_to_place_id: dict[str, int] = {}
+            content_id_to_extra_urls: dict[str, list[str]] = {}
             for row in place_rows:
                 cur.execute(UPSERT_PLACE_SQL, row)
                 db_id = cur.fetchone()[0]
                 content_id_to_place_id[row["content_id"]] = db_id
-                saved_places.append(
-                    {
-                        "id": db_id,
-                        "content_id": row["content_id"],
-                        "name": row["name"],
-                        "category": row["category"],
-                        "main_image_url": row["main_image_url"],
-                    }
-                )
+                content_id_to_extra_urls[row["content_id"]] = []
 
             image_count = 0
             for content_id, image_items in images.items():
@@ -196,7 +189,20 @@ def save_places_to_db(
                         UPSERT_PLACE_IMAGE_SQL,
                         {"place_id": place_id, "img_url": img_url, "sort_order": sort_order},
                     )
+                    content_id_to_extra_urls[content_id].append(img_url)
                     image_count += 1
+
+            for row in place_rows:
+                saved_places.append(
+                    {
+                        "id": content_id_to_place_id[row["content_id"]],
+                        "content_id": row["content_id"],
+                        "name": row["name"],
+                        "category": row["category"],
+                        "main_image_url": row["main_image_url"],
+                        "extra_image_urls": content_id_to_extra_urls[row["content_id"]],
+                    }
+                )
 
     return saved_places, image_count
 
@@ -241,7 +247,13 @@ def main(skip_semantic: bool = False) -> None:
 
     summary = summarize_saved_places_for_semantic(saved_places)
     if summary["semantic_target_count"] == 0:
-        print("semantic_vector skipped: main_image_url 있는 장소 없음")
+        if summary["already_analyzed_count"]:
+            print(
+                "semantic_vector skipped: "
+                f"이미 분석 완료 {summary['already_analyzed_count']}건"
+            )
+        else:
+            print("semantic_vector skipped: main_image_url 있는 장소 없음")
         return
 
     try:

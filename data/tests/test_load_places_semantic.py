@@ -39,6 +39,15 @@ def test_main_runs_semantic_sync_after_db_save() -> None:
     patch("pipeline.load_places.load_raw", return_value=([], {}, {}, {}, {})),
     patch("pipeline.load_places.save_places_to_db", return_value=(saved_places, 0)),
     patch(
+      "pipeline.load_places.summarize_saved_places_for_semantic",
+      return_value={
+        "saved_count": 1,
+        "semantic_target_count": 1,
+        "already_analyzed_count": 0,
+        "skipped_no_image_count": 0,
+      },
+    ),
+    patch(
       "pipeline.load_places.run_semantic_vector_sync",
       new=AsyncMock(return_value=batch_result),
     ) as sync_mock,
