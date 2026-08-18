@@ -1368,17 +1368,30 @@ TourAPI raw 적재
     ↓
 PostgreSQL place / place_image upsert (commit)
     ↓
-main_image_url 있는 place만 PlaceImageInput 변환
-  (대표 + extra 이미지 최대 3장)
+이미지 있는 place만 PlaceImageInput 변환
+  (main 없으면 place_image 첫 장 사용, 최대 3장)
     ↓
 run_semantic_vector_sync()
     ↓
 Qdrant upsert + place_semantic_vector upsert
 ```
 
+DB에 다른 경로로 장소가 들어와도 아래 워커로 동일 파이프라인을 돌린다.
+
+```bash
+# 1회
+python scripts/auto_sync_semantic_vectors.py
+
+# 폴링 자동 동기화
+python scripts/auto_sync_semantic_vectors.py --watch --interval-seconds 60
+```
+
+내부 API: `sync_pending_semantic_vectors()`  
+pending = 이미지 있음 + 현재 model/prompt/schema 미분석
+
 - DB 저장과 VLM 분석은 분리한다.
 - VLM 실패 시 place DB 저장은 유지한다.
-- 필요 시 `python -m pipeline.load_places --skip-semantic`으로 분석을 생략할 수 있다.
+- 필요 시 `python -m pipeline.load_places --skip-semantic`으로 적재 직후 분석만 생략할 수 있다.
 
 ### 17.4 Backfill
 

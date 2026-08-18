@@ -61,6 +61,31 @@ def test_place_image_input_from_db_place_returns_none_without_image() -> None:
   assert place_image_input_from_db_place({"id": 1, "name": "이미지 없음"}) is None
 
 
+def test_place_image_input_from_db_place_uses_extra_when_main_missing() -> None:
+  result = place_image_input_from_db_place(
+    {
+      "id": 58,
+      "name": "부용대",
+      "category": "관광지",
+      "main_image_url": None,
+      "extra_image_urls": [
+        "https://example.com/a.png",
+        "https://example.com/b.png",
+        "https://example.com/c.png",
+      ],
+    },
+    images_per_place=3,
+  )
+
+  assert result is not None
+  assert result.image_url == "https://example.com/a.png"
+  assert result.analysis_image_urls == [
+    "https://example.com/a.png",
+    "https://example.com/b.png",
+    "https://example.com/c.png",
+  ]
+
+
 def test_place_image_input_from_db_place_returns_none_without_id() -> None:
   assert (
     place_image_input_from_db_place(

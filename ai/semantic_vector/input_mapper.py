@@ -52,21 +52,23 @@ def place_image_input_from_db_place(
 ) -> PlaceImageInput | None:
   """DB place 레코드를 PlaceImageInput으로 변환한다.
 
-  main_image_url이 없으면 분석 대상이 아니므로 None을 반환한다.
-  image_url은 대표사진(main_image_url)이며, analysis_image_urls는 대표사진을
-  포함해 최대 images_per_place장까지 선택한다.
+  main_image_url이 없으면 extra_image_urls의 첫 이미지를 대표로 사용한다.
+  이미지가 하나도 없으면 None을 반환한다.
   """
+  extra_image_urls = _normalize_image_urls(place.get("extra_image_urls"))
+  if not extra_image_urls:
+    extra_image_urls = _normalize_image_urls(place.get("image_urls"))
+
   main_image_url = place.get("main_image_url") or place.get("image_url")
+  if not main_image_url and extra_image_urls:
+    main_image_url = extra_image_urls[0]
+    extra_image_urls = extra_image_urls[1:]
   if not main_image_url:
     return None
 
   place_id = place.get("id") or place.get("place_id")
   if place_id is None:
     return None
-
-  extra_image_urls = _normalize_image_urls(place.get("extra_image_urls"))
-  if not extra_image_urls:
-    extra_image_urls = _normalize_image_urls(place.get("image_urls"))
 
   analysis_image_urls = select_analysis_image_urls(
     str(main_image_url),

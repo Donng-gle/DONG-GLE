@@ -211,6 +211,57 @@ def log_semantic_analysis_result(
     )
 
 
+async def sync_pending_semantic_vectors(
+  *,
+  batch_size: int = 20,
+  limit: int | None = None,
+  concurrency: int | None = None,
+  config: SemanticVectorConfig | None = None,
+) -> BatchAnalysisResult:
+  """DB의 미분석 장소를 조회해 VLM 분석 후 Postgres/Qdrant에 저장한다.
+
+  `scripts/auto_sync_semantic_vectors.py`의 워커 진입점이다.
+  pending = 이미지 있음 + 현재 model/prompt/schema 미분석.
+  """
+  resolved_config = config or SemanticVectorConfig()
+  places = load_places_for_semantic_backfill(
+    limit=limit,
+    only_unanalyzed=True,
+    config=resolved_config,
+  )
+  if not places:
+    return BatchAnalysisResult(
+      total_count=0,
+      success_count=0,
+      failed_count=0,
+      results=[],
+      failures=[],
+    )
+
+  merged = BatchAnalysisResult(
+    total_count=0,
+    success_count=0,
+    failed_count=0,
+    results=[],
+    failures=[],
+  )
+  for start in range(0, len(places), batch_size):
+    batch = places[start : start + batch_size]
+    result = await run_semantic_vector_sync(
+      batch,
+      config=resolved_config,
+      concurrency=concurrency,
+    )
+    merged = BatchAnalysisResult(
+      total_count=merged.total_count + result.total_count,
+      success_count=merged.success_count + result.success_count,
+      failed_count=merged.failed_count + result.failed_count,
+      results=[*merged.results, *result.results],
+      failures=[*merged.failures, *result.failures],
+    )
+  return merged
+
+
 async def run_semantic_vector_sync(
   places: Sequence[Mapping[str, Any]],
   *,
@@ -285,4 +336,5 @@ __all__ = [
   "map_place_to_semantic_input",
   "run_semantic_vector_sync",
   "summarize_saved_places_for_semantic",
+  "sync_pending_semantic_vectors",
 ]

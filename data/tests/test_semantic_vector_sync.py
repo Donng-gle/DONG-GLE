@@ -13,6 +13,7 @@ from pipeline.semantic_vector_sync import (
   load_places_for_semantic_backfill,
   run_semantic_vector_sync,
   summarize_saved_places_for_semantic,
+  sync_pending_semantic_vectors,
 )
 from semantic_vector.models import BatchAnalysisFailure, BatchAnalysisResult
 
@@ -147,6 +148,37 @@ async def test_run_semantic_vector_sync_does_not_raise_on_partial_failure(
     result = await run_semantic_vector_sync(saved_places)
 
   assert result.failed_count == 1
+
+
+@pytest.mark.asyncio
+async def test_sync_pending_semantic_vectors_batches_unanalyzed_places(
+  saved_places: list[dict],
+) -> None:
+  expected = BatchAnalysisResult(
+    total_count=1,
+    success_count=1,
+    failed_count=0,
+    results=[],
+    failures=[],
+  )
+
+  with (
+    patch(
+      "pipeline.semantic_vector_sync.load_places_for_semantic_backfill",
+      return_value=saved_places,
+    ) as load_mock,
+    patch(
+      "pipeline.semantic_vector_sync.run_semantic_vector_sync",
+      new=AsyncMock(return_value=expected),
+    ) as sync_mock,
+  ):
+    result = await sync_pending_semantic_vectors(batch_size=1, limit=2)
+
+  load_mock.assert_called_once()
+  assert load_mock.call_args.kwargs["only_unanalyzed"] is True
+  assert load_mock.call_args.kwargs["limit"] == 2
+  assert sync_mock.await_count == 2
+  assert result.success_count == 2
 
 
 def test_load_places_for_semantic_backfill_applies_limit_and_place_id() -> None:
