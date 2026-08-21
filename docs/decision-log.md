@@ -310,3 +310,9 @@
 - **이유**: 
 - **영향**: 
 -->
+
+## 2026-08-21 | place_semantic_vector를 schema.sql/schema.dbml에 반영
+
+- **결정**: `feat/semantic-vector`(PR #20)가 `data/migrations/001_place_semantic_vector.sql`로 따로 관리하던 `place_semantic_vector` 테이블을 `schema.sql`/`schema.dbml`에 반영. 실제 Supabase 컬럼 구조와 대조해 일치 확인. `place_emotion_tag` 관련 주석도 새 역할(방문 로그 누적 전용)에 맞게 갱신
+- **이유**: `schema.sql`이 스키마 기준(SSOT)이라는 팀 원칙(2026-07-17)에 따름 — 별도 마이그레이션 파일로 관리하면 실제 DB 상태와 문서가 어긋날 수 있음(이번에도 테이블이 이미 Supabase엔 있는데 schema.sql엔 없는 상태였음)
+- **영향**: PR #20 리뷰 코멘트로 이 방식 통일을 요청함. `data/migrations/` 폴더 자체를 없앨지는 PR #20 머지 시 같이 정리 필요
