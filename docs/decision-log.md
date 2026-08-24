@@ -316,3 +316,11 @@
 - **결정**: `feat/semantic-vector`(PR #20)가 `data/migrations/001_place_semantic_vector.sql`로 따로 관리하던 `place_semantic_vector` 테이블을 `schema.sql`/`schema.dbml`에 반영. 실제 Supabase 컬럼 구조와 대조해 일치 확인. `place_emotion_tag` 관련 주석도 새 역할(방문 로그 누적 전용)에 맞게 갱신
 - **이유**: `schema.sql`이 스키마 기준(SSOT)이라는 팀 원칙(2026-07-17)에 따름 — 별도 마이그레이션 파일로 관리하면 실제 DB 상태와 문서가 어긋날 수 있음(이번에도 테이블이 이미 Supabase엔 있는데 schema.sql엔 없는 상태였음)
 - **영향**: PR #20 리뷰 코멘트로 이 방식 통일을 요청함. `data/migrations/` 폴더 자체를 없앨지는 PR #20 머지 시 같이 정리 필요
+
+---
+
+## 2026-08-24 | place_hours: "매일 24시간 운영" 파싱 버그 수정
+
+- **결정**: `load_place_hours.py`가 Google Places의 "매일 24시간 운영" 특수 표현(`periods`가 `{"open": {"day": 0, "time": "0000"}}` 하나뿐이고 `close` 없음)을 "일요일만 00:00에 열고 안 닫음"으로 잘못 저장하던 버그 수정. 이제 이 패턴을 감지하면 7일 전체에 대해 `open_time=00:00, close_time=NULL`로 확장 저장
+- **이유**: 실제로 8곳(부용대, 월영교, 신세동 벽화마을 등 주로 야외 유적지·공원류)이 이 형식으로 응답받았는데, 그대로 저장하면 "월~토는 영업시간 정보 없음"으로 잘못 해석될 수 있었음
+- **영향**: 기존 잘못 저장된 8곳의 행 삭제 후 재적재, 정상적으로 7일 전체 커버됨 확인. `place_hours` 전체 보유 장소 수는 131건으로 동일 유지(버그 있던 8곳이 빠졌다 다시 정상 채워짐)
