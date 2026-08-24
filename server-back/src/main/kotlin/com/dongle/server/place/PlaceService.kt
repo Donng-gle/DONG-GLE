@@ -9,6 +9,7 @@ import com.dongle.server.place.dto.PlaceListItemResponse
 import com.dongle.server.place.dto.PlaceMapPinResponse
 import com.dongle.server.place.dto.PlaceMapResponse
 import com.dongle.server.place.dto.PlacesResponse
+import com.dongle.server.user.UserPreferenceRepository
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Sort
@@ -24,6 +25,7 @@ class PlaceService(
     private val placeLikeRepository: PlaceLikeRepository,
     private val placeSemanticVectorRepository: PlaceSemanticVectorRepository,
     private val placeHoursRepository: PlaceHoursRepository,
+    private val userPreferenceRepository: UserPreferenceRepository,
     private val objectMapper: ObjectMapper,
 ) {
     fun listPlaces(category: PlaceCategory?, travelDate: LocalDate?, page: Int, size: Int, userId: Long?): PlacesResponse {
@@ -100,7 +102,43 @@ class PlaceService(
     }
 
     fun featured(limit: Int, userId: Long?): FeaturedPlacesResponse {
-        // TODO: 온보딩/user_preference 구현 후 인증 유저 개인화 추천으로 교체. 현재는 인기순(visit_log_count) 고정
+        val myTopTags = userId?.let { topPreferenceTags(it) } ?: emptyList()
+        return if (myTopTags.isNotEmpty()) {
+            personalizedFeatured(userId!!, myTopTags, limit) ?: popularFeatured(limit, userId)
+        } else {
+            popularFeatured(limit, userId)
+        }
+    }
+
+    private fun topPreferenceTags(userId: Long): List<String> =
+        userPreferenceRepository.findByUserId(userId)
+            .sortedByDescending { it.score }
+            .take(TAG_DISPLAY_LIMIT)
+            .map { it.tag }
+
+    // user_preference 상위 태그와 장소의 상위 태그(누적 방문 로그 우선, 없으면 semantic_vector 대체 —
+    // resolveTags와 동일한 폴백 규칙) 겹침 개수로 정렬. 겹치는 장소가 하나도 없으면 개인화 의미가 없으므로
+    // null을 반환해 인기순으로 폴백한다 (is_personalized를 잘못 true로 표시하지 않기 위함)
+    private fun personalizedFeatured(userId: Long, myTopTags: List<String>, limit: Int): FeaturedPlacesResponse? {
+        val allPlaces = placeRepository.findAll()
+        val vectors = semanticVectorsByPlaceId(allPlaces.map { it.id })
+
+        val ranked = allPlaces
+            .map { place -> place to place.resolveTags(vectors[place.id], TAG_DISPLAY_LIMIT).count { it in myTopTags } }
+            .sortedWith(compareByDescending<Pair<Place, Int>> { it.second }.thenByDescending { it.first.visitLogCount })
+
+        if (ranked.firstOrNull()?.second == 0) return null
+
+        val places = ranked.take(limit).map { it.first }
+        val likedIds = likedPlaceIds(userId, places.map { it.id })
+
+        return FeaturedPlacesResponse(
+            places = places.map { it.toListItemResponse(likedIds, vectors[it.id]) },
+            isPersonalized = true,
+        )
+    }
+
+    private fun popularFeatured(limit: Int, userId: Long?): FeaturedPlacesResponse {
         val pageable = PageRequest.of(0, limit, Sort.by(Sort.Direction.DESC, "visitLogCount"))
         val places = placeRepository.findAll(pageable).content
         val likedIds = likedPlaceIds(userId, places.map { it.id })
