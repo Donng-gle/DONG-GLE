@@ -12,6 +12,7 @@ import com.dongle.server.user.dto.UserProfileResponse
 import jakarta.validation.Valid
 import org.springframework.http.ResponseEntity
 import org.springframework.security.core.Authentication
+import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PatchMapping
 import org.springframework.web.bind.annotation.PostMapping
@@ -36,6 +37,12 @@ class UserController(
         authentication: Authentication,
         @Valid @RequestBody request: UpdateProfileRequest,
     ): UserProfileResponse = userService.updateProfile(authentication.principal as Long, request)
+
+    @DeleteMapping("/me")
+    fun withdraw(authentication: Authentication): ResponseEntity<Unit> {
+        userService.withdraw(authentication.principal as Long)
+        return ResponseEntity.noContent().build()
+    }
 
     @GetMapping("/me/preferences")
     fun preferences(authentication: Authentication): UserPreferencesResponse =
