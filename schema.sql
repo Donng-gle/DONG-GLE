@@ -45,6 +45,28 @@ CREATE TABLE place_image (
 CREATE INDEX idx_place_image_place ON place_image (place_id);
 
 
+-- 장소별 VLM(GPT Vision) semantic 분석 raw score (AI 파트, semantic-image-v4.1 프롬프트 기준)
+-- 사진 3장 기반 정적 분석 결과 1행/장소. place_emotion_tag(방문 로그 누적)와는 별개 신호이며
+-- 데이터 파트 배치 스크립트(data/pipeline/semantic_vector_sync.py)로만 적재됨, 백엔드는 읽기 전용
+CREATE TABLE place_semantic_vector (
+    place_id                  BIGINT      PRIMARY KEY REFERENCES place (id) ON DELETE CASCADE,
+    representative_image_url  TEXT        NOT NULL,
+    analysis_image_urls       JSONB       NOT NULL DEFAULT '[]'::jsonb,
+    analysis_image_count      INT         NOT NULL,
+    detail_scores              JSONB      NOT NULL,  -- 35개 세부 태그 점수
+    major_scores               JSONB      NOT NULL,  -- 7개 대분류 태그 점수 (ssot.md 감성태그셋과 동일 키)
+    summary                    TEXT,
+    model_name                 TEXT       NOT NULL,
+    prompt_version             TEXT       NOT NULL,
+    tag_schema_version         TEXT       NOT NULL,
+    qdrant_point_id            TEXT       NOT NULL,
+    analyzed_at                TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_place_semantic_vector_prompt_version ON place_semantic_vector (prompt_version);
+CREATE INDEX idx_place_semantic_vector_analyzed_at ON place_semantic_vector (analyzed_at DESC);
+
+
 -- 감성 태그 (방문 로그 AI 분석 결과 누적)
 CREATE TABLE place_emotion_tag (
     id       BIGSERIAL PRIMARY KEY,

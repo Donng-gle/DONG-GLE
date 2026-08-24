@@ -17,6 +17,7 @@ import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import org.springframework.transaction.annotation.Transactional
+import java.time.OffsetDateTime
 
 // 안동 시내(하회마을 인근) 좌표대를 뷰포트/장소 좌표로 사용
 @SpringBootTest
@@ -35,6 +36,9 @@ class PlaceApiIntegrationTest {
 
     @Autowired
     lateinit var jwtTokenProvider: JwtTokenProvider
+
+    @Autowired
+    lateinit var placeSemanticVectorRepository: PlaceSemanticVectorRepository
 
     private fun place(contentId: String, name: String, lat: Double, lng: Double, visitLogCount: Int = 0) = placeRepository.save(
         Place(
@@ -132,6 +136,27 @@ class PlaceApiIntegrationTest {
 
         mockMvc.perform(post("/places/${place.id}/like"))
             .andExpect(status().isUnauthorized)
+    }
+
+    @Test
+    fun `방문 로그 태그가 없으면 place_semantic_vector major_scores로 대체된다`() {
+        val place = place("SEM001", "테스트전용시맨틱장소", 36.5, 128.5)
+        placeSemanticVectorRepository.save(
+            PlaceSemanticVector(
+                placeId = place.id,
+                representativeImageUrl = "https://example.com/a.jpg",
+                majorScores = """{"relaxing":0.9,"lively":0.1,"romantic":0.2,"local":0.3,"photogenic":0.4,"traditional":0.05,"modern":0.05}""",
+                detailScores = "{}",
+                modelName = "test-model",
+                promptVersion = "test-v1",
+                analyzedAt = OffsetDateTime.now(),
+            )
+        )
+
+        mockMvc.perform(get("/places/${place.id}"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.top_tags[0]").value("relaxing"))
+            .andExpect(jsonPath("$.top_tags.length()").value(7))
     }
 
     @Test
