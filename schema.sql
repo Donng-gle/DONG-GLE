@@ -61,7 +61,31 @@ CREATE TABLE place_hours (
 CREATE INDEX idx_place_hours_place ON place_hours (place_id);
 
 
--- 감성 태그 (방문 로그 AI 분석 결과 누적)
+-- 장소별 VLM(GPT Vision) semantic 분석 raw score (장소 공식 사진 기반, 정적 기준선)
+-- 장소당 최신 분석 결과 1행만 유지. model_name/prompt_version/tag_schema_version이 바뀌면 재분석 대상.
+-- place_emotion_tag(아래, 방문 로그 누적)와는 별개 신호 — 하나가 다른 하나를 대체하지 않음 (decision-log 2026-08-21 참고)
+CREATE TABLE place_semantic_vector (
+    place_id                 BIGINT      PRIMARY KEY REFERENCES place (id) ON DELETE CASCADE,
+    representative_image_url TEXT        NOT NULL,
+    analysis_image_urls      JSONB       NOT NULL DEFAULT '[]'::jsonb,
+    analysis_image_count     INTEGER     NOT NULL,
+    detail_scores            JSONB       NOT NULL,  -- 35개 세부 태그 점수
+    major_scores             JSONB       NOT NULL,  -- 7개 대분류 태그 점수 (docs/ssot.md 감성태그셋 참고)
+    summary                  TEXT,
+    model_name               TEXT        NOT NULL,
+    prompt_version           TEXT        NOT NULL,
+    tag_schema_version       TEXT        NOT NULL,
+    qdrant_point_id          TEXT        NOT NULL,  -- Qdrant place_semantic_vectors 컬렉션의 벡터 검색용 point id
+    analyzed_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_place_semantic_vector_prompt_version ON place_semantic_vector (prompt_version);
+CREATE INDEX idx_place_semantic_vector_analyzed_at ON place_semantic_vector (analyzed_at DESC);
+
+
+-- 감성 태그 (방문 로그 누적 전용. 장소 공식 사진 기반 정적 분석은 위 place_semantic_vector 참고)
+-- 사용자가 방문 기록에 사진을 올려 AI가 분석하면 여기 count가 늘고, 기록을 지우면 줄어드는 실시간 집계 테이블.
+-- 초기 시드값은 없음 — 실제 방문 기록이 쌓이며 채워지는 게 정상 (decision-log 2026-08-21 참고)
 CREATE TABLE place_emotion_tag (
     id       BIGSERIAL PRIMARY KEY,
     place_id BIGINT      NOT NULL REFERENCES place (id) ON DELETE CASCADE,
