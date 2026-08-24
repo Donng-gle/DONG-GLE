@@ -19,6 +19,7 @@ data class PlaceDetailResponse(
     val eventStartDate: LocalDate?,
     val eventEndDate: LocalDate?,
     val images: List<PlaceImageResponse>,
+    val hours: List<PlaceHoursResponse>,
     val topTags: List<String>,
     val visitLogCount: Int,
     val isLiked: Boolean?,

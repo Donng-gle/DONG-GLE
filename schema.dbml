@@ -68,6 +68,21 @@ Table place_semantic_vector {
   }
 }
 
+Table place_hours {
+  id         bigint   [pk, increment]
+  place_id   bigint   [not null, ref: > place.id]
+  open_day   smallint [not null, note: '0=일요일 ~ 6=토요일 (Google 기준)']
+  open_time  time     [not null]
+  close_day  smallint [note: '자정 넘어가는 영업 표현용']
+  close_time time     [note: 'close_day/close_time null이면 해당 open_day 24시간 영업']
+
+  Note: 'Google Places opening_hours.periods 기준. 브레이크타임 데이터는 소스에 사실상 없어 미반영'
+
+  indexes {
+    (place_id, open_day, open_time) [unique]
+  }
+}
+
 Table place_emotion_tag {
   id       bigint      [pk, increment]
   place_id bigint      [not null, ref: > place.id]

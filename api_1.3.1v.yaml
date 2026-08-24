@@ -398,6 +398,29 @@ components:
         sort_order:
           type: integer
 
+    PlaceHours:
+      type: object
+      description: 요일별 영업시간 한 구간. close_day/close_time이 null이면 open_day 당일 24시간 영업. 브레이크타임은 소스 데이터 부재로 미반영.
+      properties:
+        open_day:
+          type: integer
+          description: 0=일요일 ~ 6=토요일 (Google 기준)
+          example: 1
+        open_time:
+          type: string
+          format: time
+          example: "09:00:00"
+        close_day:
+          type: integer
+          nullable: true
+          description: 자정 넘어가는 영업(예 금 22:00~토 02:00) 표현용
+          example: 1
+        close_time:
+          type: string
+          format: time
+          nullable: true
+          example: "18:00:00"
+
 
     UserVector:
       type: object
@@ -588,6 +611,11 @@ components:
           description: 장소 추가 이미지 목록 (관광공사 이미지정보 API 기반)
           items:
             $ref: '#/components/schemas/PlaceImage'
+        hours:
+          type: array
+          description: 요일별 영업시간 목록 (커버리지 미확보 장소는 빈 배열)
+          items:
+            $ref: '#/components/schemas/PlaceHours'
         top_tags:
           type: array
           description: 사용자 기록에서 AI 분석으로 누적된 감성 태그 상위 목록. 장소 분위기를 직관적으로 전달하는 핵심 데이터.

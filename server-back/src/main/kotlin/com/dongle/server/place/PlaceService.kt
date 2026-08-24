@@ -3,6 +3,7 @@ package com.dongle.server.place
 import com.dongle.server.common.PaginationMeta
 import com.dongle.server.place.dto.FeaturedPlacesResponse
 import com.dongle.server.place.dto.PlaceDetailResponse
+import com.dongle.server.place.dto.PlaceHoursResponse
 import com.dongle.server.place.dto.PlaceImageResponse
 import com.dongle.server.place.dto.PlaceListItemResponse
 import com.dongle.server.place.dto.PlaceMapPinResponse
@@ -22,6 +23,7 @@ class PlaceService(
     private val placeRepository: PlaceRepository,
     private val placeLikeRepository: PlaceLikeRepository,
     private val placeSemanticVectorRepository: PlaceSemanticVectorRepository,
+    private val placeHoursRepository: PlaceHoursRepository,
     private val objectMapper: ObjectMapper,
 ) {
     fun listPlaces(category: PlaceCategory?, travelDate: LocalDate?, page: Int, size: Int, userId: Long?): PlacesResponse {
@@ -53,7 +55,8 @@ class PlaceService(
             .orElseThrow { PlaceNotFoundException(placeId) }
         val isLiked = userId?.let { placeLikeRepository.existsByUserIdAndPlaceId(it, placeId) }
         val vector = placeSemanticVectorRepository.findById(placeId).orElse(null)
-        return place.toDetailResponse(isLiked, vector)
+        val hours = placeHoursRepository.findByPlaceIdIn(listOf(placeId))
+        return place.toDetailResponse(isLiked, vector, hours)
     }
 
     fun getMapPins(
@@ -166,7 +169,7 @@ class PlaceService(
         isLiked = likedIds.contains(id),
     )
 
-    private fun Place.toDetailResponse(isLiked: Boolean?, vector: PlaceSemanticVector?) = PlaceDetailResponse(
+    private fun Place.toDetailResponse(isLiked: Boolean?, vector: PlaceSemanticVector?, hours: List<PlaceHours>) = PlaceDetailResponse(
         id = id,
         contentId = contentId,
         name = name,
@@ -182,6 +185,7 @@ class PlaceService(
         eventStartDate = eventStartDate,
         eventEndDate = eventEndDate,
         images = images.map { PlaceImageResponse(it.id, it.imgUrl, it.sortOrder) },
+        hours = hours.map { h -> PlaceHoursResponse(h.openDay, h.openTime, h.closeDay, h.closeTime) },
         topTags = resolveTags(vector, MAJOR_TAG_KEYS.size),
         visitLogCount = visitLogCount,
         isLiked = isLiked,

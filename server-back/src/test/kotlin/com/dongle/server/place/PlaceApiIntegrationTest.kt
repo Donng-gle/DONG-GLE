@@ -17,6 +17,7 @@ import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import org.springframework.transaction.annotation.Transactional
+import java.time.LocalTime
 import java.time.OffsetDateTime
 
 // 안동 시내(하회마을 인근) 좌표대를 뷰포트/장소 좌표로 사용
@@ -39,6 +40,9 @@ class PlaceApiIntegrationTest {
 
     @Autowired
     lateinit var placeSemanticVectorRepository: PlaceSemanticVectorRepository
+
+    @Autowired
+    lateinit var placeHoursRepository: PlaceHoursRepository
 
     private fun place(contentId: String, name: String, lat: Double, lng: Double, visitLogCount: Int = 0) = placeRepository.save(
         Place(
@@ -157,6 +161,30 @@ class PlaceApiIntegrationTest {
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.top_tags[0]").value("relaxing"))
             .andExpect(jsonPath("$.top_tags.length()").value(7))
+    }
+
+    @Test
+    fun `장소 상세 조회 시 요일별 영업시간을 반환한다`() {
+        val place = place("HOURS001", "테스트전용영업시간장소", 36.5, 128.5)
+        placeHoursRepository.save(PlaceHours(place = place, openDay = 1, openTime = LocalTime.of(9, 0), closeTime = LocalTime.of(18, 0)))
+        placeHoursRepository.save(PlaceHours(place = place, openDay = 6, openTime = LocalTime.of(22, 0), closeDay = 0, closeTime = LocalTime.of(2, 0)))
+
+        mockMvc.perform(get("/places/${place.id}"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.hours.length()").value(2))
+            .andExpect(jsonPath("$.hours[0].open_day").value(1))
+            .andExpect(jsonPath("$.hours[0].open_time").value("09:00:00"))
+            .andExpect(jsonPath("$.hours[0].close_time").value("18:00:00"))
+            .andExpect(jsonPath("$.hours[1].close_day").value(0))
+    }
+
+    @Test
+    fun `영업시간 데이터가 없으면 빈 배열을 반환한다`() {
+        val place = place("HOURS002", "테스트전용영업시간없는장소", 36.5, 128.5)
+
+        mockMvc.perform(get("/places/${place.id}"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.hours.length()").value(0))
     }
 
     @Test
