@@ -10,6 +10,9 @@ dependencies = [
     "qdrant-client>=1.10.0",
     "langsmith>=0.3.0",
     "httpx>=0.27.0",
+    "fastapi>=0.115.0",
+    "uvicorn>=0.32.0",
+    "psycopg2-binary>=2.9.9",
 ]
 
 [build-system]
@@ -18,8 +21,8 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["hidden_score*", "semantic_vector*", "course_optimizer*"]
+include = ["hidden_score*", "semantic_vector*", "course_optimizer*", "place_recommender*", "api*"]
 
 [tool.pytest.ini_options]
-testpaths = ["hidden_score/tests", "semantic_vector/tests", "course_optimizer/tests"]
+testpaths = ["hidden_score/tests", "semantic_vector/tests", "course_optimizer/tests", "place_recommender/tests", "api/tests"]
 pythonpath = ["."]

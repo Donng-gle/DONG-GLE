@@ -201,15 +201,19 @@ async def get_detail_vector_by_place_id(
   )
 
 
-async def search_similar_places_by_detail_vector(
-  detail_vector: list[float],
+async def search_similar_places_by_named_vector(
+  query_vector: list[float],
   *,
   config: SemanticVectorConfig,
+  named_vector: str,
   category: str | None = None,
   exclude_place_ids: set[str] | None = None,
   limit: int = 20,
 ) -> list[SimilarPlaceHit]:
-  """Detail Vector Cosine Similarity 기준으로 유사 장소를 검색한다."""
+  """Named Vector Cosine Similarity 기준으로 유사 장소를 검색한다."""
+  if named_vector not in _EXPECTED_VECTORS:
+    raise QdrantIndexError(f"unknown named vector: {named_vector}")
+
   client = _build_client(config)
   excluded = exclude_place_ids or set()
 
@@ -223,8 +227,8 @@ async def search_similar_places_by_detail_vector(
 
       results = await client.query_points(
         collection_name=config.qdrant_collection_name,
-        query=detail_vector,
-        using="detail",
+        query=query_vector,
+        using=named_vector,
         query_filter=query_filter,
         limit=limit,
         with_payload=True,
@@ -251,4 +255,42 @@ async def search_similar_places_by_detail_vector(
     _search,
     max_retry_count=config.max_retry_count,
     retryable_exceptions=(OSError,),
+  )
+
+
+async def search_similar_places_by_detail_vector(
+  detail_vector: list[float],
+  *,
+  config: SemanticVectorConfig,
+  category: str | None = None,
+  exclude_place_ids: set[str] | None = None,
+  limit: int = 20,
+) -> list[SimilarPlaceHit]:
+  """Detail Vector Cosine Similarity 기준으로 유사 장소를 검색한다."""
+  return await search_similar_places_by_named_vector(
+    detail_vector,
+    config=config,
+    named_vector="detail",
+    category=category,
+    exclude_place_ids=exclude_place_ids,
+    limit=limit,
+  )
+
+
+async def search_similar_places_by_major_vector(
+  major_vector: list[float],
+  *,
+  config: SemanticVectorConfig,
+  category: str | None = None,
+  exclude_place_ids: set[str] | None = None,
+  limit: int = 20,
+) -> list[SimilarPlaceHit]:
+  """Major Vector Cosine Similarity 기준으로 유사 장소를 검색한다."""
+  return await search_similar_places_by_named_vector(
+    major_vector,
+    config=config,
+    named_vector="major",
+    category=category,
+    exclude_place_ids=exclude_place_ids,
+    limit=limit,
   )

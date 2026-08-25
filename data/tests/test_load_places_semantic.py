@@ -1,23 +1,36 @@
-"""load_places Semantic Vector 연결 테스트."""
+"""load_places는 DB 적재만 하고 semantic 분석은 호출하지 않는다."""
 
 from __future__ import annotations
 
-import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+import ast
+from pathlib import Path
+from unittest.mock import patch
 
 from pipeline.load_places import main
-from semantic_vector.models import BatchAnalysisResult
+
+LOAD_PLACES_PATH = Path(__file__).resolve().parents[1] / "pipeline" / "load_places.py"
 
 
-def _run_coro(coro):
-  loop = asyncio.new_event_loop()
-  try:
-    return loop.run_until_complete(coro)
-  finally:
-    loop.close()
+def test_load_places_source_does_not_import_semantic_or_ai_sdk() -> None:
+  source = LOAD_PLACES_PATH.read_text()
+  tree = ast.parse(source)
+  imported_modules: list[str] = []
+  for node in ast.walk(tree):
+    if isinstance(node, ast.Import):
+      imported_modules.extend(alias.name for alias in node.names)
+    elif isinstance(node, ast.ImportFrom) and node.module:
+      imported_modules.append(node.module)
+
+  assert "pipeline.semantic_vector_sync" not in imported_modules
+  assert all(
+    module != "semantic_vector" and not module.startswith("semantic_vector.")
+    for module in imported_modules
+  )
+  assert "openai" not in imported_modules
+  assert "qdrant_client" not in imported_modules
 
 
-def test_main_runs_semantic_sync_after_db_save() -> None:
+def test_main_saves_places_without_calling_semantic_sync() -> None:
   saved_places = [
     {
       "id": 1,
@@ -27,43 +40,18 @@ def test_main_runs_semantic_sync_after_db_save() -> None:
       "main_image_url": "https://example.com/1.jpg",
     }
   ]
-  batch_result = BatchAnalysisResult(
-    total_count=1,
-    success_count=1,
-    failed_count=0,
-    results=[],
-    failures=[],
-  )
 
   with (
     patch("pipeline.load_places.load_raw", return_value=([], {}, {}, {}, {})),
-    patch("pipeline.load_places.save_places_to_db", return_value=(saved_places, 0)),
     patch(
-      "pipeline.load_places.summarize_saved_places_for_semantic",
-      return_value={
-        "saved_count": 1,
-        "semantic_target_count": 1,
-        "already_analyzed_count": 0,
-        "skipped_no_image_count": 0,
-      },
-    ),
-    patch(
-      "pipeline.load_places.run_semantic_vector_sync",
-      new=AsyncMock(return_value=batch_result),
-    ) as sync_mock,
-    patch("pipeline.load_places.asyncio.run", side_effect=_run_coro),
+      "pipeline.load_places.save_places_to_db",
+      return_value=(saved_places, 0),
+    ) as save_mock,
   ):
-    main(skip_semantic=False)
+    main()
 
-  sync_mock.assert_awaited_once_with(saved_places)
+  save_mock.assert_called_once()
+  import pipeline.load_places as load_places_module
 
-
-def test_main_skips_semantic_sync_when_requested() -> None:
-  with (
-    patch("pipeline.load_places.load_raw", return_value=([], {}, {}, {}, {})),
-    patch("pipeline.load_places.save_places_to_db", return_value=([], 0)),
-    patch("pipeline.load_places.asyncio.run") as run_mock,
-  ):
-    main(skip_semantic=True)
-
-  run_mock.assert_not_called()
+  assert not hasattr(load_places_module, "run_semantic_vector_sync")
+  assert not hasattr(load_places_module, "summarize_saved_places_for_semantic")

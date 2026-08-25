@@ -16,6 +16,7 @@ from semantic_vector.qdrant_repository import (
   ensure_collection_exists,
   get_detail_vector_by_place_id,
   search_similar_places_by_detail_vector,
+  search_similar_places_by_major_vector,
   upsert_semantic_vector,
 )
 from semantic_vector.score_calculator import calculate_major_scores
@@ -211,3 +212,28 @@ async def test_search_similar_places_by_detail_vector(config: SemanticVectorConf
   assert hits[0].place_id == "place-2"
   assert hits[0].score == 0.95
   client.query_points.assert_awaited_once()
+  assert client.query_points.await_args.kwargs["using"] == "detail"
+
+
+@pytest.mark.asyncio
+async def test_search_similar_places_by_major_vector(config: SemanticVectorConfig) -> None:
+  client = AsyncMock()
+  client.query_points.return_value = SimpleNamespace(
+    points=[
+      SimpleNamespace(
+        score=0.88,
+        payload={"place_id": "44", "category": "관광지"},
+      ),
+    ]
+  )
+
+  with patch("semantic_vector.qdrant_repository._build_client", return_value=client):
+    hits = await search_similar_places_by_major_vector(
+      [0.8, 0.2, 0.6, 0.9, 0.7, 0.8, 0.2],
+      config=config,
+      limit=10,
+    )
+
+  assert hits[0].place_id == "44"
+  assert hits[0].score == 0.88
+  assert client.query_points.await_args.kwargs["using"] == "major"
