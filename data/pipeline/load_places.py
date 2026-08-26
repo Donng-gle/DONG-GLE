@@ -1,16 +1,10 @@
-import argparse
-import asyncio
 import json
-import logging
 import re
 from datetime import datetime
 
 from pipeline.db import get_connection
 from pipeline.paths import TOURAPI_ROOT
-from pipeline.semantic_vector_sync import run_semantic_vector_sync, summarize_saved_places_for_semantic
 from pipeline.tel_enrichment import load_restaurant_tel
-
-logger = logging.getLogger(__name__)
 
 
 CONTENT_TYPE_CATEGORY = {
@@ -169,19 +163,12 @@ def save_places_to_db(
     with get_connection() as conn:
         with conn.cursor() as cur:
             content_id_to_place_id: dict[str, int] = {}
+            content_id_to_extra_urls: dict[str, list[str]] = {}
             for row in place_rows:
                 cur.execute(UPSERT_PLACE_SQL, row)
                 db_id = cur.fetchone()[0]
                 content_id_to_place_id[row["content_id"]] = db_id
-                saved_places.append(
-                    {
-                        "id": db_id,
-                        "content_id": row["content_id"],
-                        "name": row["name"],
-                        "category": row["category"],
-                        "main_image_url": row["main_image_url"],
-                    }
-                )
+                content_id_to_extra_urls[row["content_id"]] = []
 
             image_count = 0
             for content_id, image_items in images.items():
@@ -196,12 +183,25 @@ def save_places_to_db(
                         UPSERT_PLACE_IMAGE_SQL,
                         {"place_id": place_id, "img_url": img_url, "sort_order": sort_order},
                     )
+                    content_id_to_extra_urls[content_id].append(img_url)
                     image_count += 1
+
+            for row in place_rows:
+                saved_places.append(
+                    {
+                        "id": content_id_to_place_id[row["content_id"]],
+                        "content_id": row["content_id"],
+                        "name": row["name"],
+                        "category": row["category"],
+                        "main_image_url": row["main_image_url"],
+                        "extra_image_urls": content_id_to_extra_urls[row["content_id"]],
+                    }
+                )
 
     return saved_places, image_count
 
 
-def main(skip_semantic: bool = False) -> None:
+def main() -> None:
     all_items, common, images, festival_dates, supplemental_tel = load_raw()
 
     skipped_types: dict[str, int] = {}
@@ -227,7 +227,7 @@ def main(skip_semantic: bool = False) -> None:
         deduped_rows.append(row)
     place_rows = deduped_rows
 
-    saved_places, image_count = save_places_to_db(place_rows, images)
+    _saved_places, image_count = save_places_to_db(place_rows, images)
 
     print(f"place upserted: {len(place_rows)}건")
     for content_type_id, count in sorted(skipped_types.items()):
@@ -236,40 +236,6 @@ def main(skip_semantic: bool = False) -> None:
         print(f"  skipped duplicates (이름+주소 중복): {duplicate_count}건")
     print(f"place_image upserted: {image_count}건")
 
-    if skip_semantic:
-        return
-
-    summary = summarize_saved_places_for_semantic(saved_places)
-    if summary["semantic_target_count"] == 0:
-        print("semantic_vector skipped: main_image_url 있는 장소 없음")
-        return
-
-    try:
-        result = asyncio.run(run_semantic_vector_sync(saved_places))
-    except Exception as error:
-        logger.exception("semantic_vector sync failed after place save: %s", error)
-        print(f"semantic_vector failed: {type(error).__name__}: {error}")
-        return
-
-    print(
-        "semantic_vector synced: "
-        f"targets={summary['semantic_target_count']} "
-        f"success={result.success_count} "
-        f"failed={result.failed_count}"
-    )
-
-
-def cli() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--skip-semantic",
-        action="store_true",
-        help="DB 적재 후 Semantic Vector 분석을 건너뜀",
-    )
-    args = parser.parse_args()
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
-    main(skip_semantic=args.skip_semantic)
-
 
 if __name__ == "__main__":
-    cli()
+    main()

@@ -17,4 +17,3 @@ review_range_experiments/
 .DS_Store
 secrets/
 *.pem
-*.key

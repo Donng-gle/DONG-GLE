@@ -15,6 +15,13 @@ class PlaceImageInput(BaseModel):
   name: str | None = None
   region: str | None = None
   category: str | None = None
+  analysis_image_urls: list[str] = Field(default_factory=list)
+
+  def resolved_analysis_image_urls(self) -> list[str]:
+    """VLM 분석에 사용할 이미지 URL 목록. 대표사진이 항상 첫 번째다."""
+    if self.analysis_image_urls:
+      return self.analysis_image_urls
+    return [self.image_url]
 
 
 class DetailScores(BaseModel):
@@ -75,11 +82,25 @@ class MajorScores(BaseModel):
   modern: float
 
 
+class VisionCallUsage(BaseModel):
+  """OpenAI Vision 호출의 실제 usage/latency."""
+
+  input_tokens: int | None = None
+  output_tokens: int | None = None
+  total_tokens: int | None = None
+  cached_input_tokens: int | None = None
+  latency_ms: float | None = None
+  success: bool = True
+  error_type: str | None = None
+  error_message: str | None = None
+
+
 class VisionAnalysisResponse(BaseModel):
   """GPT Vision 분석 응답."""
 
   detail_scores: DetailScores
   summary: str | None = None
+  usage: VisionCallUsage | None = None
 
 
 class SemanticVectorResult(BaseModel):

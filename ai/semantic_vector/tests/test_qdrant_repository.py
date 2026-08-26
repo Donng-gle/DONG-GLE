@@ -14,6 +14,9 @@ from semantic_vector.models import PlaceImageInput, SemanticVectorResult
 from semantic_vector.qdrant_repository import (
   delete_semantic_vector,
   ensure_collection_exists,
+  get_detail_vector_by_place_id,
+  search_similar_places_by_detail_vector,
+  search_similar_places_by_major_vector,
   upsert_semantic_vector,
 )
 from semantic_vector.score_calculator import calculate_major_scores
@@ -43,7 +46,7 @@ def semantic_result() -> SemanticVectorResult:
     major_vector=build_major_vector(major_scores),
     summary="test",
     model_name="gpt-4.1-mini",
-    prompt_version="semantic-image-v1",
+    prompt_version="semantic-image-v4.1",
     tag_schema_version="tourism-semantic-tags-v1",
     qdrant_point_id="place-1",
   )
@@ -131,7 +134,15 @@ async def test_upsert_semantic_vector(
   assert point.vector["detail"] == semantic_result.detail_vector
   assert point.payload["place_id"] == "place-1"
   assert point.payload["image_url"] == "https://example.com/image.jpg"
-  assert point.payload["prompt_version"] == "semantic-image-v1"
+  assert point.payload["analysis_image_count"] == 1
+  assert point.payload["analysis_image_urls"] == ["https://example.com/image.jpg"]
+  assert point.payload["prompt_version"] == "semantic-image-v4.1"
+  assert point.payload["major_scores"]["relaxing"] == pytest.approx(
+    semantic_result.major_scores.relaxing
+  )
+  assert point.payload["detail_scores"]["quiet"] == pytest.approx(
+    semantic_result.detail_scores.quiet
+  )
 
 
 @pytest.mark.asyncio
@@ -142,3 +153,87 @@ async def test_delete_semantic_vector(config: SemanticVectorConfig) -> None:
     await delete_semantic_vector("place-1", config=config)
 
   client.delete.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_get_detail_vector_by_place_id(config: SemanticVectorConfig) -> None:
+  client = AsyncMock()
+  client.scroll.return_value = (
+    [SimpleNamespace(vector={"detail": [0.1] * 35})],
+    None,
+  )
+
+  with patch("semantic_vector.qdrant_repository._build_client", return_value=client):
+    vector = await get_detail_vector_by_place_id("place-1", config=config)
+
+  assert vector == [0.1] * 35
+  client.scroll.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_get_detail_vector_by_place_id_returns_none_when_missing(
+  config: SemanticVectorConfig,
+) -> None:
+  client = AsyncMock()
+  client.scroll.return_value = ([], None)
+
+  with patch("semantic_vector.qdrant_repository._build_client", return_value=client):
+    vector = await get_detail_vector_by_place_id("missing", config=config)
+
+  assert vector is None
+
+
+@pytest.mark.asyncio
+async def test_search_similar_places_by_detail_vector(config: SemanticVectorConfig) -> None:
+  client = AsyncMock()
+  client.query_points.return_value = SimpleNamespace(
+    points=[
+      SimpleNamespace(
+        score=0.95,
+        payload={"place_id": "place-2", "category": "관광지", "name": "대체 장소"},
+      ),
+      SimpleNamespace(
+        score=0.90,
+        payload={"place_id": "place-1", "category": "관광지"},
+      ),
+    ]
+  )
+
+  with patch("semantic_vector.qdrant_repository._build_client", return_value=client):
+    hits = await search_similar_places_by_detail_vector(
+      [0.1] * 35,
+      config=config,
+      category="관광지",
+      exclude_place_ids={"place-1"},
+      limit=5,
+    )
+
+  assert len(hits) == 1
+  assert hits[0].place_id == "place-2"
+  assert hits[0].score == 0.95
+  client.query_points.assert_awaited_once()
+  assert client.query_points.await_args.kwargs["using"] == "detail"
+
+
+@pytest.mark.asyncio
+async def test_search_similar_places_by_major_vector(config: SemanticVectorConfig) -> None:
+  client = AsyncMock()
+  client.query_points.return_value = SimpleNamespace(
+    points=[
+      SimpleNamespace(
+        score=0.88,
+        payload={"place_id": "44", "category": "관광지"},
+      ),
+    ]
+  )
+
+  with patch("semantic_vector.qdrant_repository._build_client", return_value=client):
+    hits = await search_similar_places_by_major_vector(
+      [0.8, 0.2, 0.6, 0.9, 0.7, 0.8, 0.2],
+      config=config,
+      limit=10,
+    )
+
+  assert hits[0].place_id == "44"
+  assert hits[0].score == 0.88
+  assert client.query_points.await_args.kwargs["using"] == "major"

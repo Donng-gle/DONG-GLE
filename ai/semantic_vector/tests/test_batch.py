@@ -37,7 +37,7 @@ def _make_result(place_id: str) -> SemanticVectorResult:
     major_vector=build_major_vector(major_scores),
     summary=None,
     model_name="gpt-4.1-mini",
-    prompt_version="semantic-image-v1",
+    prompt_version="semantic-image-v4.1",
     tag_schema_version="tourism-semantic-tags-v1",
     qdrant_point_id=place_id,
   )

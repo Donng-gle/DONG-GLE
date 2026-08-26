@@ -14,14 +14,16 @@
 
 ### 1.2 목적
 
-기존 `data/pipeline`이 반환하는 관광지 대표 이미지 데이터를 입력으로 받아 다음 작업을 수행한다.
+기존 `data/pipeline`이 반환하는 관광지 이미지 데이터를 입력으로 받아 다음 작업을 수행한다.
 
-1. GPT Vision에 관광지 이미지를 전달한다.
-2. 이미지의 분위기와 시각적 특성을 35개 세부 태그 점수로 생성한다.
-3. 35개 세부 태그를 기반으로 7개 대분류 점수를 계산한다.
-4. 35차원 Detail Vector와 7차원 Major Vector를 생성한다.
-5. 두 벡터를 Qdrant에 named vector로 저장한다.
-6. 장소 ID와 검색 필터용 메타데이터를 Qdrant payload에 저장한다.
+1. 장소당 대표 이미지 + 추가 이미지 중 최대 3장을 선택한다.
+2. 각 이미지를 GPT Vision(`gpt-4.1-mini`, 프롬프트 `semantic-image-v4.1`)으로 분석한다.
+3. 이미지별 35개 Detail Score를 태그별 산술평균으로 집계한다.
+4. 집계된 35개 Detail Score로 7개 Major Score를 계산한다.
+5. 35차원 Detail Vector와 7차원 Major Vector를 생성한다.
+6. 두 벡터를 Qdrant named vector로 upsert한다.
+7. 동일 결과를 PostgreSQL `place_semantic_vector`에도 저장한다.
+8. LangSmith로 VLM 호출·집계 구간을 tracing한다 (observability 전용).
 
 ### 1.3 구현 전제
 
@@ -51,6 +53,7 @@
 - Qdrant 저장 실패와 GPT 분석 실패를 구분한다.
 - 동일 장소에 대한 재실행 시 upsert가 가능해야 한다.
 - 프롬프트와 태그 스키마에 버전을 부여한다.
+- **현재 확정 프롬프트는 `semantic-image-v4.1` 단일 버전이다.** 이전 v1~v4 코드는 제거했다.
 
 ---
 
@@ -93,29 +96,34 @@
 - 추천 검색 API
 - 추천 순위 계산
 - 프론트엔드 UI
-- 기존 `data/pipeline` 코드 수정
+- 사용자 취향 벡터 / 추천 순위 계산 (별도 모듈)
+
+> 참고: 초기 명세의 “`data/pipeline` 수정 금지”는 연결 계층 추가를 위해 완화했다.
+> `semantic_vector_sync.py`, `semantic_score_store.py`, `load_places` 연동은 구현 완료 상태다.
 
 ---
 
 ## 3. 전체 처리 흐름
 
 ```text
-data/pipeline
+data/pipeline (place + place_image)
     │
-    │ 기존 Pipeline 결과
     ▼
 PlaceImageInput
+  (image_url=대표, analysis_image_urls≤3)
     │
     ▼
-ai/semantic_vector
+ai/semantic_vector.analyze_place()
     │
-    ├── Prompt 생성
-    ├── GPT Vision 호출
-    ├── 35개 Detail Score 검증
+    ├── LangSmith: place analysis span
+    ├── 이미지별 GPT Vision 호출 (≤3)
+    │     └── LangSmith: image N VLM call
+    ├── Detail Score 태그별 평균 집계
+    │     └── LangSmith: aggregation
     ├── 7개 Major Score 계산
-    ├── Detail Vector 생성
-    ├── Major Vector 생성
-    └── Qdrant Upsert
+    ├── Detail/Major Vector 생성
+    ├── Qdrant Upsert
+    └── (연결 계층) place_semantic_vector upsert
     │
     ▼
 SemanticVectorResult
@@ -124,21 +132,20 @@ SemanticVectorResult
 좀 더 구체적인 흐름은 다음과 같다.
 
 ```text
-data.pipeline.load_places()
+load_places / backfill
         │
         ▼
-장소별 대표 이미지 데이터
+장소별 대표+추가 이미지 URL (최대 3장)
         │
         ▼
-analyze_place()
+analyze_place() / analyze_places()
         │
-        ├── Prompt 생성
-        ├── GPT Vision 호출
-        ├── JSON 응답 파싱
-        ├── Detail Score 검증
+        ├── 이미지별 Prompt + Vision 호출
+        ├── Detail Score 평균 집계
         ├── Major Score 계산
         ├── Vector 생성
-        └── Qdrant 저장
+        ├── Qdrant 저장
+        └── Postgres place_semantic_vector 저장
         │
         ▼
 분석 성공 / 실패 결과
@@ -160,24 +167,29 @@ ai/
     ├── config.py
     ├── constants.py
     ├── models.py
-    ├── prompt.py
+    ├── prompt.py                 # semantic-image-v4.1 단일 프롬프트
+    ├── categories.py
+    ├── input_mapper.py           # DB/pipeline → PlaceImageInput
     ├── validators.py
-    ├── vision_client.py
-    ├── score_calculator.py
+    ├── vision_client.py          # OpenAI Vision + LangSmith wrap
+    ├── tracing.py                # place/image/aggregation span helper
+    ├── pricing.py                # token/cost 집계 유틸
+    ├── score_calculator.py       # detail 평균 + major 계산
     ├── vector_builder.py
     ├── qdrant_repository.py
-    ├── analyzer.py
+    ├── analyzer.py               # 다중 이미지 분석 오케스트레이션
+    ├── multi_image_analyzer.py
     ├── batch.py
+    ├── retry.py
+    ├── point_id.py
     ├── exceptions.py
-    ├── semantic_vector.md
+    ├── semantic_ai.md
     └── tests/
-        ├── __init__.py
-        ├── test_validators.py
-        ├── test_score_calculator.py
-        ├── test_vector_builder.py
-        ├── test_qdrant_repository.py
-        ├── test_analyzer.py
-        └── test_batch.py
+        ├── ...
+        ├── test_prompt.py
+        ├── test_pricing.py
+        ├── test_tracing.py
+        └── test_input_mapper_db.py
 ```
 
 ### 4.1 폴더명
@@ -267,9 +279,9 @@ Pipeline 결과 변환은 진입점 한 곳에서만 수행한다.
 외부에서 사용할 Public API를 노출한다.
 
 ```python
-from .analyzer import analyze_place
-from .batch import analyze_places
-from .models import (
+from semantic_vector.analyzer import analyze_place, analyze_place_with_details
+from semantic_vector.batch import analyze_places
+from semantic_vector.models import (
     PlaceImageInput,
     SemanticVectorResult,
     BatchAnalysisResult,
@@ -279,7 +291,7 @@ from .models import (
 사용 예:
 
 ```python
-from ai.semantic_vector import analyze_place, analyze_places
+from semantic_vector import analyze_place, analyze_places
 ```
 
 ---
@@ -297,11 +309,15 @@ class SemanticVectorConfig(BaseSettings):
     qdrant_api_key: str | None = None
     qdrant_collection_name: str = "place_semantic_vectors"
 
-    prompt_version: str = "semantic-image-v1"
+    prompt_version: str = "semantic-image-v4.1"
     tag_schema_version: str = "tourism-semantic-tags-v1"
 
     max_retry_count: int = 3
     batch_concurrency: int = 3
+    images_per_place: int = 3
+
+    trace_experiment: str | None = None
+    trace_run_type: str = "production"
 ```
 
 환경변수 예:
@@ -314,11 +330,18 @@ QDRANT_URL=
 QDRANT_API_KEY=
 QDRANT_COLLECTION_NAME=place_semantic_vectors
 
-SEMANTIC_PROMPT_VERSION=semantic-image-v1
+SEMANTIC_PROMPT_VERSION=semantic-image-v4.1
 SEMANTIC_TAG_SCHEMA_VERSION=tourism-semantic-tags-v1
-
-SEMANTIC_MAX_RETRY_COUNT=3
 SEMANTIC_BATCH_CONCURRENCY=3
+SEMANTIC_IMAGES_PER_PLACE=3
+
+# LangSmith (observability only)
+LANGSMITH_TRACING=true
+LANGSMITH_ENDPOINT=https://api.smith.langchain.com
+LANGSMITH_API_KEY=
+LANGSMITH_PROJECT=donggle
+SEMANTIC_TRACE_EXPERIMENT=
+SEMANTIC_TRACE_RUN_TYPE=production
 ```
 
 ---
@@ -408,12 +431,16 @@ DETAIL_TAG_GROUPS = {
 ```python
 class PlaceImageInput(BaseModel):
     place_id: str
-    image_url: str
+    image_url: str  # 대표 이미지
 
     image_id: str | None = None
     name: str | None = None
     region: str | None = None
     category: str | None = None
+    analysis_image_urls: list[str] = []  # 대표 포함 최대 images_per_place장
+
+    def resolved_analysis_image_urls(self) -> list[str]:
+        ...
 ```
 
 ### `DetailScores`
@@ -478,12 +505,24 @@ class MajorScores(BaseModel):
     modern: float
 ```
 
-### `VisionAnalysisResponse`
+### `VisionCallUsage` / `VisionAnalysisResponse`
 
 ```python
+class VisionCallUsage(BaseModel):
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    total_tokens: int | None = None
+    cached_input_tokens: int | None = None
+    latency_ms: float | None = None
+    success: bool = True
+    error_type: str | None = None
+    error_message: str | None = None
+
+
 class VisionAnalysisResponse(BaseModel):
     detail_scores: DetailScores
     summary: str | None = None
+    usage: VisionCallUsage | None = None
 ```
 
 ### `SemanticVectorResult`
@@ -535,6 +574,14 @@ class BatchAnalysisResult(BaseModel):
 
 GPT Vision Prompt를 관리한다.
 
+### 현재 확정 버전
+
+- **`semantic-image-v4.1`만 지원** (`DEFAULT_PROMPT_VERSION`)
+- `resolve_system_prompt()`는 다른 버전 요청 시 `ValueError`
+- 이전 v1~v4 분기/`PROMPT_BY_VERSION`은 제거됨
+- FOOD/SPACE 카테고리 분기 프롬프트는 사용하지 않는다 (단일 SPACE 계열 프롬프트)
+- User prompt에는 장소명/지역/카테고리를 넣지 않는다 (편향 방지)
+
 ### 요구사항
 
 - Prompt 본문은 이 파일에서만 관리한다.
@@ -544,35 +591,7 @@ GPT Vision Prompt를 관리한다.
 - JSON 이외의 출력 금지를 명시한다.
 - 장소명만 보고 추론하지 않도록 지시한다.
 - 이미지에서 보이는 요소만 평가하도록 한다.
-
-### System Prompt 예시
-
-```text
-당신은 관광지 이미지의 분위기와 시각적 특성을 정량화하는 분석 모델이다.
-
-주어진 이미지에서 확인되는 시각적 특징만을 근거로
-정의된 35개 세부 태그 각각에 대해 0.0부터 1.0 사이의 점수를 반환하라.
-
-0.0은 해당 특성이 거의 보이지 않음을 의미한다.
-1.0은 해당 특성이 매우 강하게 보임을 의미한다.
-
-각 점수는 서로 독립적이며 전체 합을 1로 맞추지 않는다.
-
-장소명이나 일반 지식을 근거로 이미지에 보이지 않는 특성을 추정하지 않는다.
-35개 태그를 모두 반환한다.
-태그를 누락하거나 추가하지 않는다.
-지정된 JSON Schema에 맞는 JSON만 반환한다.
-```
-
-### User Prompt 예시
-
-```text
-장소명: {name}
-지역: {region}
-카테고리: {category}
-
-첨부된 관광지 이미지를 분석하여 35개 세부 태그 점수를 생성하라.
-```
+- 음식·음료가 보여도 맛/메뉴를 추정하지 않고, 공간·상차림·소재·조명 등 시각 요소만 평가한다.
 
 ---
 
@@ -641,6 +660,7 @@ async def analyze_image_with_vision(
     input_data: PlaceImageInput,
     *,
     config: SemanticVectorConfig,
+    image_index: int | None = None,
 ) -> VisionAnalysisResponse:
     ...
 ```
@@ -648,12 +668,23 @@ async def analyze_image_with_vision(
 ### 책임
 
 - Prompt 조합
-- 이미지 URL 전달
-- OpenAI API 호출
+- 이미지 URL 전달 (`image_url`을 OpenAI가 직접 fetch)
+- OpenAI API 호출 (`langsmith.wrappers.wrap_openai`로 thin wrap)
 - Structured Output 요청
-- 응답 파싱
+- 실제 usage(token/latency) 추출 → `VisionCallUsage`
 - API 오류 변환
 - 재시도 대상 오류 식별
+
+### LangSmith
+
+- LangChain 전체 리팩터링 없이 OpenAI 클라이언트만 wrap한다.
+- span 이름 예: `image {n} VLM call`
+- metadata: model, prompt_version, tag_schema_version, place_id, place_name, image_index, experiment, run_type
+
+### 재시도 대상 (추가)
+
+- OpenAI 400 `invalid_image_url` + 메시지에 `Timeout while downloading` 포함  
+  → `VisionRetryableError`로 변환 (CDN/프록시 일시 장애)
 
 ### 금지
 
@@ -662,14 +693,22 @@ async def analyze_image_with_vision(
 - Batch 처리
 - Pipeline 데이터 조회
 - 장소 데이터 변환
+- 이미지 바이너리 다운로드 (URL만 전달)
 
 ---
 
 ## 6.8 `score_calculator.py`
 
-35개 Detail Score로 7개 Major Score를 계산한다.
+이미지별 Detail Score 집계와 Major Score 계산을 담당한다.
 
 ```python
+def aggregate_detail_scores(
+    detail_scores_list: Sequence[DetailScores],
+) -> DetailScores:
+    """여러 이미지 Detail Score를 태그별 산술평균으로 집계."""
+    ...
+
+
 def calculate_major_scores(
     detail_scores: DetailScores,
 ) -> MajorScores:
@@ -677,6 +716,12 @@ def calculate_major_scores(
 ```
 
 ### 공식
+
+장소당 이미지 N장(기본 3)을 각각 VLM 분석한 뒤:
+
+```text
+detail_tag = mean(image_1.tag, ..., image_N.tag)
+```
 
 각 Major Score는 소속 Detail Score 5개의 산술평균이다.
 
@@ -857,7 +902,7 @@ uuid5(NAMESPACE_URL, place_id)
   "region": "안동",
   "category": "관광지",
   "model_name": "gpt-4.1-mini",
-  "prompt_version": "semantic-image-v1",
+  "prompt_version": "semantic-image-v4.1",
   "tag_schema_version": "tourism-semantic-tags-v1"
 }
 ```
@@ -890,11 +935,21 @@ uuid5(NAMESPACE_URL, place_id)
   "payload": {
     "place_id": "place-1001",
     "image_id": "image-9001",
+    "image_url": "https://example.com/main.jpg",
+    "analysis_image_count": 3,
+    "analysis_image_urls": [
+      "https://example.com/main.jpg",
+      "https://example.com/extra1.jpg",
+      "https://example.com/extra2.jpg"
+    ],
     "name": "안동 하회마을",
     "region": "안동",
     "category": "관광지",
+    "major_scores": {},
+    "detail_scores": {},
+    "summary": "...",
     "model_name": "gpt-4.1-mini",
-    "prompt_version": "semantic-image-v1",
+    "prompt_version": "semantic-image-v4.1",
     "tag_schema_version": "tourism-semantic-tags-v1"
   }
 }
@@ -922,17 +977,15 @@ async def analyze_place(
 ```text
 PlaceImageInput 검증
     ↓
-GPT Vision 호출
+LangSmith place analysis span
     ↓
-VisionAnalysisResponse 검증
+analysis_image_urls 각 장에 대해 GPT Vision 호출
     ↓
-35개 Detail Score 확보
+Detail Score 태그별 산술평균 집계 (aggregation span)
     ↓
 7개 Major Score 계산
     ↓
-35차원 Detail Vector 생성
-    ↓
-7차원 Major Vector 생성
+35차원 Detail Vector / 7차원 Major Vector 생성
     ↓
 Qdrant Collection 확인
     ↓
@@ -941,62 +994,26 @@ Qdrant Upsert
 SemanticVectorResult 반환
 ```
 
-### 의사 코드
+`analyze_place_with_details()`는 이미지별 `VisionAnalysisResponse`와 집계 결과를 함께 반환한다.  
+`persist=False`로 Qdrant 저장을 생략할 수 있다 (파일럿/평가용).
+
+### 의사 코드 (개념)
 
 ```python
-async def analyze_place(
-    input_data: PlaceImageInput,
-    *,
-    config: SemanticVectorConfig | None = None,
-) -> SemanticVectorResult:
-    resolved_config = config or SemanticVectorConfig()
+async def analyze_place(input_data, *, config=None, ...):
+    responses = []
+    for index, url in enumerate(input_data.resolved_analysis_image_urls()):
+        responses.append(
+            await analyze_image_with_vision(..., image_index=index + 1)
+        )
 
-    response = await analyze_image_with_vision(
-        input_data,
-        config=resolved_config,
-    )
-
-    major_scores = calculate_major_scores(
-        response.detail_scores
-    )
-
-    detail_vector = build_detail_vector(
-        response.detail_scores
-    )
-
-    major_vector = build_major_vector(
-        major_scores
-    )
-
-    validate_vector_dimensions(
-        detail_vector,
-        major_vector,
-    )
-
-    result = SemanticVectorResult(
-        place_id=input_data.place_id,
-        image_id=input_data.image_id,
-        detail_scores=response.detail_scores,
-        major_scores=major_scores,
-        detail_vector=detail_vector,
-        major_vector=major_vector,
-        summary=response.summary,
-        model_name=resolved_config.openai_model,
-        prompt_version=resolved_config.prompt_version,
-        tag_schema_version=resolved_config.tag_schema_version,
-        qdrant_point_id=build_point_id(input_data.place_id),
-    )
-
-    await ensure_collection_exists(resolved_config)
-
-    await upsert_semantic_vector(
-        result,
-        input_data,
-        config=resolved_config,
-    )
-
-    return result
+    detail = aggregate_detail_scores([r.detail_scores for r in responses])
+    major = calculate_major_scores(detail)
+    # vector build → optional Qdrant upsert
+    ...
 ```
+
+> 초기 명세의 “이미지 1장 → Vision 1회” 의사 코드는 다중 이미지 집계로 대체되었다.
 
 ---
 
@@ -1107,6 +1124,7 @@ Cursor는 실제 `data/pipeline`의 함수명과 반환 필드를 확인한 후 
 | GPT 429 | 재시도 |
 | GPT 5xx | 재시도 |
 | GPT Timeout | 재시도 |
+| OpenAI 400 `Timeout while downloading {url}` | `VisionRetryableError` → 재시도 |
 | JSON 파싱 실패 | `InvalidVisionResponseError` |
 | 태그 누락 | `TagSchemaMismatchError` |
 | 알 수 없는 태그 추가 | `TagSchemaMismatchError` |
@@ -1126,6 +1144,7 @@ Cursor는 실제 `data/pipeline`의 함수명과 반환 필드를 확인한 후 
 - OpenAI HTTP 429
 - OpenAI HTTP 5xx
 - OpenAI Timeout
+- OpenAI 400 `invalid_image_url` + `Timeout while downloading`
 - Qdrant 일시적 연결 오류
 
 ### 재시도하지 않는 오류
@@ -1266,14 +1285,15 @@ OpenAI와 Qdrant를 Mock 처리한다.
 data/pipeline
 ├── DB 조회
 ├── 장소 저장 (load_places.py)
-├── main_image_url 확보
-├── PlaceImageInput 변환 (semantic_vector_sync.py)
+├── main_image_url / place_image 확보
+├── PlaceImageInput 변환 (semantic_vector_sync.py / input_mapper.py)
+├── place_semantic_vector 저장 (semantic_score_store.py)
 └── ai/semantic_vector 호출
 
 ai/semantic_vector
-├── Prompt 구성
-├── GPT Vision 호출
-├── 35개 Detail Score 검증
+├── Prompt 구성 (v4.1)
+├── 다중 이미지 GPT Vision 호출 (+ LangSmith)
+├── Detail Score 평균 집계
 ├── 7개 Major Score 계산
 ├── 35차원 Detail Vector 생성
 ├── 7차원 Major Vector 생성
@@ -1284,17 +1304,17 @@ ai/semantic_vector
 ```text
 기존 Pipeline 결과
         ↓
-PlaceImageInput
+PlaceImageInput (≤3 images)
         ↓
-GPT Vision
+GPT Vision × N
         ↓
-35 Detail Scores
+Detail Score 평균
         ↓
 7 Major Scores
         ↓
 major vector + detail vector
         ↓
-Qdrant
+Qdrant + place_semantic_vector
 ```
 
 ---
@@ -1346,25 +1366,40 @@ from pipeline.semantic_vector_sync import (
 ```text
 TourAPI raw 적재
     ↓
-PostgreSQL place upsert (commit)
+PostgreSQL place / place_image upsert (commit)
     ↓
-main_image_url 있는 place만 PlaceImageInput 변환
+이미지 있는 place만 PlaceImageInput 변환
+  (main 없으면 place_image 첫 장 사용, 최대 3장)
     ↓
 run_semantic_vector_sync()
     ↓
-Qdrant upsert
+Qdrant upsert + place_semantic_vector upsert
 ```
+
+DB에 다른 경로로 장소가 들어와도 아래 워커로 동일 파이프라인을 돌린다.
+
+```bash
+# 1회
+python scripts/auto_sync_semantic_vectors.py
+
+# 폴링 자동 동기화
+python scripts/auto_sync_semantic_vectors.py --watch --interval-seconds 60
+```
+
+내부 API: `sync_pending_semantic_vectors()`  
+pending = 이미지 있음 + 현재 model/prompt/schema 미분석
 
 - DB 저장과 VLM 분석은 분리한다.
 - VLM 실패 시 place DB 저장은 유지한다.
-- 필요 시 `python -m pipeline.load_places --skip-semantic`으로 분석을 생략할 수 있다.
+- 필요 시 `python -m pipeline.load_places --skip-semantic`으로 적재 직후 분석만 생략할 수 있다.
 
 ### 17.4 Backfill
 
-기존 DB 장소를 Qdrant에 일괄 저장:
+기존 DB 장소를 Qdrant(+Postgres score)에 일괄 저장:
 
 ```bash
-PYTHONPATH=data:ai python scripts/backfill_semantic_vectors.py
+# ai/.env + data/.env 로드
+python scripts/backfill_semantic_vectors.py
 ```
 
 옵션:
@@ -1373,7 +1408,14 @@ PYTHONPATH=data:ai python scripts/backfill_semantic_vectors.py
 python scripts/backfill_semantic_vectors.py --batch-size 50
 python scripts/backfill_semantic_vectors.py --limit 20
 python scripts/backfill_semantic_vectors.py --place-id 123
+python scripts/backfill_semantic_vectors.py --concurrency 3
+
+# 기존 Qdrant collection 삭제 후 재생성
+python scripts/backfill_semantic_vectors.py --reset-qdrant --reanalyze-all
 ```
+
+- `--reanalyze-all`: 현재 model/prompt/schema로 이미 분석된 장소도 재분석
+- 기본값은 미분석(또는 버전 불일치) 장소만 대상
 
 ### 17.5 Qdrant Payload
 
@@ -1382,26 +1424,85 @@ python scripts/backfill_semantic_vectors.py --place-id 123
 ```text
 place_id
 image_id
-image_url
+image_url                 # 대표 이미지
+analysis_image_count
+analysis_image_urls
 name
 region
 category
+major_scores
+detail_scores
+summary
 model_name
-prompt_version
+prompt_version            # semantic-image-v4.1
 tag_schema_version
 ```
 
 - Vector 구조는 `major(7)` + `detail(35)` named vector를 유지한다.
 - 같은 `place_id` 재분석 시 upsert로 갱신한다.
-- `image_type`은 MVP에서 Payload에 저장하지 않는다. (프롬프트 내부 FOOD/SPACE 분기만 사용)
 
-### 17.6 MVP 정책
+### 17.6 Postgres `place_semantic_vector`
 
-- 분석 이미지는 `place.main_image_url` 한 장만 사용한다.
-- `detailImage2` 추가 이미지는 수집·분석하지 않는다.
-- Qdrant Payload 기반 재분석 skip 최적화는 2차 작업으로 둔다.
+- migration: `data/migrations/001_place_semantic_vector.sql`
+- store: `data/pipeline/semantic_score_store.py`
+- `place_id` UNIQUE upsert
+- raw detail/major score JSON + 분석 이미지 메타 + 버전 필드 저장
 
-### 17.7 테스트 위치
+### 17.7 현재 운영 정책 (v4.1)
 
-- `ai/semantic_vector/tests/`: AI 모듈 단위 테스트
-- `data/tests/`: Pipeline 연결 / Backfill / load_places 연동 테스트
+- 분석 이미지: `main_image_url` + `place_image` extra 중 **최대 3장** (대표 우선, 중복 제거)
+- `main_image_url`이 없으면 분석 대상에서 제외
+- 프롬프트: **`semantic-image-v4.1` freeze**
+- 모델: `gpt-4.1-mini`
+- LangSmith: observability only (LangChain 파이프라인 리팩터 없음)
+- 안동 DB 전량 backfill 완료 기준: Qdrant/Postgres 모두 v4.1로 재적재
+
+### 17.8 테스트 위치
+
+- `ai/semantic_vector/tests/`: AI 모듈 단위 테스트 (prompt/pricing/tracing 포함)
+- `data/tests/`: Pipeline 연결 / Backfill / load_places / score_store 연동 테스트
+
+---
+
+## 18. 변경 이력 요약 (문서 반영 기준)
+
+### 18.1 프롬프트
+
+| 항목 | 내용 |
+|---|---|
+| 확정 버전 | `semantic-image-v4.1` |
+| 제거 | v1~v4 버전 분기, FOOD/SPACE 이중 프롬프트 |
+| 정책 | 이미지 시각 근거만 사용, 장소명/지역 미전달 |
+
+### 18.2 다중 이미지
+
+| 항목 | 내용 |
+|---|---|
+| 기본 장수 | 장소당 최대 3장 (`SEMANTIC_IMAGES_PER_PLACE`) |
+| 집계 | 태그별 산술평균 → major 계산 |
+| 매퍼 | `input_mapper.select_analysis_image_urls` |
+
+### 18.3 Observability / 비용
+
+| 항목 | 내용 |
+|---|---|
+| tracing | `tracing.py` + `wrap_openai` |
+| hierarchy | place analysis → image N VLM call → aggregation |
+| usage | 실제 OpenAI token/latency → `VisionCallUsage` |
+| pricing | `pricing.py` (gpt-4.1-mini 단가 기준) |
+
+### 18.4 안정성
+
+| 항목 | 내용 |
+|---|---|
+| 이미지 URL timeout | OpenAI가 URL fetch 중 timeout → retryable |
+| 원인 | DB에는 URL 문자열만 저장, analyzer는 다운로드하지 않음 |
+
+### 18.5 운영 Backfill
+
+| 항목 | 내용 |
+|---|---|
+| 스크립트 | `scripts/backfill_semantic_vectors.py` |
+| reset | `--reset-qdrant` collection 삭제/재생성 |
+| 재분석 | `--reanalyze-all` |
+| 이중 저장 | Qdrant + `place_semantic_vector` |
