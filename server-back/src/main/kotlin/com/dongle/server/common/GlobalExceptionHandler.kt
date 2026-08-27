@@ -1,5 +1,6 @@
 package com.dongle.server.common
 
+import com.dongle.server.auth.InvalidGoogleIdTokenException
 import com.dongle.server.auth.InvalidOAuthCodeException
 import com.dongle.server.auth.InvalidRefreshTokenException
 import com.dongle.server.course.CourseAccessDeniedException
@@ -40,6 +41,11 @@ class GlobalExceptionHandler {
     fun handleInvalidOAuthCode(ex: InvalidOAuthCodeException): ResponseEntity<ErrorResponse> =
         ResponseEntity.status(HttpStatus.BAD_REQUEST)
             .body(ErrorResponse(code = "INVALID_OAUTH_CODE", message = ex.message ?: "잘못된 인가 코드입니다."))
+
+    @ExceptionHandler(InvalidGoogleIdTokenException::class)
+    fun handleInvalidGoogleIdToken(ex: InvalidGoogleIdTokenException): ResponseEntity<ErrorResponse> =
+        ResponseEntity.status(HttpStatus.BAD_REQUEST)
+            .body(ErrorResponse(code = "INVALID_GOOGLE_ID_TOKEN", message = ex.message ?: "유효하지 않은 구글 ID 토큰입니다."))
 
     @ExceptionHandler(InvalidRefreshTokenException::class)
     fun handleInvalidRefreshToken(ex: InvalidRefreshTokenException): ResponseEntity<ErrorResponse> =

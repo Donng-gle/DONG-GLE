@@ -158,6 +158,17 @@
 
 ---
 
+## 2026-08-26 | 구글 로그인: code 교환 → ID 토큰 검증 방식으로 전환
+
+- **결정**: 구글 로그인을 기존 `expo-auth-session` 브라우저 리다이렉트(인가 코드 → 서버가 client_secret으로 token 교환) 방식에서, 네이티브 Google Sign-In(Play Services) + ID 토큰 검증 방식으로 전환. Google Cloud Console에 클라이언트 2개 생성: **Web 애플리케이션**(client_secret 보유, 실제 로그인엔 안 쓰이고 ID 토큰의 audience 지정용 "서버 클라이언트 ID" 역할만 함) + **Android**(패키지명 `com.dongle.app` + 디버그 SHA-1, 네이티브 로그인 실행 주체). 카카오는 기존 인가 코드 방식 그대로 유지 — 이 결정은 구글에만 해당.
+- **이유**: `expo-auth-session`이 쓰는 `dongle://` 커스텀 스킴 리다이렉트를 Google이 Web 애플리케이션 유형에서 거부함("잘못된 리디렉션: 도메인이 포함되어야 합니다" — 실제 콘솔에서 확인). 커스텀 스킴을 살리려면 백엔드에 HTTPS 중계 엔드포인트 + Universal Link/App Link 네이티브 설정까지 필요해 우회 비용이 컸음. 반면 네이티브 Google Sign-In + "두 클라이언트" 패턴(Android로 로그인 실행, Web 클라이언트 ID를 audience로 지정)은 Google 공식 권장 패턴이고 리다이렉트 URI 개념 자체가 없어 이 문제가 근본적으로 발생하지 않음.
+- **영향**:
+  - 서버: `GoogleOAuthClient.kt`가 code→token 교환(`client_secret` 사용)에서 ID 토큰 서명·발급자·audience 검증으로 완전히 교체됨. `jjwt`(기존 자체 JWT 발급에 이미 쓰던 라이브러리)로 구글 JWKS(`https://www.googleapis.com/oauth2/v3/certs`, 1시간 캐시)를 직접 검증 — Google 공식 클라이언트 라이브러리 추가 없이 구현. `POST /auth/oauth/google` 요청 바디가 `{code}`에서 `{id_token}`으로 변경(`GoogleOAuthRequest`, `api_1.3.1v.yaml` 반영 완료). `GOOGLE_CLIENT_SECRET`/`GOOGLE_REDIRECT_URI`는 이제 실제로 안 쓰이지만 Web 클라이언트 생성 시 콘솔이 요구해서 등록해둔 값이라 `.env` 필드는 유지.
+  - 클라이언트: `expo-auth-session`의 구글 부분을 네이티브 Google Sign-In 라이브러리(`@react-native-google-signin/google-signin` 등)로 교체 필요 — **아직 미착수**. 이 라이브러리는 네이티브 모듈이라 Expo Go로 테스트 불가, `expo-dev-client` 설치 + 실제 Android 빌드 필요. `app.json`에 `android.package: "com.dongle.app"` 반영 완료(`feat/google-oauth-android-package`).
+  - 카카오 로그인 코드(`KakaoOAuthClient.kt`, `client-front`의 카카오 부분)는 이번 변경과 무관, 그대로 유지.
+
+---
+
 <!-- 결정되면 아래 양식으로 추가 -->
 <!--
 ## YYYY-MM-DD | 제목
