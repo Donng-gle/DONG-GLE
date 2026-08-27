@@ -18,7 +18,12 @@ def resolve_category_profile(category: str) -> str:
   """한글/영문 category를 체류시간 프로필 키로 변환한다."""
   if category in DEFAULT_STAY_MINUTES:
     return category
-  return CATEGORY_PROFILE_MAP.get(category, "attraction")
+  return CATEGORY_PROFILE_MAP.get(category, "attraction_outdoor")
+
+
+def python_weekday_to_place_day(python_weekday: int) -> int:
+  """Python weekday(월=0)를 place_hours/Google day(일=0)로 변환한다."""
+  return (python_weekday + 1) % 7
 
 
 def resolve_operating_hours(
@@ -26,7 +31,15 @@ def resolve_operating_hours(
   raw_hours: RawOperatingHours | None,
 ) -> ResolvedOperatingHours:
   """category fallback을 적용해 운영시간을 해석한다."""
-  if raw_hours is not None and not raw_hours.is_closed:
+  if raw_hours is not None and raw_hours.is_closed:
+    # 해당 요일 휴무. category fallback으로 열어주지 않는다.
+    return ResolvedOperatingHours(
+      open_time=time(0, 0),
+      close_time=time(0, 0),
+      is_always_open=False,
+    )
+
+  if raw_hours is not None:
     if raw_hours.is_always_open:
       return ResolvedOperatingHours(is_always_open=True)
     if raw_hours.open_time and raw_hours.close_time:
@@ -37,11 +50,7 @@ def resolve_operating_hours(
       )
 
   profile = resolve_category_profile(category)
-  fallback_key = profile
-  if profile == "attraction":
-    fallback_key = "attraction_outdoor"
-
-  fallback = OPERATING_HOURS_FALLBACK.get(fallback_key)
+  fallback = OPERATING_HOURS_FALLBACK.get(profile)
   if fallback is None:
     return ResolvedOperatingHours(is_always_open=True)
 
@@ -69,9 +78,12 @@ def get_time_slot(visit_start: datetime) -> str:
   """방문 시작 시각이 속한 시간대 키를 반환한다."""
   current = visit_start.time()
   for slot, (start, end) in TIME_SLOTS.items():
-    if start <= current < end:
+    if start <= end:
+      if start <= current < end:
+        return slot
+    elif current >= start or current < end:
       return slot
-  return "evening"
+  return "night"
 
 
 def _closing_datetime(visit_start: datetime, close_time: time) -> datetime:

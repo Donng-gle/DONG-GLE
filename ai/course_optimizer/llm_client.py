@@ -39,6 +39,7 @@ def _parse_evaluation_payload(payload: dict) -> CourseEvaluationInfo:
         lunch=validate_score(values["lunch"], f"{place_id}.lunch"),
         afternoon=validate_score(values["afternoon"], f"{place_id}.afternoon"),
         evening=validate_score(values["evening"], f"{place_id}.evening"),
+        night=validate_score(values["night"], f"{place_id}.night"),
       )
       for place_id, values in payload["time_suitability"].items()
     }

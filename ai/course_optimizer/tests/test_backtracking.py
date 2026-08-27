@@ -69,7 +69,9 @@ def _candidates() -> list[CandidatePlace]:
 def _evaluation(candidates: list[CandidatePlace]) -> CourseEvaluationInfo:
   return CourseEvaluationInfo(
     time_suitability={
-      c.place_id: TimeSuitability(morning=0.8, lunch=0.8, afternoon=0.8, evening=0.8)
+      c.place_id: TimeSuitability(
+        morning=0.8, lunch=0.8, afternoon=0.8, evening=0.8, night=0.8
+      )
       for c in candidates
     },
     transition_scores={
@@ -360,7 +362,7 @@ def test_k_priority_keeps_default_stay_and_reports_free_time_for_eleven_hours() 
   expected_free = calculate_free_time_minutes(
     _andong_trip(20),
     result.selected_route.stops,
-    _andong_matrix().durations_minutes,
+    _andong_matrix(),
   )
   assert result.free_time_minutes == expected_free
 
@@ -427,7 +429,6 @@ def _count_legacy_all_k_evaluations(
   categories_by_place_id = {
     candidate.place_id: candidate.category for candidate in candidates
   }
-  durations = matrix.durations_minutes
   evaluated_count = 0
 
   def dfs(
@@ -439,14 +440,14 @@ def _count_legacy_all_k_evaluations(
     nonlocal evaluated_count
 
     if len(visited) >= config.min_visit_count:
-      stops = _build_stops(trip, visited, candidate_map, resolved_hours, durations)
+      stops = _build_stops(trip, visited, candidate_map, resolved_hours, matrix)
       if stops is not None:
         evaluated_count += 1
         build_scored_route(
           stops,
           trip,
           evaluation,
-          durations,
+          matrix,
           categories_by_place_id,
           config=config,
         )
@@ -464,7 +465,7 @@ def _count_legacy_all_k_evaluations(
 
       candidate = candidate_map[place_id]
       hours = resolved_hours[place_id]
-      travel_minutes = durations[f"{current_node}|{place_id}"]
+      travel_minutes = matrix.get_minutes(current_node, place_id)
       arrival_time = current_time + timedelta(minutes=travel_minutes)
       if arrival_time > trip.end_time:
         continue

@@ -9,10 +9,12 @@ TIME_SLOTS = {
   "lunch": (time(11, 0), time(14, 0)),
   "afternoon": (time(14, 0), time(18, 0)),
   "evening": (time(18, 0), time(22, 0)),
+  "night": (time(22, 0), time(6, 0)),
 }
 
 DEFAULT_STAY_MINUTES = {
-  "attraction": 60,
+  "attraction_outdoor": 60,
+  "attraction_indoor": 60,
   "cafe": 60,
   "restaurant": 60,
   "museum": 90,
@@ -22,7 +24,8 @@ DEFAULT_STAY_MINUTES = {
 }
 
 MIN_STAY_MINUTES = {
-  "attraction": 30,
+  "attraction_outdoor": 30,
+  "attraction_indoor": 30,
   "cafe": 30,
   "restaurant": 40,
   "museum": 45,
@@ -43,11 +46,11 @@ OPERATING_HOURS_FALLBACK = {
 
 # 상위 서비스 category(한글) -> 체류시간/운영시간 키(영문)
 CATEGORY_PROFILE_MAP = {
-  "관광지": "attraction",
+  "관광지": "attraction_outdoor",
   "식당": "restaurant",
   "카페": "cafe",
   "문화공간": "museum",
-  "액티비티": "attraction",
+  "액티비티": "attraction_outdoor",
   "축제행사": "market",
 }
 

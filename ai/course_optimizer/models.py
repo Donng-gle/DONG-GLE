@@ -39,6 +39,7 @@ class TimeSuitability(BaseModel):
   lunch: float
   afternoon: float
   evening: float
+  night: float
 
 
 class PlaceFeatures(BaseModel):

@@ -13,6 +13,7 @@ from course_optimizer.models import (
   LatLng,
   PlaceFeatures,
   TimeSuitability,
+  TravelTimeMatrix,
   TripInput,
   VisitStop,
 )
@@ -60,8 +61,8 @@ def _stops() -> list[VisitStop]:
 def _evaluation() -> CourseEvaluationInfo:
   return CourseEvaluationInfo(
     time_suitability={
-      "p1": TimeSuitability(morning=0.8, lunch=0.2, afternoon=0.2, evening=0.2),
-      "p2": TimeSuitability(morning=0.2, lunch=0.9, afternoon=0.2, evening=0.2),
+      "p1": TimeSuitability(morning=0.8, lunch=0.2, afternoon=0.2, evening=0.2, night=0.2),
+      "p2": TimeSuitability(morning=0.2, lunch=0.9, afternoon=0.2, evening=0.2, night=0.2),
     },
     transition_scores={
       "p1": {"p2": 0.7},
@@ -119,7 +120,9 @@ def test_balance_score_activity_penalty(run_length: int, expected_penalty: float
   ]
   evaluation = CourseEvaluationInfo(
     time_suitability={
-      stop.place_id: TimeSuitability(morning=0.5, lunch=0.5, afternoon=0.5, evening=0.5)
+      stop.place_id: TimeSuitability(
+        morning=0.5, lunch=0.5, afternoon=0.5, evening=0.5, night=0.5
+      )
       for stop in stops
     },
     transition_scores={
@@ -172,6 +175,17 @@ def test_total_score_weighted_sum() -> None:
   assert total == 70.0
 
 
+def test_config_rejects_weights_not_summing_to_one() -> None:
+  with pytest.raises(ValueError, match="experience_weight \\+ travel_weight"):
+    CourseOptimizerConfig(
+      openai_api_key="test",
+      google_maps_api_key="test",
+      qdrant_url="http://localhost:6333",
+      experience_weight=0.6,
+      travel_weight=0.6,
+    )
+
+
 def test_total_travel_minutes_with_fixed_destination() -> None:
   trip = TripInput(
     start_time=datetime(2026, 8, 1, 9, 0),
@@ -181,10 +195,12 @@ def test_total_travel_minutes_with_fixed_destination() -> None:
     fixed_destination=LatLng(latitude=36.6, longitude=128.8),
     candidates=[],
   )
-  durations = {
-    f"{ORIGIN_NODE_ID}|p1": 10,
-    "p1|p2": 15,
-    f"p2|{DESTINATION_NODE_ID}": 20,
-  }
-  total = calculate_total_travel_minutes(_stops(), trip, durations)
+  travel_matrix = TravelTimeMatrix(
+    durations_minutes={
+      f"{ORIGIN_NODE_ID}|p1": 10,
+      "p1|p2": 15,
+      f"p2|{DESTINATION_NODE_ID}": 20,
+    }
+  )
+  total = calculate_total_travel_minutes(_stops(), trip, travel_matrix)
   assert total == 45

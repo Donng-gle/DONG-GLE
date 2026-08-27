@@ -99,7 +99,8 @@
 - 사용자 취향 벡터 / 추천 순위 계산 (별도 모듈)
 
 > 참고: 초기 명세의 “`data/pipeline` 수정 금지”는 연결 계층 추가를 위해 완화했다.
-> `semantic_vector_sync.py`, `semantic_score_store.py`, `load_places` 연동은 구현 완료 상태다.
+> `semantic_vector_sync.py`, `semantic_score_store.py` 연결 계층은 구현 완료 상태다.
+> `load_places.py`는 DB 적재만 하고, 분석 호출은 `scripts/backfill_semantic_vectors.py` / `scripts/auto_sync_semantic_vectors.py`가 담당한다.
 
 ---
 
@@ -1361,12 +1362,17 @@ from pipeline.semantic_vector_sync import (
 
 ### 17.3 신규 장소 자동 분석
 
-`load_places.py` 흐름:
+`load_places.py`는 DB 적재만 한다. 분석 호출은 AI 연동 스크립트가 담당한다.
 
 ```text
 TourAPI raw 적재
     ↓
+python -m pipeline.load_places
+    ↓
 PostgreSQL place / place_image upsert (commit)
+    ↓
+python scripts/backfill_semantic_vectors.py
+  또는 python scripts/auto_sync_semantic_vectors.py
     ↓
 이미지 있는 place만 PlaceImageInput 변환
   (main 없으면 place_image 첫 장 사용, 최대 3장)
@@ -1391,7 +1397,7 @@ pending = 이미지 있음 + 현재 model/prompt/schema 미분석
 
 - DB 저장과 VLM 분석은 분리한다.
 - VLM 실패 시 place DB 저장은 유지한다.
-- 필요 시 `python -m pipeline.load_places --skip-semantic`으로 적재 직후 분석만 생략할 수 있다.
+- data `requirements.txt`와 AI SDK 의존성을 분리하기 위해 `load_places.py`는 semantic sync를 import/호출하지 않는다.
 
 ### 17.4 Backfill
 

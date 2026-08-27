@@ -44,8 +44,8 @@ def _candidate(place_id: str) -> CandidatePlace:
 def _payload() -> dict:
   return {
     "time_suitability": {
-      "p1": {"morning": 0.8, "lunch": 0.7, "afternoon": 0.6, "evening": 0.5},
-      "p2": {"morning": 0.4, "lunch": 0.9, "afternoon": 0.6, "evening": 0.5},
+      "p1": {"morning": 0.8, "lunch": 0.7, "afternoon": 0.6, "evening": 0.5, "night": 0.4},
+      "p2": {"morning": 0.4, "lunch": 0.9, "afternoon": 0.6, "evening": 0.5, "night": 0.3},
     },
     "transition_scores": {
       "p1": {"p2": 0.85},

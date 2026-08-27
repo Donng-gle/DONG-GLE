@@ -51,7 +51,6 @@ def search_optimal_route(
   categories_by_place_id = {
     candidate.place_id: candidate.category for candidate in candidates
   }
-  durations = travel_matrix.durations_minutes
   all_place_ids = {candidate.place_id for candidate in candidates}
   total_candidates = len(candidates)
 
@@ -63,7 +62,7 @@ def search_optimal_route(
       trip,
       candidate_map,
       resolved_hours,
-      durations,
+      travel_matrix,
       evaluation,
       categories_by_place_id,
       config=config,
@@ -72,7 +71,11 @@ def search_optimal_route(
       failed_k_prune_logs[target_k] = prune_log
       continue
 
-    free_time_minutes = calculate_free_time_minutes(trip, best_route.stops, durations)
+    free_time_minutes = calculate_free_time_minutes(
+      trip,
+      best_route.stops,
+      travel_matrix,
+    )
     visited_ids = {stop.place_id for stop in best_route.stops}
     excluded_places = sorted(all_place_ids - visited_ids)
     exclusion_reason: dict[str, str] = {}
@@ -101,7 +104,7 @@ def _search_at_visit_count(
   trip: TripInput,
   candidate_map: dict[str, CandidatePlace],
   resolved_hours: dict[str, ResolvedOperatingHours],
-  durations: dict[str, int],
+  travel_matrix: TravelTimeMatrix,
   evaluation: CourseEvaluationInfo,
   categories_by_place_id: dict[str, str],
   *,
@@ -123,16 +126,18 @@ def _search_at_visit_count(
   ) -> int:
     if places_needed <= 0:
       if trip.fixed_destination is not None:
-        dest_key = f"{current_node}|{DESTINATION_NODE_ID}"
-        if dest_key in durations:
-          return durations[dest_key]
+        try:
+          return travel_matrix.get_minutes(current_node, DESTINATION_NODE_ID)
+        except KeyError:
+          return 0
       return 0
 
     if places_needed > len(remaining_ids):
       return 10**9
 
     min_travel = min(
-      durations[f"{current_node}|{place_id}"] for place_id in remaining_ids
+      travel_matrix.get_minutes(current_node, place_id)
+      for place_id in remaining_ids
     )
     min_stays = sorted(
       get_min_stay_minutes(candidate_map[place_id].category)
@@ -141,7 +146,8 @@ def _search_at_visit_count(
     tail = 0
     if trip.fixed_destination is not None:
       tail = min(
-        durations[f"{place_id}|{DESTINATION_NODE_ID}"] for place_id in remaining_ids
+        travel_matrix.get_minutes(place_id, DESTINATION_NODE_ID)
+        for place_id in remaining_ids
       )
     return min_travel + sum(min_stays) + tail
 
@@ -156,22 +162,29 @@ def _search_at_visit_count(
     places_needed = target_k - len(visited)
 
     if trip.fixed_destination is not None and places_needed == 0:
-      dest_key = f"{current_node}|{DESTINATION_NODE_ID}"
-      if dest_key in durations:
-        travel_to_dest = durations[dest_key]
-        if current_time + timedelta(minutes=travel_to_dest) > trip.end_time:
-          return
+      try:
+        travel_to_dest = travel_matrix.get_minutes(current_node, DESTINATION_NODE_ID)
+      except KeyError:
+        return
+      if current_time + timedelta(minutes=travel_to_dest) > trip.end_time:
+        return
 
     if len(visited) == target_k:
       candidate_count += 1
-      stops = _build_stops(trip, visited, candidate_map, resolved_hours, durations)
+      stops = _build_stops(
+        trip,
+        visited,
+        candidate_map,
+        resolved_hours,
+        travel_matrix,
+      )
       if stops is not None:
         evaluated_count += 1
         scored = build_scored_route(
           stops,
           trip,
           evaluation,
-          durations,
+          travel_matrix,
           categories_by_place_id,
           config=config,
         )
@@ -192,7 +205,7 @@ def _search_at_visit_count(
     for place_id in sorted(remaining_ids):
       candidate = candidate_map[place_id]
       hours = resolved_hours[place_id]
-      travel_minutes = durations[f"{current_node}|{place_id}"]
+      travel_minutes = travel_matrix.get_minutes(current_node, place_id)
       arrival_time = current_time + timedelta(minutes=travel_minutes)
       if arrival_time > trip.end_time:
         record_prune(place_id, "time_exceeded")
@@ -240,7 +253,7 @@ def _search_at_visit_count(
 def calculate_free_time_minutes(
   trip: TripInput,
   stops: Sequence[VisitStop],
-  durations: dict[str, int],
+  travel_matrix: TravelTimeMatrix,
 ) -> int:
   """마지막 방문 종료 후 여행 종료 시각까지 남는 자유 시간(분)을 계산한다."""
   if not stops:
@@ -248,9 +261,14 @@ def calculate_free_time_minutes(
 
   end_of_route = stops[-1].departure_time
   if trip.fixed_destination is not None:
-    dest_key = f"{stops[-1].place_id}|{DESTINATION_NODE_ID}"
-    if dest_key in durations:
-      end_of_route += timedelta(minutes=durations[dest_key])
+    try:
+      travel_to_dest = travel_matrix.get_minutes(
+        stops[-1].place_id,
+        DESTINATION_NODE_ID,
+      )
+    except KeyError:
+      travel_to_dest = 0
+    end_of_route += timedelta(minutes=travel_to_dest)
 
   free_minutes = int((trip.end_time - end_of_route).total_seconds() // 60)
   return max(0, free_minutes)
@@ -281,7 +299,7 @@ def _build_stops(
   visited_place_ids: list[str],
   candidate_map: dict[str, CandidatePlace],
   resolved_hours: dict[str, ResolvedOperatingHours],
-  durations: dict[str, int],
+  travel_matrix: TravelTimeMatrix,
 ) -> list[VisitStop] | None:
   stops: list[VisitStop] = []
   current_time = trip.start_time
@@ -290,7 +308,7 @@ def _build_stops(
   for place_id in visited_place_ids:
     candidate = candidate_map[place_id]
     hours = resolved_hours[place_id]
-    travel_minutes = durations[f"{current_node}|{place_id}"]
+    travel_minutes = travel_matrix.get_minutes(current_node, place_id)
     arrival_time = current_time + timedelta(minutes=travel_minutes)
     default_stay = get_default_stay_minutes(candidate.category)
     min_stay = get_min_stay_minutes(candidate.category)
@@ -316,7 +334,7 @@ def _build_stops(
     current_node = place_id
 
   if trip.fixed_destination is not None:
-    travel_to_dest = durations[f"{current_node}|{DESTINATION_NODE_ID}"]
+    travel_to_dest = travel_matrix.get_minutes(current_node, DESTINATION_NODE_ID)
     if current_time + timedelta(minutes=travel_to_dest) > trip.end_time:
       return None
 

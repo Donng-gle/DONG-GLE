@@ -15,7 +15,7 @@ COURSE_EVALUATION_SYSTEM_PROMPT = """당신은 여행 코스의 장소별 시간
 와 category로 주어진다.
 
 ## 시간대 적합도
-각 장소가 morning/lunch/afternoon/evening 네 시간대에
+각 장소가 morning/lunch/afternoon/evening/night 다섯 시간대에
 얼마나 적합한지 0.0~1.0으로 판단하라.
 
 ## 전이 적합도
@@ -65,12 +65,13 @@ def _time_suitability_schema() -> dict:
   return {
     "type": "object",
     "additionalProperties": False,
-    "required": ["morning", "lunch", "afternoon", "evening"],
+    "required": ["morning", "lunch", "afternoon", "evening", "night"],
     "properties": {
       "morning": {"type": "number"},
       "lunch": {"type": "number"},
       "afternoon": {"type": "number"},
       "evening": {"type": "number"},
+      "night": {"type": "number"},
     },
   }
 

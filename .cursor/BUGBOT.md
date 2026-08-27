@@ -25,14 +25,12 @@ When reviewing `score_calculator.py` or related logic, verify:
 - Activity/rest streak penalty is quadratic: `k × max(0, streak_length - 2)²` with configurable k (default 5).
 - Total score is weighted average of experience and travel scores using configured weights.
 
-## Tests and evaluation code
+## Tests
 
-- Production changes under `ai/course_optimizer/` (excluding `evaluation/`) should keep unit tests passing.
-- Code under `ai/course_optimizer/evaluation/` is experimental only; do not treat missing tests there as production blockers.
+- Production changes under `ai/course_optimizer/` should keep unit tests passing.
 - Mock external APIs (Places, Routes, LLM) in unit tests; do not require live keys in CI.
 
 ## Common false positives to avoid
 
 - Do not flag intentional early pruning in `backtracking.py` (operating hours, stay time, destination deadline, lower-bound).
 - Do not suggest moving config/env reads out of `config.py` into scattered modules.
-- Do not recommend merging `evaluation/penalty_sensitivity` into production scoring without an explicit product decision.

@@ -11,6 +11,7 @@ from course_optimizer.models import (
   CourseEvaluationInfo,
   RouteScoreBreakdown,
   ScoredRoute,
+  TravelTimeMatrix,
   TripInput,
   VisitStop,
 )
@@ -106,19 +107,17 @@ def calculate_experience_score(
 def calculate_total_travel_minutes(
   stops: Sequence[VisitStop],
   trip: TripInput,
-  travel_matrix_durations: dict[str, int],
+  travel_matrix: TravelTimeMatrix,
 ) -> int:
   """총 이동시간(분)을 계산한다."""
   if not stops:
     return 0
 
-  total = travel_matrix_durations[f"{ORIGIN_NODE_ID}|{stops[0].place_id}"]
+  total = travel_matrix.get_minutes(ORIGIN_NODE_ID, stops[0].place_id)
   for prev_stop, next_stop in zip(stops, stops[1:]):
-    total += travel_matrix_durations[f"{prev_stop.place_id}|{next_stop.place_id}"]
+    total += travel_matrix.get_minutes(prev_stop.place_id, next_stop.place_id)
   if trip.fixed_destination is not None:
-    total += travel_matrix_durations[
-      f"{stops[-1].place_id}|{DESTINATION_NODE_ID}"
-    ]
+    total += travel_matrix.get_minutes(stops[-1].place_id, DESTINATION_NODE_ID)
   return total
 
 
@@ -151,7 +150,7 @@ def score_route(
   stops: Sequence[VisitStop],
   trip: TripInput,
   evaluation: CourseEvaluationInfo,
-  travel_matrix_durations: dict[str, int],
+  travel_matrix: TravelTimeMatrix,
   categories_by_place_id: dict[str, str],
   *,
   config: CourseOptimizerConfig,
@@ -173,7 +172,7 @@ def score_route(
   total_travel_minutes = calculate_total_travel_minutes(
     stops,
     trip,
-    travel_matrix_durations,
+    travel_matrix,
   )
   travel_score = calculate_travel_score(total_travel_minutes, trip)
   total_score = calculate_total_score(experience_score, travel_score, config=config)
@@ -192,7 +191,7 @@ def build_scored_route(
   stops: Sequence[VisitStop],
   trip: TripInput,
   evaluation: CourseEvaluationInfo,
-  travel_matrix_durations: dict[str, int],
+  travel_matrix: TravelTimeMatrix,
   categories_by_place_id: dict[str, str],
   *,
   config: CourseOptimizerConfig,
@@ -204,7 +203,7 @@ def build_scored_route(
       stops,
       trip,
       evaluation,
-      travel_matrix_durations,
+      travel_matrix,
       categories_by_place_id,
       config=config,
     ),

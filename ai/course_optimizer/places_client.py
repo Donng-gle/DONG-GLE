@@ -3,14 +3,40 @@
 from __future__ import annotations
 
 import math
-from datetime import time
+from collections.abc import Awaitable, Callable
+from datetime import datetime, time
+from typing import TypeVar
 
 import httpx
 
 from course_optimizer.config import CourseOptimizerConfig
 from course_optimizer.exceptions import PlacesApiError
 from course_optimizer.models import CandidatePlace, RawOperatingHours
+from course_optimizer.operating_hours import python_weekday_to_place_day
+from course_optimizer.place_hours_client import fetch_hours_for_visit_day
 from semantic_vector.retry import retry_async
+
+T = TypeVar("T")
+
+_RETRYABLE_HTTP_EXCEPTIONS = (httpx.TimeoutException, httpx.HTTPStatusError)
+
+
+async def _call_with_retry(
+  operation: Callable[[], Awaitable[T]],
+  *,
+  config: CourseOptimizerConfig,
+) -> T:
+  """일시적 HTTP 오류는 재시도하고, 소진 시 PlacesApiError로 변환한다."""
+  try:
+    return await retry_async(
+      operation,
+      max_retry_count=config.max_retry_count,
+      retryable_exceptions=_RETRYABLE_HTTP_EXCEPTIONS,
+    )
+  except httpx.HTTPStatusError as error:
+    raise PlacesApiError(str(error)) from error
+  except httpx.TimeoutException as error:
+    raise PlacesApiError(str(error)) from error
 
 
 def _parse_time(value: str) -> time:
@@ -19,13 +45,62 @@ def _parse_time(value: str) -> time:
   return time(hour, minute)
 
 
+def _raw_hours_from_periods(
+  periods: list[dict],
+  visit_time: datetime,
+) -> RawOperatingHours:
+  """Google Places periods에서 방문 요일에 해당하는 운영시간을 고른다."""
+  if not periods:
+    return RawOperatingHours(is_always_open=True)
+
+  target_day = python_weekday_to_place_day(visit_time.weekday())
+  day_periods = [
+    period
+    for period in periods
+    if (period.get("open") or {}).get("day") == target_day
+  ]
+
+  if not day_periods:
+    return RawOperatingHours(is_closed=True)
+
+  open_times: list[time] = []
+  close_times: list[time] = []
+  for period in day_periods:
+    open_info = period.get("open") or {}
+    close_info = period.get("close")
+    if not open_info.get("time"):
+      continue
+    if not close_info:
+      return RawOperatingHours(is_always_open=True)
+    open_times.append(_parse_time(str(open_info["time"]).zfill(4)))
+    close_times.append(_parse_time(str(close_info["time"]).zfill(4)))
+
+  if not open_times or not close_times:
+    return RawOperatingHours(is_always_open=True)
+
+  return RawOperatingHours(
+    open_time=min(open_times),
+    close_time=max(close_times),
+    is_always_open=False,
+  )
+
+
 async def fetch_operating_hours(
   place_id: str,
   *,
   candidate: CandidatePlace,
+  visit_time: datetime,
   config: CourseOptimizerConfig,
 ) -> RawOperatingHours | None:
-  """Google Places API로 운영시간을 조회한다."""
+  """방문 요일 기준 운영시간을 조회한다.
+
+  1) DB place_hours (요일별 행)
+  2) 없으면 Google Places periods를 요일 맞춰 파싱
+  """
+  db_hours = fetch_hours_for_visit_day(place_id, visit_time, config=config)
+  if db_hours is not None:
+    return db_hours
+
   url = "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
   params = {
     "location": f"{candidate.latitude},{candidate.longitude}",
@@ -41,23 +116,10 @@ async def fetch_operating_hours(
       response.raise_for_status()
       return response.json()
 
-  try:
-    payload = await retry_async(
-      _call_nearby,
-      max_retry_count=config.max_retry_count,
-      retryable_exceptions=(httpx.TimeoutException, httpx.HTTPStatusError),
-    )
-  except httpx.HTTPStatusError as error:
-    if error.response.status_code == 401:
-      raise PlacesApiError(str(error)) from error
-    raise PlacesApiError(str(error)) from error
-  except httpx.TimeoutException as error:
-    raise PlacesApiError(str(error)) from error
+  payload = await _call_with_retry(_call_nearby, config=config)
 
   status = payload.get("status")
   if status not in ("OK", "ZERO_RESULTS"):
-    if status in ("REQUEST_DENIED", "INVALID_REQUEST"):
-      raise PlacesApiError(f"Google Places API error: {status}")
     raise PlacesApiError(f"Google Places API error: {status}")
 
   results = payload.get("results", [])
@@ -77,7 +139,11 @@ async def fetch_operating_hours(
   if not google_place_id:
     return None
 
-  return await _fetch_place_details(google_place_id, config=config)
+  return await _fetch_place_details(
+    google_place_id,
+    visit_time=visit_time,
+    config=config,
+  )
 
 
 async def fetch_business_status(
@@ -85,7 +151,11 @@ async def fetch_business_status(
   *,
   config: CourseOptimizerConfig,
 ) -> bool:
-  """장소 영업 여부를 조회한다. 정보가 없으면 영업 중으로 간주한다."""
+  """장소 영업 여부를 조회한다.
+
+  Google place_id를 찾지 못하면(매칭 실패) 정보가 없는 것으로 보고 True를 반환한다.
+  API status가 OK가 아니면 PlacesApiError를 던진다.
+  """
   url = "https://maps.googleapis.com/maps/api/place/details/json"
   params = {
     "place_id": await _resolve_google_place_id(candidate, config=config),
@@ -102,19 +172,13 @@ async def fetch_business_status(
       response.raise_for_status()
       return response.json()
 
-  try:
-    payload = await retry_async(
-      _call_details,
-      max_retry_count=config.max_retry_count,
-      retryable_exceptions=(httpx.TimeoutException, httpx.HTTPStatusError),
-    )
-  except (httpx.HTTPStatusError, httpx.TimeoutException) as error:
-    raise PlacesApiError(str(error)) from error
+  payload = await _call_with_retry(_call_details, config=config)
 
-  if payload.get("status") != "OK":
-    return True
-  status = payload.get("result", {}).get("business_status", "OPERATIONAL")
-  return status == "OPERATIONAL"
+  status = payload.get("status")
+  if status != "OK":
+    raise PlacesApiError(f"Google Places API error: {status}")
+  business_status = payload.get("result", {}).get("business_status", "OPERATIONAL")
+  return business_status == "OPERATIONAL"
 
 
 async def _resolve_google_place_id(
@@ -130,12 +194,16 @@ async def _resolve_google_place_id(
     "language": "ko",
     "key": config.google_maps_api_key,
   }
-  async with httpx.AsyncClient(timeout=30.0) as client:
-    response = await client.get(url, params=params)
-    response.raise_for_status()
-    payload = response.json()
+
+  async def _call_nearby() -> dict:
+    async with httpx.AsyncClient(timeout=30.0) as client:
+      response = await client.get(url, params=params)
+      response.raise_for_status()
+      return response.json()
+
+  payload = await _call_with_retry(_call_nearby, config=config)
   if payload.get("status") not in ("OK", "ZERO_RESULTS"):
-    return None
+    raise PlacesApiError(f"Google Places API error: {payload.get('status')}")
   results = payload.get("results", [])
   if not results:
     return None
@@ -154,6 +222,7 @@ async def _resolve_google_place_id(
 async def _fetch_place_details(
   google_place_id: str,
   *,
+  visit_time: datetime,
   config: CourseOptimizerConfig,
 ) -> RawOperatingHours | None:
   url = "https://maps.googleapis.com/maps/api/place/details/json"
@@ -170,11 +239,7 @@ async def _fetch_place_details(
       response.raise_for_status()
       return response.json()
 
-  payload = await retry_async(
-    _call,
-    max_retry_count=config.max_retry_count,
-    retryable_exceptions=(httpx.TimeoutException, httpx.HTTPStatusError),
-  )
+  payload = await _call_with_retry(_call, config=config)
   if payload.get("status") != "OK":
     return None
 
@@ -187,20 +252,7 @@ async def _fetch_place_details(
     return None
 
   periods = opening_hours.get("periods") or []
-  if not periods:
-    return RawOperatingHours(is_always_open=True)
-
-  first_period = periods[0]
-  open_info = first_period.get("open")
-  close_info = first_period.get("close")
-  if not open_info or not close_info:
-    return RawOperatingHours(is_always_open=True)
-
-  return RawOperatingHours(
-    open_time=_parse_time(str(open_info["time"]).zfill(4)),
-    close_time=_parse_time(str(close_info["time"]).zfill(4)),
-    is_always_open=False,
-  )
+  return _raw_hours_from_periods(periods, visit_time)
 
 
 def _distance_m(lat1: float, lng1: float, lat2: float, lng2: float) -> float:

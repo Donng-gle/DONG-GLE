@@ -20,7 +20,8 @@ from course_optimizer.models import (
   TravelTimeMatrix,
   TripInput,
 )
-from course_optimizer.planner import optimize_course
+from course_optimizer.exceptions import PlacesApiError
+from course_optimizer.planner import ensure_open_candidates, optimize_course
 from semantic_vector.models import MajorScores
 
 
@@ -57,7 +58,9 @@ def _trip(candidates: list[CandidatePlace]) -> TripInput:
 def _evaluation(candidates: list[CandidatePlace]) -> CourseEvaluationInfo:
   return CourseEvaluationInfo(
     time_suitability={
-      c.place_id: TimeSuitability(morning=0.8, lunch=0.8, afternoon=0.8, evening=0.8)
+      c.place_id: TimeSuitability(
+        morning=0.8, lunch=0.8, afternoon=0.8, evening=0.8, night=0.8
+      )
       for c in candidates
     },
     transition_scores={
@@ -183,6 +186,31 @@ async def test_optimize_course_replaces_closed_place() -> None:
     result = await optimize_course(_trip(candidates), config=_config())
 
   assert result.replaced_places == {"closed": "replacement"}
+
+
+@pytest.mark.asyncio
+async def test_ensure_open_candidates_propagates_places_api_error() -> None:
+  candidates = [
+    CandidatePlace(
+      place_id="p1",
+      category="관광지",
+      major_scores=_major(),
+      latitude=36.50,
+      longitude=128.70,
+      is_open=True,
+    ),
+  ]
+
+  with patch(
+    "course_optimizer.planner.fetch_business_status",
+    AsyncMock(side_effect=PlacesApiError("temporary failure")),
+  ):
+    with pytest.raises(PlacesApiError, match="temporary failure"):
+      await ensure_open_candidates(
+        candidates,
+        visit_time=datetime(2026, 8, 1, 9, 0),
+        config=_config(),
+      )
 
 
 @pytest.mark.asyncio

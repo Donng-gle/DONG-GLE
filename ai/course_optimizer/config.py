@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import math
 from pathlib import Path
+from typing import Self
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _AI_ROOT = Path(__file__).resolve().parents[1]
@@ -49,3 +51,15 @@ class CourseOptimizerConfig(BaseSettings):
     default="place_semantic_vectors",
     validation_alias="QDRANT_COLLECTION_NAME",
   )
+
+  database_url: str | None = Field(default=None, validation_alias="DATABASE_URL")
+
+  @model_validator(mode="after")
+  def validate_score_weights(self) -> Self:
+    total = self.experience_weight + self.travel_weight
+    if not math.isclose(total, 1.0, rel_tol=0.0, abs_tol=1e-9):
+      raise ValueError(
+        "experience_weight + travel_weight must equal 1.0, "
+        f"got {self.experience_weight} + {self.travel_weight} = {total}"
+      )
+    return self

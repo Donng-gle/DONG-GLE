@@ -88,7 +88,9 @@ def test_validate_trip_input_duplicate_place_id() -> None:
 
 def _evaluation_for(candidates: list[CandidatePlace]) -> CourseEvaluationInfo:
   time_suitability = {
-    c.place_id: TimeSuitability(morning=0.5, lunch=0.5, afternoon=0.5, evening=0.5)
+    c.place_id: TimeSuitability(
+      morning=0.5, lunch=0.5, afternoon=0.5, evening=0.5, night=0.5
+    )
     for c in candidates
   }
   place_features = {

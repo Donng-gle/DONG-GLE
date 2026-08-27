@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 
 from course_optimizer.backtracking import search_optimal_route
 from course_optimizer.config import CourseOptimizerConfig
@@ -21,6 +22,7 @@ logger = logging.getLogger(__name__)
 async def ensure_open_candidates(
   candidates: list[CandidatePlace],
   *,
+  visit_time: datetime,
   config: CourseOptimizerConfig,
 ) -> tuple[list[CandidatePlace], dict[str, str], list[str]]:
   """영업 중단 장소를 대체하거나 제외한다."""
@@ -32,10 +34,7 @@ async def ensure_open_candidates(
   for candidate in candidates:
     is_open = candidate.is_open
     if is_open:
-      try:
-        is_open = await fetch_business_status(candidate, config=config)
-      except Exception:
-        is_open = True
+      is_open = await fetch_business_status(candidate, config=config)
 
     current = candidate.model_copy(update={"is_open": is_open})
     if current.is_open:
@@ -47,6 +46,7 @@ async def ensure_open_candidates(
       replacement = await find_replacement_place(
         current,
         exclude_ids,
+        visit_time=visit_time,
         config=config,
       )
     except ReplacementNotFoundError:
@@ -72,6 +72,7 @@ async def optimize_course(
 
   candidates, replaced, excluded = await ensure_open_candidates(
     list(trip.candidates),
+    visit_time=trip.start_time,
     config=resolved_config,
   )
   if len(candidates) < resolved_config.min_visit_count:
@@ -87,6 +88,7 @@ async def optimize_course(
     raw_hours = await fetch_operating_hours(
       place_id,
       candidate=candidate,
+      visit_time=trip.start_time,
       config=resolved_config,
     )
     resolved_hours[place_id] = resolve_operating_hours(candidate.category, raw_hours)
