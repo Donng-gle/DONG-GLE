@@ -158,6 +158,14 @@
 
 ---
 
+## 2026-08-27 | 카카오 로그인 Redirect URI: 백엔드 HTTPS 중계 엔드포인트 신설
+
+- **결정**: 카카오 개발자 콘솔의 "카카오 로그인 리다이렉트 URI"에 앱의 커스텀 스킴(`dongle://`)을 직접 등록할 수 없어서(콘솔이 "유효하지 않은 URL"로 거부, 실제 확인함), 백엔드에 `GET /auth/kakao/callback` HTTPS 엔드포인트를 신설해 카카오 콘솔엔 이 주소(`https://dong-gle.onrender.com/auth/kakao/callback`)를 등록한다. 이 엔드포인트는 실제 로그인 처리를 하지 않고, 카카오가 붙여준 쿼리스트링(code/error)을 그대로 유지한 채 앱의 커스텀 스킴(`dongle://redirect`)으로 302 리다이렉트만 해주는 순수 중계 역할만 한다.
+- **이유**: 구글 Web 애플리케이션 클라이언트와 동일한 문제(2026-08-26 결정 참고) — OAuth 제공자들이 브라우저 리다이렉트 흐름에선 커스텀 스킴 대신 http(s) URL을 요구하는 경우가 많음. 구글은 네이티브 SDK로 전환해 이 문제를 근본적으로 피했지만, 카카오는 기존 `expo-auth-session` 브라우저 흐름을 그대로 유지하기로 했으므로(스코프상 네이티브 카카오 SDK 도입은 보류) HTTPS 중계가 더 적은 비용의 해결책. 참고로 `dongle://`(경로 없이 authority가 완전히 빈 형태)는 카카오 콘솔뿐 아니라 `java.net.URI.create()`도 `IllegalArgumentException`으로 거부함을 실제 테스트로 확인 — 그래서 `dongle://redirect`처럼 경로 세그먼트를 하나 붙인 형태를 리다이렉트 대상으로 확정.
+- **영향**: `AuthController.kt`에 `kakaoRedirectRelay` 추가, `SecurityConfig`의 `permitAllPaths`에 등록(비인증 허용 필수 — 카카오가 리다이렉트로 호출하므로 JWT가 있을 수 없음). `KAKAO_REDIRECT_URI` 값은 이제 이 중계 엔드포인트 주소로 고정(`.env.example` 반영). **클라이언트 쪽도 추가 작업 필요**(아직 미착수) — `client-front`가 `expo-auth-session`의 `useAuthRequest`/`promptAsync` 기본 흐름을 그대로 쓰면 `redirect_uri`(카카오에 보내는 값)와 `WebBrowser`가 감지하는 `returnUrl`이 항상 같은 값으로 강제되므로, 카카오에는 이 HTTPS 주소를 보내면서 앱은 `dongle://redirect`를 기다리는 두 값을 분리하려면 `useAuthRequest` 대신 `WebBrowser.openAuthSessionAsync`를 직접 호출하는 방식으로 바꿔야 함.
+
+---
+
 <!-- 결정되면 아래 양식으로 추가 -->
 <!--
 ## YYYY-MM-DD | 제목

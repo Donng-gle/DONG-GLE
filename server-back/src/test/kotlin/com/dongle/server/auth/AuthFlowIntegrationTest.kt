@@ -13,6 +13,7 @@ import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
+import org.springframework.test.web.servlet.result.MockMvcResultMatchers.header
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import org.springframework.transaction.annotation.Transactional
@@ -110,5 +111,21 @@ class AuthFlowIntegrationTest {
                 .content("""{"refresh_token":"$refreshToken"}""")
         )
             .andExpect(status().isUnauthorized)
+    }
+
+    @Test
+    fun `카카오 리다이렉트 중계는 code 쿼리스트링을 커스텀 스킴으로 그대로 전달한다`() {
+        // request.queryString(원문 쿼리스트링)을 그대로 읽어야 해서, MockMvc의 .param()(파싱된 파라미터로만
+        // 들어감)이 아니라 URL 자체에 쿼리스트링을 붙여야 실제 브라우저 요청과 동일하게 검증됨
+        mockMvc.perform(get("/auth/kakao/callback?code=abc123"))
+            .andExpect(status().isFound)
+            .andExpect(header().string("Location", "dongle://redirect?code=abc123"))
+    }
+
+    @Test
+    fun `카카오 리다이렉트 중계는 쿼리스트링이 없어도 커스텀 스킴으로 리다이렉트한다`() {
+        mockMvc.perform(get("/auth/kakao/callback"))
+            .andExpect(status().isFound)
+            .andExpect(header().string("Location", "dongle://redirect"))
     }
 }
