@@ -324,3 +324,11 @@
 - **결정**: `load_place_hours.py`가 Google Places의 "매일 24시간 운영" 특수 표현(`periods`가 `{"open": {"day": 0, "time": "0000"}}` 하나뿐이고 `close` 없음)을 "일요일만 00:00에 열고 안 닫음"으로 잘못 저장하던 버그 수정. 이제 이 패턴을 감지하면 7일 전체에 대해 `open_time=00:00, close_time=NULL`로 확장 저장
 - **이유**: 실제로 8곳(부용대, 월영교, 신세동 벽화마을 등 주로 야외 유적지·공원류)이 이 형식으로 응답받았는데, 그대로 저장하면 "월~토는 영업시간 정보 없음"으로 잘못 해석될 수 있었음
 - **영향**: 기존 잘못 저장된 8곳의 행 삭제 후 재적재, 정상적으로 7일 전체 커버됨 확인. `place_hours` 전체 보유 장소 수는 131건으로 동일 유지(버그 있던 8곳이 빠졌다 다시 정상 채워짐)
+
+---
+
+## 2026-08-28 | data/migrations 폴더 삭제, schema.sql로 완전 통일
+
+- **결정**: `data/migrations/001_place_semantic_vector.sql` 삭제. `place_semantic_vector` 정의는 이미 `schema.sql`/`schema.dbml`에 있고(2026-08-21), 컬럼/인덱스가 완전히 동일한 것 확인 후 진행. `data/README.md`의 마이그레이션 참조도 `schema.sql`/`schema.dbml` 참조로 갱신
+- **이유**: `ai` 브랜치가 PR #25로 `dev`에 정상 병합된 뒤에도 이 파일이 남아있어서, 같은 테이블이 두 곳(schema.sql, migrations 파일)에 중복 정의된 상태였음. 방치하면 한쪽만 컬럼이 추가되는 식으로 나중에 어긋날 위험이 있어 SSOT 하나로 통일
+- **영향**: `ai/semantic_vector/semantic_ai.md`(AI 파트 문서)에도 이 마이그레이션 파일에 대한 참조가 남아있는데, 이건 AI 파트 소관이라 직접 수정하지 않음 — 필요시 해당 파트에서 정리 요청
