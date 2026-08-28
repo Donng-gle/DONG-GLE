@@ -74,7 +74,7 @@ Table place_semantic_vector {
   qdrant_point_id          text        [not null, note: 'Qdrant place_semantic_vectors 컬렉션의 벡터 검색용 point id']
   analyzed_at              timestamptz [not null, default: `now()`]
 
-  Note: '장소별 VLM(GPT Vision) semantic 분석 raw score. 장소당 최신 분석 결과 1행만 유지. place_emotion_tag(방문 로그 누적)와는 별개 신호'
+  Note: '장소별 VLM(GPT Vision) semantic 분석 raw score. 장소당 최신 분석 결과 1행만 유지. place_emotion_tag(방문 로그 누적)와는 별개 신호. 데이터 파트 배치 스크립트(data/pipeline/semantic_vector_sync.py)로만 적재됨, 백엔드는 읽기 전용'
 }
 
 Table place_emotion_tag {

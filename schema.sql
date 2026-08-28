@@ -45,7 +45,7 @@ CREATE TABLE place_image (
 CREATE INDEX idx_place_image_place ON place_image (place_id);
 
 
--- 영업시간 (Google Places opening_hours.periods 기준, 요일별 여러 구간 가능)
+-- 영업시간 (Google Places opening_hours.periods 기준 + TourAPI 텍스트 파싱 보완)
 -- 브레이크타임 등 세부 휴게시간 데이터는 소스(TourAPI/Google) 어디에도 사실상 없어 미반영 (decision-log 참고)
 -- close_day/close_time이 NULL이면 해당 open_day는 24시간 영업
 CREATE TABLE place_hours (
@@ -64,6 +64,7 @@ CREATE INDEX idx_place_hours_place ON place_hours (place_id);
 -- 장소별 VLM(GPT Vision) semantic 분석 raw score (장소 공식 사진 기반, 정적 기준선)
 -- 장소당 최신 분석 결과 1행만 유지. model_name/prompt_version/tag_schema_version이 바뀌면 재분석 대상.
 -- place_emotion_tag(아래, 방문 로그 누적)와는 별개 신호 — 하나가 다른 하나를 대체하지 않음 (decision-log 2026-08-21 참고)
+-- 데이터 파트 배치 스크립트(data/pipeline/semantic_vector_sync.py)로만 적재됨, 백엔드는 읽기 전용
 CREATE TABLE place_semantic_vector (
     place_id                 BIGINT      PRIMARY KEY REFERENCES place (id) ON DELETE CASCADE,
     representative_image_url TEXT        NOT NULL,

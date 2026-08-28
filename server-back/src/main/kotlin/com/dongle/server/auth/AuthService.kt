@@ -27,8 +27,8 @@ class AuthService(
     fun loginWithKakao(code: String): OAuthLoginResponse =
         login(OAuthProvider.kakao, kakaoOAuthClient.getUserInfo(code))
 
-    fun loginWithGoogle(code: String): OAuthLoginResponse =
-        login(OAuthProvider.google, googleOAuthClient.getUserInfo(code))
+    fun loginWithGoogle(idToken: String): OAuthLoginResponse =
+        login(OAuthProvider.google, googleOAuthClient.getUserInfo(idToken))
 
     fun refresh(refreshToken: String): RefreshResponse {
         if (!jwtTokenProvider.validate(refreshToken)) throw InvalidRefreshTokenException()

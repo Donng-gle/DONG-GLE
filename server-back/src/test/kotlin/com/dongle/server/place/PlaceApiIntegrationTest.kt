@@ -3,7 +3,10 @@ package com.dongle.server.place
 import com.dongle.server.auth.jwt.JwtTokenProvider
 import com.dongle.server.user.OAuthProvider
 import com.dongle.server.user.User
+import com.dongle.server.user.UserPreference
+import com.dongle.server.user.UserPreferenceRepository
 import com.dongle.server.user.UserRepository
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
@@ -17,6 +20,8 @@ import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import org.springframework.transaction.annotation.Transactional
+import java.time.LocalTime
+import java.time.OffsetDateTime
 
 // 안동 시내(하회마을 인근) 좌표대를 뷰포트/장소 좌표로 사용
 @SpringBootTest
@@ -36,6 +41,15 @@ class PlaceApiIntegrationTest {
     @Autowired
     lateinit var jwtTokenProvider: JwtTokenProvider
 
+    @Autowired
+    lateinit var placeSemanticVectorRepository: PlaceSemanticVectorRepository
+
+    @Autowired
+    lateinit var placeHoursRepository: PlaceHoursRepository
+
+    @Autowired
+    lateinit var userPreferenceRepository: UserPreferenceRepository
+
     private fun place(contentId: String, name: String, lat: Double, lng: Double, visitLogCount: Int = 0) = placeRepository.save(
         Place(
             contentId = contentId,
@@ -54,6 +68,13 @@ class PlaceApiIntegrationTest {
             User(userId = userId, nickname = "테스터", oauthProvider = OAuthProvider.kakao, oauthId = oauthId)
         )
         return jwtTokenProvider.generateAccessToken(user.id)
+    }
+
+    private fun userWithToken(userId: String, oauthId: String): Pair<Long, String> {
+        val user = userRepository.save(
+            User(userId = userId, nickname = "테스터", oauthProvider = OAuthProvider.kakao, oauthId = oauthId)
+        )
+        return user.id to jwtTokenProvider.generateAccessToken(user.id)
     }
 
     // 공용 Supabase DB를 대상으로 실행되므로(실제 데이터가 계속 쌓임), total/개수 같은 절대값 대신
@@ -89,6 +110,68 @@ class PlaceApiIntegrationTest {
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.is_personalized").value(false))
             .andExpect(jsonPath("$.places[0].name").value("인기많은곳"))
+    }
+
+    @Test
+    fun `취향 태그와 겹치는 장소가 있으면 개인화 추천을 반환하고 매칭 장소를 우선 노출한다`() {
+        val (userId, token) = userWithToken("feat_user_1", "kakao-feat-1")
+        userPreferenceRepository.save(
+            UserPreference(user = userRepository.getReferenceById(userId), tag = "relaxing", score = 5.0)
+        )
+
+        val matched = place("FEAT_MATCH", "테스트전용개인화매칭장소", 36.5, 128.5)
+        placeSemanticVectorRepository.save(
+            PlaceSemanticVector(
+                placeId = matched.id,
+                representativeImageUrl = "https://example.com/matched.jpg",
+                analysisImageCount = 3,
+                majorScores = """{"relaxing":0.9,"lively":0.1,"romantic":0.1,"local":0.1,"photogenic":0.1,"traditional":0.05,"modern":0.05}""",
+                detailScores = "{}",
+                modelName = "test-model",
+                promptVersion = "test-v1",
+                tagSchemaVersion = "test-v1",
+                qdrantPointId = "test-point-matched",
+                analyzedAt = OffsetDateTime.now(),
+            )
+        )
+        val unmatched = place("FEAT_NOMATCH", "테스트전용개인화비매칭장소", 36.5, 128.5)
+        placeSemanticVectorRepository.save(
+            PlaceSemanticVector(
+                placeId = unmatched.id,
+                representativeImageUrl = "https://example.com/unmatched.jpg",
+                analysisImageCount = 3,
+                majorScores = """{"relaxing":0.05,"lively":0.9,"romantic":0.8,"local":0.7,"photogenic":0.1,"traditional":0.05,"modern":0.05}""",
+                detailScores = "{}",
+                modelName = "test-model",
+                promptVersion = "test-v1",
+                tagSchemaVersion = "test-v1",
+                qdrantPointId = "test-point-unmatched",
+                analyzedAt = OffsetDateTime.now(),
+            )
+        )
+
+        // limit을 전체 장소 수보다 훨씬 크게 줘서 두 테스트 장소가 반드시 응답에 포함되도록 함
+        val response = mockMvc.perform(
+            get("/places/featured").param("limit", "5000").header("Authorization", "Bearer $token")
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.is_personalized").value(true))
+            .andReturn().response.contentAsString
+
+        val matchedIndex = response.indexOf("테스트전용개인화매칭장소")
+        val unmatchedIndex = response.indexOf("테스트전용개인화비매칭장소")
+        assertTrue(matchedIndex in 0..<unmatchedIndex) {
+            "취향 태그와 겹치는 장소가 더 앞에 나와야 함 (matched=$matchedIndex, unmatched=$unmatchedIndex)"
+        }
+    }
+
+    @Test
+    fun `취향 태그가 없으면 인기순으로 폴백하고 비개인화로 표시한다`() {
+        val (_, token) = userWithToken("feat_user_2", "kakao-feat-2")
+
+        mockMvc.perform(get("/places/featured").param("limit", "2").header("Authorization", "Bearer $token"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.is_personalized").value(false))
     }
 
     @Test
@@ -132,6 +215,54 @@ class PlaceApiIntegrationTest {
 
         mockMvc.perform(post("/places/${place.id}/like"))
             .andExpect(status().isUnauthorized)
+    }
+
+    @Test
+    fun `방문 로그 태그가 없으면 place_semantic_vector major_scores로 대체된다`() {
+        val place = place("SEM001", "테스트전용시맨틱장소", 36.5, 128.5)
+        placeSemanticVectorRepository.save(
+            PlaceSemanticVector(
+                placeId = place.id,
+                representativeImageUrl = "https://example.com/a.jpg",
+                analysisImageCount = 3,
+                majorScores = """{"relaxing":0.9,"lively":0.1,"romantic":0.2,"local":0.3,"photogenic":0.4,"traditional":0.05,"modern":0.05}""",
+                detailScores = "{}",
+                modelName = "test-model",
+                promptVersion = "test-v1",
+                tagSchemaVersion = "test-v1",
+                qdrantPointId = "test-point-sem001",
+                analyzedAt = OffsetDateTime.now(),
+            )
+        )
+
+        mockMvc.perform(get("/places/${place.id}"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.top_tags[0]").value("relaxing"))
+            .andExpect(jsonPath("$.top_tags.length()").value(7))
+    }
+
+    @Test
+    fun `장소 상세 조회 시 요일별 영업시간을 반환한다`() {
+        val place = place("HOURS001", "테스트전용영업시간장소", 36.5, 128.5)
+        placeHoursRepository.save(PlaceHours(place = place, openDay = 1, openTime = LocalTime.of(9, 0), closeTime = LocalTime.of(18, 0)))
+        placeHoursRepository.save(PlaceHours(place = place, openDay = 6, openTime = LocalTime.of(22, 0), closeDay = 0, closeTime = LocalTime.of(2, 0)))
+
+        mockMvc.perform(get("/places/${place.id}"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.hours.length()").value(2))
+            .andExpect(jsonPath("$.hours[0].open_day").value(1))
+            .andExpect(jsonPath("$.hours[0].open_time").value("09:00:00"))
+            .andExpect(jsonPath("$.hours[0].close_time").value("18:00:00"))
+            .andExpect(jsonPath("$.hours[1].close_day").value(0))
+    }
+
+    @Test
+    fun `영업시간 데이터가 없으면 빈 배열을 반환한다`() {
+        val place = place("HOURS002", "테스트전용영업시간없는장소", 36.5, 128.5)
+
+        mockMvc.perform(get("/places/${place.id}"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.hours.length()").value(0))
     }
 
     @Test
