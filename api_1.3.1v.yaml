@@ -1195,6 +1195,28 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /auth/kakao/callback:
+    get:
+      tags: [Auth]
+      summary: 카카오 로그인 리다이렉트 중계 (앱이 직접 호출하지 않음)
+      description: |
+        카카오 개발자 콘솔의 Redirect URI가 커스텀 스킴(dongle://)을 거부해서(2026-08-27 확인,
+        decision-log 참고) 등록해둔 HTTPS 중계 엔드포인트. 카카오가 로그인 승인 후 이 주소로
+        code(또는 error) 쿼리스트링을 붙여 리다이렉트하면, 서버는 그 쿼리스트링을 그대로 유지한 채
+        앱의 커스텀 스킴(dongle://redirect)으로 302 리다이렉트만 해준다 — 실제 로그인 처리는
+        전혀 하지 않으며 POST /auth/oauth/kakao와는 무관하다.
+      security: []
+      parameters:
+        - name: code
+          in: query
+          required: false
+          schema:
+            type: string
+          description: 카카오가 붙여주는 인가 코드 (또는 실패 시 error/error_description)
+      responses:
+        '302':
+          description: dongle://redirect(+원본 쿼리스트링)로 리다이렉트
+
   /auth/oauth/google:
     post:
       tags: [Auth]
