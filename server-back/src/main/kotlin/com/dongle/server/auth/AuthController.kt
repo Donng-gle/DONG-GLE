@@ -1,5 +1,6 @@
 package com.dongle.server.auth
 
+import com.dongle.server.auth.dto.GoogleLoginRequest
 import com.dongle.server.auth.dto.OAuthLoginRequest
 import com.dongle.server.auth.dto.OAuthLoginResponse
 import com.dongle.server.auth.dto.RefreshRequest
@@ -23,8 +24,8 @@ class AuthController(
         authService.loginWithKakao(request.code)
 
     @PostMapping("/oauth/google")
-    fun loginWithGoogle(@Valid @RequestBody request: OAuthLoginRequest): OAuthLoginResponse =
-        authService.loginWithGoogle(request.code)
+    fun loginWithGoogle(@Valid @RequestBody request: GoogleLoginRequest): OAuthLoginResponse =
+        authService.loginWithGoogle(request.idToken)
 
     @PostMapping("/refresh")
     fun refresh(@Valid @RequestBody request: RefreshRequest): RefreshResponse =
