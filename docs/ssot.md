@@ -3,7 +3,7 @@
 > 팀 전체의 확정 사항만 기록.
 > 미확정 항목의 존재 여부만 적고, 상세 진행은 `milestone.md`에서 관리.
 > 변경 시 반드시 팀 의논 후 수정. 수정 후 팀 공유.
-> 최근 수정: 2026-07-17
+> 최근 수정: 2026-08-02
 
 ---
 
@@ -33,12 +33,13 @@
 | 프론트엔드 | React Native (Expo) — 모바일 앱 |
 | 탈퇴 처리 | Hard delete + CASCADE (MVP), 추후 soft delete 전환 |
 | 데이터↔백엔드 적재 방식 | 데이터 파트가 DB에 직접 적재 |
+| DB 호스팅 | Supabase (공용, `DONG-GLE-DB` 프로젝트, ap-southeast-2). 접속은 pooler(`aws-0-ap-southeast-2.pooler.supabase.com`) 사용, 접속 정보는 팀 채팅 공유 |
+| 지도/경로 API | 구글맵 |
 
 ## 현재 미확정 큰 항목
 
 - AI 모델 구체 선택 (감성태그 분석용 — 사진을 입력받아 7개 태그 점수를 매기는 이미지 인식/멀티모달 모델)
 - 코스 추천 알고리즘 방향 (김지광 확정 예정)
-- 지도/경로 API (TMAP vs 구글맵, 김지광 확정 예정)
 
 ---
 
@@ -75,9 +76,9 @@
 ### 음식점 데이터 보완 (확정)
 
 - TourAPI 음식점(39) 33건은 그대로 유지 (장소 자체 확장 안 함)
-- tel 필드만 카카오 로컬 API(키워드 장소검색)로 보완 — 이름+좌표 기반, 이름 불일치 시 매칭 제외
-- API 키 위치: `.env` → `KAKAO_REST_API_KEY`
-- 지도/경로 기능에 쓸 API(TMAP vs 카카오)와는 별개 결정. 그건 아직 미정
+- tel 필드만 Google Places API(Nearby Search + Place Details)로 보완 — 이름+좌표 기반, 이름 불일치 시 매칭 제외 (2026-08-02, 기존 카카오 로컬 API에서 전환, decision-log 참고)
+- API 키 위치: `.env` → `GOOGLE_MAPS_API_KEY`
+- 지도/경로 기능에 쓸 API와는 별개 결정. 그건 구글맵으로 확정됨 (기술 스택 표 참고)
 
 ## DB 스키마 (확정된 기준만)
 

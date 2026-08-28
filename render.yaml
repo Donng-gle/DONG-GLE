@@ -1,0 +1,41 @@
+services:
+  - type: web
+    name: dongle-server
+    runtime: docker
+    plan: free
+    branch: server
+    rootDir: server-back
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      - key: DB_URL
+        sync: false
+      - key: DB_USERNAME
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: KAKAO_CLIENT_ID
+        sync: false
+      - key: KAKAO_CLIENT_SECRET
+        sync: false
+      - key: KAKAO_REDIRECT_URI
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_REDIRECT_URI
+        sync: false
+      - key: AWS_REGION
+        value: ap-northeast-2
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: S3_BUCKET_NAME
+        value: donggle-uploads
+      - key: GOOGLE_MAPS_API_KEY
+        sync: false

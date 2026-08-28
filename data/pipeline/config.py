@@ -43,3 +43,13 @@ def get_google_config() -> GoogleConfig:
         raise ValueError("GOOGLE_MAPS_API_KEY is required")
 
     return GoogleConfig(api_key=api_key)
+
+
+def get_image_proxy_base_url() -> str:
+    # Google Places 사진 URL은 API 키가 필요해 DB에 직접 저장할 수 없어서,
+    # 백엔드가 제공하는 프록시(GET /images/proxy?ref=photo_reference)를 거쳐야 한다.
+    # (2026-08-03 decision-log 참고)
+    base_url = os.getenv("IMAGE_PROXY_BASE_URL", "").strip()
+    if not base_url:
+        raise ValueError("IMAGE_PROXY_BASE_URL is required")
+    return base_url.rstrip("/")

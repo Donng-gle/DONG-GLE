@@ -89,5 +89,4 @@ python ../scripts/backfill_semantic_vectors.py
 
 ## 다음 단계
 
-- 쇼핑(contentTypeId=38) 27건 category 매핑 팀 결정 (`docs/milestone.md` M0 참고) → 결정되면 `load_places.py`의 `CONTENT_TYPE_CATEGORY` 반영
 - `GOOGLE_MAPS_API_KEY` 설정 후 `fetch_restaurant_tel.py` 실행 → 음식점 tel 채워서 재적재

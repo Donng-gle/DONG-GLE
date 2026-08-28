@@ -156,7 +156,7 @@ ON CONFLICT (place_id, img_url) DO NOTHING;
 def save_places_to_db(
     place_rows: list[dict],
     images: dict[str, list[dict]],
-) -> list[dict]:
+) -> tuple[list[dict], int]:
     """place / place_image를 DB에 upsert하고 저장된 place 메타데이터를 반환한다."""
     saved_places: list[dict] = []
 
@@ -227,7 +227,7 @@ def main() -> None:
         deduped_rows.append(row)
     place_rows = deduped_rows
 
-    _saved_places, image_count = save_places_to_db(place_rows, images)
+    _, image_count = save_places_to_db(place_rows, images)
 
     print(f"place upserted: {len(place_rows)}건")
     for content_type_id, count in sorted(skipped_types.items()):

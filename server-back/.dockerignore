@@ -1,0 +1,7 @@
+.env
+.env.example
+.gradle
+.idea
+.kotlin
+build
+*.md

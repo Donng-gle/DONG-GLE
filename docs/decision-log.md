@@ -126,6 +126,22 @@
 
 ---
 
+## 2026-07-17 | 로컬 개발 DB 환경: PostgreSQL 로컬 (포트 5433)
+
+- **결정**: 개발 단계 DB는 각자 로컬 PostgreSQL 사용 (`dongle` 데이터베이스, 포트 5433)
+- **이유**: 클라우드 계정/비용/네트워크 설정 없이 바로 개발 시작 가능. 배포용 클라우드 DB 호스팅은 별도 결정 필요
+- **영향**: 팀원 각자 로컬에 PostgreSQL 설치 후 `schema.sql` 적용 필요. 배포 시에는 접속 정보(URL/계정)만 클라우드 값으로 교체
+
+---
+
+## 2026-07-17 | 백엔드 프로젝트 스택 세부 확정
+
+- **결정**: Spring Boot 4.1 + Kotlin 2.3 + Gradle(Kotlin DSL), JPA `ddl-auto: none`
+- **이유**: `schema.sql`이 스키마 기준(SSOT)이므로 JPA가 스키마를 직접 생성/변경하지 않도록 막음
+- **영향**: 스키마 변경은 항상 `schema.sql`을 먼저 수정 후 반영. 엔티티 클래스는 `schema.sql`을 따라 작성
+
+---
+
 ## 2026-07-17 | 쇼핑(38) 27건 category 매핑 확정
 
 - **결정**: TourAPI 쇼핑(contentTypeId=38) 27건 중 브랜드 프랜차이즈 매장 19건(lclsSystm2=SH04)은 적재 제외, 전통시장·특산물직판장·소품샵 8건(SH05/SH06/SH07)은 `문화공간`으로 편입
@@ -134,11 +150,155 @@
 
 ---
 
-## 2026-07-17 | 프론트엔드 스택 확정: React Native (Expo)
+## 2026-07-17 | 프론트엔드 프레임워크: React Native (Expo)
 
-- **결정**: 프론트엔드는 React Native(Expo) 기반 모바일 앱으로 개발
-- **이유**: 팀 회의에서 확정. 웹이 아닌 앱으로 개발
-- **영향**: `client-front/`가 Expo 프로젝트 기준. 프론트 개발 시작 기준으로 사용
+- **결정**: 모바일 앱 프론트엔드는 React Native + Expo로 개발
+- **이유**: 백엔드(Kotlin)와 별개로 새 언어(Dart 등) 학습 부담을 줄이고, 소셜 로그인/지도 SDK 연동 라이브러리가 풍부하며 Expo로 네이티브 빌드 설정 부담을 줄여 공모전 일정(9/20 마감)에 유리
+- **영향**: `client-front/` 프로젝트를 Expo 기준으로 세팅. 카카오/구글 로그인은 RN용 OAuth 라이브러리 사용
+
+---
+
+## 2026-07-17 | 스키마 추가: refresh_token 테이블
+
+- **결정**: `refresh_token` 테이블 신규 추가 (`user_id`, `token`, `expires_at`)
+- **이유**: JWT 리프레시 토큰 자체는 서버가 강제로 무효화할 수 없어서, 로그아웃 시 무효화하려면 서버 측 화이트리스트가 필요함
+- **영향**: `schema.sql`, `schema.dbml` 반영. 로그아웃 시 해당 유저의 refresh_token 행 삭제, 리프레시 요청 시 DB에 존재 여부 확인
+
+---
+
+## 2026-07-17 | 카카오/구글 OAuth 앱 자격증명 미발급 상태로 개발 착수
+
+- **결정**: 카카오/구글 개발자 콘솔 앱 등록 및 REST API 키/Client ID·Secret 발급 전이지만, 로그인 기능 코드는 먼저 구현하고 `.env`는 플레이스홀더로 관리
+- **이유**: 자격증명 발급을 기다리지 않고 API 계약(요청/응답 구조)과 로직부터 진행해 개발 속도 확보
+- **영향**: 실제 카카오/구글 로그인 E2E 테스트는 자격증명 발급 후 가능. 발급 즉시 `.env`에 실제 값 반영 필요 (팀 채팅 공유, 커밋 금지)
+
+---
+
+## 2026-07-23 | 공용 클라우드 DB: Supabase
+
+- **결정**: 각자 로컬 PostgreSQL 대신 팀 공용 Supabase(PostgreSQL) 프로젝트(`DONG-GLE-DB`, ap-southeast-2)로 전환. `refresh_token` 테이블 포함 전체 스키마 반영 완료
+- **이유**: 로컬-각자 방식이라 데이터 파트 적재 결과가 팀에 공유되지 않는 문제 해결 (이번 주 스프린트 최우선 항목)
+- **영향**: `server-back`은 `DB_URL`/`DB_USERNAME`/`DB_PASSWORD`를 `.env`로 주입받도록 변경 (커밋 금지, `.env.example` 참고). 접속 정보는 팀 채팅으로 공유. 리전 특성상 direct 연결(`db.<ref>.supabase.co`)이 아닌 pooler 연결(`aws-0-ap-southeast-2.pooler.supabase.com`)을 사용해야 함
+
+---
+
+## 2026-07-23 | GET /places/featured 개인화 보류
+
+- **결정**: 인증 유저 개인화 추천(`user_preference` 상위 태그 매칭)은 온보딩 기능 구현 전까지 보류. 인증 여부와 무관하게 `visit_log_count` 내림차순 인기순으로 고정, `is_personalized`는 항상 `false` 반환
+- **이유**: 온보딩/`user_preference` 적재 로직이 아직 없어서 개인화 로직을 지금 구현해도 실제로 동작할 데이터가 없음. 빈 로직을 미리 만드는 대신 API 계약(응답 형태)만 맞춰두고 실제 개인화는 온보딩 완료 후 추가
+- **영향**: 온보딩 기능 구현 시 `PlaceService.featured()`에 개인화 분기 추가 필요 (코드에 TODO 표시해둠)
+
+---
+
+## 2026-07-23 | 지도/경로 API: 구글맵 확정
+
+- **결정**: 지도/경로 API는 구글맵(Google Maps)으로 확정 (TMAP 대신)
+- **이유**: 김지광 판단, TMAP과 비교했을 때 기능/비용 면에서 큰 차이가 없다고 결론
+- **영향**: `api_1.3.1v.yaml`이 현재 TMAP 기준으로 경로 계산(경유지 최적화, 이동시간/거리 재계산)을 명시하고 있어 구글맵 기준으로 스펙 수정 필요 (`/courses/generate`, `/courses/:courseId` 등, 설만수 담당)
+
+---
+
+## 2026-07-23 | 감성태그 분석 AI 코드 위치: 별도 `ai/` 폴더
+
+- **결정**: 감성태그 분석 AI 모델/프롬프트 구현(`analyze_image(image_url) -> dict[tag, score]`)은 `data/pipeline/` 안에 두지 않고 별도 `ai/` 폴더에 구현한다. `data/pipeline/analyze_place_emotion.py`는 이 함수를 import해서 쓰는 구조로 간다
+- **이유**: (1) `server-back`↔`server`, `client-front`↔`client`처럼 파트별 폴더 구조 관례에 맞춤 (`ai` 브랜치가 이미 존재). (2) AI 모델 SDK 의존성을 데이터 파트 `requirements.txt`와 분리. (3) 방문 로그 실시간 감성태그 분석(`log_emotion_tag`) 등 다른 곳에서도 재사용 가능하도록 독립시킴. (4) 김지광의 잦은 프롬프트 수정이 `data` 브랜치와 충돌하지 않도록 경계 분리
+- **영향**: 김지광이 `ai/` 폴더에 `analyze_image` 구현. `analyze_place_emotion.py`의 `stub_analyzer`를 실제 import로 교체만 하면 됨 (인터페이스는 이미 확정돼 있어 전환 비용 적음)
+
+---
+
+## 2026-08-02 | 음식점 tel 보완 API: 카카오 로컬 API → Google Places API 전환
+
+- **결정**: 음식점(TourAPI 39) tel 보완에 쓰던 카카오 로컬 API(`fetch_kakao_tel.py`)를 Google Places API(`fetch_restaurant_tel.py`)로 교체한다. 2026-07-17 결정("음식점 보완 방식: 카카오 로컬 API로 전화번호만 보완")을 대체함
+- **이유**: 김지광이 `ai/feat/semantic-vector` 작업 중 Google 쪽으로 통일해 구현. 매칭 로직(반경 300m, 이름 포함 관계 검증)은 기존 카카오 버전과 동일하게 유지됨
+- **영향**: `data/pipeline/config.py`의 `KakaoConfig`/`get_kakao_config`를 `GoogleConfig`/`get_google_config`로 교체, `.env`는 `KAKAO_REST_API_KEY` 대신 `GOOGLE_MAPS_API_KEY` 필요. 기존 카카오 결과(`raw/kakao/restaurant_tel.json`, 28/33건 매칭)는 더 이상 쓰이지 않고 `raw/tel/restaurant_tel.json`로 재수집 필요. `GOOGLE_MAPS_API_KEY` 발급/공유 필요 (담당: 김지광)
+
+---
+
+## 2026-08-02 | 음식점 tel Google Places API 재적재 완료, 예미정 1건 수동 보정
+
+- **결정**: `GOOGLE_MAPS_API_KEY` 발급받아 `fetch_restaurant_tel.py` 실행, Supabase에 재적재 완료 (26/33건 매칭). 기존 카카오 결과(28/33건)와 스팟체크 비교한 결과 겹치는 22건 중 5건 전화번호 불일치 발견 — 웹 검색으로 4곳 확인해 구글 2건(헛제사밥까치구멍집, 맘모스베이커리) 정답, 카카오 1건(밀레니엄안동찜닭) 정답 확인. 예미정은 카카오/구글 둘 다 오답이라 `054-822-0500`(예미정 본채, 주소로 확인)으로 수동 수정
+- **이유**: provider 전환 후 실제 매칭 품질이 기존과 비슷한 수준인지 확인 필요했음. 예미정처럼 지점이 여러 개인 곳은 반경 300m 키워드 검색 방식(카카오/구글 공통 로직) 자체의 한계로 오매칭 발생 확인
+- **영향**: `data/raw/tel/restaurant_tel.json`의 `2671162`(예미정) 항목만 수동 수정 후 `load_places.py` 재실행, Supabase `place.tel` 반영 완료. 반경 검색 로직 자체를 개선하지 않는 한 지점 많은 장소는 앞으로도 수동 확인 필요할 수 있음
+
+---
+
+## 2026-08-02 | 감성태그 분석 AI 연동: ai/semantic_vector 재사용
+
+- **결정**: `data/pipeline/analyze_place_emotion.py`의 `stub_analyzer`를 `ai/semantic_vector`의 GPT Vision 분석(`analyze_image_with_vision`, 35개 세부 태그) → `calculate_major_scores`(7개 대분류 평균) 조합으로 교체
+- **이유**: `ai/semantic_vector`의 `MAJOR_TAG_ORDER`(relaxing/lively/romantic/local/photogenic/traditional/modern)가 `analyze_place_emotion.py`의 `EMOTION_TAGS`와 정확히 일치하고, 35개 세부 태그 판단 기준도 `ssot.md` 감성태그셋의 "AI 판단 기준 5가지"와 대응됨. 김지광이 이 파이프라인을 감성태그 분석용으로 확인
+- **영향**: `data/.venv`에 `openai`, `pydantic`, `pydantic-settings`, `qdrant-client` 추가 설치 필요 (semantic_vector 패키지 `__init__.py`가 `analyzer.py`를 미리 import해서 Qdrant 미사용에도 `qdrant-client` 필요). `data/requirements.txt`엔 반영 안 함 (AI SDK 의존성 분리 원칙 유지, 2026-07-23 결정 참고). `OPENAI_API_KEY`/`QDRANT_URL` 발급 후 `python -m pipeline.analyze_place_emotion` 실행 가능 — 아직 실제 키로 실행/검증은 안 함
+
+---
+
+## 2026-08-03 | 사진 없는 장소 보완: Google Places 사진은 백엔드 프록시 경유 필요
+
+- **결정**: 사진이 전무한 18개 장소(관광지 5, 식당 10, 카페 1, 액티비티 1, 문화공간 1)를 Google Places API로 보완하기로 하되, Google Photo API URL을 `place_image.img_url`에 직접 저장하지 않는다. 백엔드가 프록시 엔드포인트를 제공하면(서버가 서버사이드로 API 키를 붙여 Google에 요청 후 중계), 데이터 파트는 그 이후에 실제 보완 작업을 진행한다
+- **이유**: Google Photo API는 사진 URL 자체에 `key=API_KEY` 쿼리 파라미터가 필요해서, URL을 그대로 DB/앱에 노출하면 API 키가 그대로 유출됨. TourAPI 이미지(`tong.visitkorea.or.kr`)는 키 없는 공개 URL이라 문제없었지만 Google은 구조가 다름. 키 제한(HTTP 리퍼러/IP)만으로는 완전한 보호가 안 돼서 프록시가 더 안전한 방식으로 판단
+- **영향**: 백엔드(설만수)가 이미지 프록시 엔드포인트 구현 필요 (`/uploads/presigned-url`와 유사하게 서버가 외부 API 키를 다루는 패턴). 완료 전까지 데이터 파트의 "사진 없는 18건 보완" 작업은 보류. `place_image` 3장 이상인 159건을 GPT Vision 감성 벡터로 대표 3장 선정하는 작업은 이 이슈와 무관(TourAPI URL만 다루므로) — 다만 이번엔 같이 보류하고 백엔드 작업 완료 후 한 번에 진행하기로 함
+
+---
+
+## 2026-08-06 | 사진 없는 18건 Google Places로 보완, 이미지 프록시 연동
+
+- **결정**: 이미지 프록시(`GET /images/proxy?ref=`) 배포 완료 후, `main_image_url`/`place_image` 둘 다 없던 18개 장소를 Google Places(이름+좌표 매칭)로 보완. `data/pipeline/place_photo_enrichment.py`, `fetch_place_photos.py` 신규 작성 — 매칭 성공 시 `photo_reference` 최대 5장을 `{PROXY_BASE_URL}/images/proxy?ref={photo_reference}` 형태로 변환해 저장 (Google 원본 URL/키는 저장하지 않음)
+- **이유**: Google Photo API 원본 URL은 키가 노출돼서 직접 저장 불가 (2026-08-03 결정). 프록시 완성 후 그 방식을 따름
+- **영향**: 15/18건 매칭 성공 (안동한우갈비, 위생찜닭, 안동시 월령빠지 3건은 구글에도 없음 — 저작권 문제로 리뷰 사이트 사진도 안 씀, 보류). `data/pipeline/config.py`에 `get_image_proxy_base_url()` 추가, `data/.env`에 `IMAGE_PROXY_BASE_URL` 필요. 참고: Render 무료 플랜이라 비활성 시 슬립되어 첫 요청 50~100초 걸릴 수 있음 (스크립트 타임아웃 넉넉히 설정)
+
+---
+
+## 2026-08-08 | 음식점/카페 대표이미지: 음식 사진 대신 내부/외부 사진 사용
+
+- **결정**: `place.main_image_url`(스와이프·썸네일에 노출되는 대표이미지)은 음식점/카페 카테고리에서 음식 사진을 쓰지 않고 내부 또는 외부 사진으로 고정한다. 식당/카페 전체 32곳을 전수 검토해 음식 사진이던 7곳(신라국밥, 묵향, 하회 솔밭식당, 김정순명인의집, 안동 유진찜닭, 황소곳간, 농가맛집 뜰)을 내부/외부 사진으로 교체, 이미 조건을 만족하던 9곳도 더 나은 후보로 교체(경상도추어탕, 밀레니엄안동찜닭, 브레드 79, 원조안동찜닭 본점, 일직식당, 중앙찜닭, 카페뒤뜰, 폴모스트, 월영당)
+- **이유**: 음식 사진만으로는 장소의 분위기(감성태그 기반 추천의 핵심)를 파악할 수 없음
+- **영향**: `place_image`에 있던 후보 사진과 대표이미지가 자리를 맞바꾼 경우가 있어 순서(`sort_order`)가 일부 뒤섞임(교체된 옛 대표이미지는 `sort_order=99`로 맨 뒤에 재배치됨, 기능상 문제 없음). 향후 신규 장소 적재 시에도 이 기준(대표이미지는 음식 사진 지양)을 적용해야 함 — `load_places.py`나 이미지 보완 스크립트에 자동화된 검증 로직은 없고 현재는 수동 검토로만 확인됨
+
+---
+
+## 2026-08-10 | 영업시간: place_hours 테이블 신설, 브레이크타임은 미반영
+
+- **결정**: Google Places `opening_hours.periods` 기반으로 `place_hours` 테이블을 신설(`schema.sql`/`schema.dbml` 반영, Supabase 적용 완료), 기존에 수집해둔 174건 중 70건 매칭 데이터를 `load_place_hours.py`로 적재(70개 장소, 415행). 요일별(0=일~6=토) 오픈~마감 시각만 저장하고, 브레이크타임(휴게시간)은 반영하지 않음
+- **이유**: 코스 추천 시 영업시간 고려가 필요하다는 요구사항 있었음. 다만 사전 조사 결과(2026-08-04) TourAPI·Google 둘 다 브레이크타임 데이터가 거의 없음(174건 중 "휴게시간" 명시 2건뿐, 그나마 식당은 0건) 확인 → 오픈~마감만 반영하는 것으로 스코프 축소. 네이버지도 크롤링도 검토했으나 (1) 이용약관상 자동화 수집 자체가 금지 대상이고 비상업적 목적이 면제 사유가 아님 (2) 브레이크타임은 네이버도 사장님이 직접 입력하는 정보라 소스만 바뀔 뿐 채워져 있을 가능성이 낮아 보류
+- **영향**: `place` 테이블에 컬럼 추가하는 대신 별도 테이블로 분리(요일별 여러 구간 지원 위함, 52건이 요일/계절별로 시간이 달라 단순 컬럼 2개로는 표현 불가했음). 나머지 104건(174건 중 미매칭)은 아직 비어있음 — 필요시 추가 매칭 시도 가능. 코스 추천 알고리즘에서 이 테이블을 실제로 참조하는 로직은 아직 없음(김지광 담당, 알고리즘 방향 자체가 미확정)
+
+---
+
+## 2026-08-10 | 종료된 축제 5건 DB 삭제
+
+- **결정**: `event_end_date`가 지난 축제행사 5건(경북 K-스토리 페스티벌, 동아시아문화도시 안동, 안동 수(水)페스타, 안동벚꽃축제, 차전장군 노국공주축제)을 `place` 테이블에서 완전 삭제
+- **이유**: `ssot.md` 기능 스펙상 "행사·축제는 사용자의 여행 예정일과 기간이 일치할 때만 노출"이 원칙이라, 이미 끝난 축제는 서비스에서 노출될 일이 없어 데이터로 남겨둘 실익이 없음
+- **영향**: 삭제 전 `place_image`(24건, CASCADE로 함께 삭제됨) 외 찜/코스/방문기록 등 연결된 사용자 데이터 없음 확인 후 진행. 남은 축제 3건(안동 국가유산 야행, 안동국제탈춤페스티벌, 세계유산축전)은 진행중이거나 예정이라 유지. 앞으로도 축제 데이터는 종료되면 주기적으로 정리 필요 — 현재는 자동화된 배치 없이 수동 확인 후 삭제
+
+---
+
+## 2026-08-10 | 감성태그 분석 배치 첫 실행 및 파이프라인 버그 수정
+
+- **결정**: `analyze_place_emotion.py`를 181건(사진 있는 장소) 대상으로 첫 실행, 167건 완료(태그 270개). 실행 중 발견한 트랜잭션 버그를 수정 — 기존엔 전체를 하나의 커넥션/트랜잭션으로 묶어서 마지막 한 곳이라도 실패하면 이미 처리한 것까지 전부 롤백됐음. 장소별로 커넥션을 분리해 즉시 커밋하고, 한 곳 실패해도 나머지는 계속 진행하도록 변경. `fetch_unanalyzed_places`도 개선 — `main_image_url`이 없어도 `place_image` 후보가 있으면(부용대 등) 폴백해서 분석 대상에 포함
+- **이유**: 외부 이미지 소스(TourAPI 원본, 우리 이미지 프록시 둘 다) 타임아웃이 배치 중 종종 발생하는데, 트랜잭션이 통짜라 재실행할 때마다 처음부터 다시 돌아야 했음. Render 무료 플랜은 비활성 시 슬립되어 첫 요청이 오래 걸리는 것도 실패 빈도를 높이는 요인
+- **영향**: 태그 분포가 심하게 쏠림 확인 (relaxing 135곳, traditional 91곳 vs romantic 5곳, lively 6곳 등). 현재 threshold(0.5)는 애초에 온보딩 레이더 차트 UI의 중립 기준선(2026-06-29 결정)에서 가져다 쓴 값이라 감성태그 판단 기준으로 검증된 적이 없었음 — 김지광에게 분포 공유하고 threshold 조정 여부 확인 요청함, 결론 날 때까지 재분석은 보류. 태그가 하나도 안 붙는 14곳(7개 태그 전부 threshold 미만)은 재실행할 때마다 계속 재분석 대상으로 잡히는 한계가 여전히 남아있음 (`place.emotion_analyzed_at` 같은 컬럼 추가가 근본 해결책, 아직 미착수)
+
+---
+
+## 2026-08-10 | 사진 끝내 못 채운 3건 DB 삭제
+
+- **결정**: Google Places로도 매칭 안 돼 사진이 전무했던 3건(안동한우갈비, 위생찜닭, 안동시 월령빠지)을 `place`에서 완전 삭제
+- **이유**: 저작권 불명확한 외부(리뷰 사이트) 사진을 가져다 쓰지 않기로 한 바 있어 (2026-08-06) 사진 확보 방법이 소진됨. 사진 없는 장소는 온보딩 카드/장소 탐색 등 사진 기반 기능에서 계속 예외 처리가 필요해 데이터로 남겨둘 실익이 크지 않다고 판단
+- **영향**: 전체 장소 190건 → 187건, 사진 보유율 100% 달성. 삭제 전 연결된 `place_image`/`place_emotion_tag`/찜/코스/방문기록/영업시간 데이터 없음 확인 후 진행
+
+---
+
+## 2026-08-21 | 영업시간 TourAPI 텍스트 추가 파싱 (61건)
+
+- **결정**: `place_hours`에 Google 매칭분(70건)에 더해, TourAPI 원문 텍스트 중 "상시개방"(38건)과 단순 단일 시간대(23건, 정규식 1개만 매칭되고 40자 미만인 경우) 총 61건을 추가로 파싱해 적재. 요일/계절별로 갈리는 복잡한 텍스트(33건)와 TourAPI에도 데이터 자체가 없는 곳(18건)은 자동 파싱 대상에서 제외
+- **이유**: 자동 파싱 가능한 두 유형만 안전하게 골라서 커버리지를 늘림 (70→131건, 182건 중 72%). 복잡한 텍스트는 잘못 파싱할 위험이 커서 제외
+- **영향**: `data/pipeline/load_tourapi_hours.py` 신규. 남은 51건(복잡 33 + 데이터없음 18)은 수동 확인 전까지는 영업시간 정보 없는 상태로 유지됨
+
+---
+
+## 2026-08-21 | place_emotion_tag 시드 데이터 삭제, 테이블/서비스 로직은 유지
+
+- **결정**: `analyze_place_emotion.py`로 적재했던 초기 시드 데이터(167곳, 270개 태그 행)를 삭제. `place_emotion_tag` 테이블 자체와 백엔드 서비스 로직(`VisitLogService`의 방문 기록 삭제 시 count 증감 처리)은 그대로 유지
+- **이유**: 김지광이 새로 만든 `place_semantic_vector`(PR #20, `feat/semantic-vector`→`ai`)가 이미 182곳 전체를 사진 3장·검증된 프롬프트(`semantic-image-v4.1`)로 분석해 공용 Supabase에 적재 완료함 — 기존에 우리가 사진 1장·검증 안 된 threshold(0.5)로 만든 시드값보다 훨씬 신뢰도 높은 "AI 판단 기준선" 역할을 이미 대체함. 다만 `place_emotion_tag`는 `ssot.md` 방문 기록 스펙("업로드된 사진은 AI가 분석 → 장소 분위기 데이터 보강")대로 **실제 방문 로그가 쌓이며 누적되는 카운트 테이블**로 설계돼 있고, 이미 `VisitLogService.delete()`에 태그 count 증감 로직이 구현돼 있어 백엔드가 실사용 중인 구조 — `place_semantic_vector`(정적 raw score, 장소당 1행)로 완전히 대체할 수 있는 게 아니라 서로 다른 목적(공식 사진 기반 기준선 vs 방문자 누적 신호)의 상호보완 관계로 판단
+- **영향**: `place_emotion_tag`는 이제 실제 방문 기록이 쌓이기 전까지 정상적으로 비어있는 상태 (0행). `place_semantic_vector`의 점수에 threshold를 다시 적용해 재시딩하지 않기로 함 — 근거 없는 threshold 자르기를 반복하는 것이고, 애초에 "AI 의견"과 "방문자 수 집계"는 의미가 다름. 코스 추천/장소 상세 등에서 두 신호(`place_semantic_vector`=기준선, `place_emotion_tag`=누적 신호)를 어떻게 함께 쓸지는 알고리즘 설계 영역이라 별도 논의 필요 (김지광/설만수 확인 대기)
 
 ---
 
@@ -150,3 +310,17 @@
 - **이유**: 
 - **영향**: 
 -->
+
+## 2026-08-21 | place_semantic_vector를 schema.sql/schema.dbml에 반영
+
+- **결정**: `feat/semantic-vector`(PR #20)가 `data/migrations/001_place_semantic_vector.sql`로 따로 관리하던 `place_semantic_vector` 테이블을 `schema.sql`/`schema.dbml`에 반영. 실제 Supabase 컬럼 구조와 대조해 일치 확인. `place_emotion_tag` 관련 주석도 새 역할(방문 로그 누적 전용)에 맞게 갱신
+- **이유**: `schema.sql`이 스키마 기준(SSOT)이라는 팀 원칙(2026-07-17)에 따름 — 별도 마이그레이션 파일로 관리하면 실제 DB 상태와 문서가 어긋날 수 있음(이번에도 테이블이 이미 Supabase엔 있는데 schema.sql엔 없는 상태였음)
+- **영향**: PR #20 리뷰 코멘트로 이 방식 통일을 요청함. `data/migrations/` 폴더 자체를 없앨지는 PR #20 머지 시 같이 정리 필요
+
+---
+
+## 2026-08-24 | place_hours: "매일 24시간 운영" 파싱 버그 수정
+
+- **결정**: `load_place_hours.py`가 Google Places의 "매일 24시간 운영" 특수 표현(`periods`가 `{"open": {"day": 0, "time": "0000"}}` 하나뿐이고 `close` 없음)을 "일요일만 00:00에 열고 안 닫음"으로 잘못 저장하던 버그 수정. 이제 이 패턴을 감지하면 7일 전체에 대해 `open_time=00:00, close_time=NULL`로 확장 저장
+- **이유**: 실제로 8곳(부용대, 월영교, 신세동 벽화마을 등 주로 야외 유적지·공원류)이 이 형식으로 응답받았는데, 그대로 저장하면 "월~토는 영업시간 정보 없음"으로 잘못 해석될 수 있었음
+- **영향**: 기존 잘못 저장된 8곳의 행 삭제 후 재적재, 정상적으로 7일 전체 커버됨 확인. `place_hours` 전체 보유 장소 수는 131건으로 동일 유지(버그 있던 8곳이 빠졌다 다시 정상 채워짐)
