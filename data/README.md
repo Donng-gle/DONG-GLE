@@ -15,16 +15,20 @@ data/
 ├── README.md
 ├── requirements.txt
 ├── .env.example
+├── migrations/
+│   └── 001_place_semantic_vector.sql
 └── pipeline/
     ├── __init__.py
-    ├── config.py        # TourAPI 설정
-    ├── db.py            # DB 연결 (DATABASE_URL)
-    ├── paths.py         # raw 파일 경로
-    ├── fetch_places.py  # areaBasedList2 수집
-    ├── fetch_detail.py  # detailCommon2 / detailImage2 / detailIntro2(축제 날짜) 수집
+    ├── config.py              # TourAPI 설정
+    ├── db.py                  # DB 연결 (DATABASE_URL)
+    ├── paths.py               # raw 파일 경로
+    ├── fetch_places.py        # areaBasedList2 수집
+    ├── fetch_detail.py        # detailCommon2 / detailImage2 / detailIntro2(축제 날짜) 수집
     ├── validate_places.py
     ├── fetch_restaurant_tel.py # Google Places API로 음식점 tel 보완
-    └── load_places.py   # PLACE / PLACE_IMAGE DB 적재 (content_id 기준 upsert)
+    ├── load_places.py         # PLACE / PLACE_IMAGE DB 적재 (content_id 기준 upsert)
+    ├── semantic_vector_sync.py # VLM 분석 → raw score 저장 → Qdrant upsert 연동
+    └── semantic_score_store.py # place_semantic_vector 테이블 저장
 ```
 
 ## 환경변수
@@ -36,6 +40,7 @@ data/
 - `TOURAPI_MOBILE_APP`
 - `DATABASE_URL` (`load_places.py` 실행 시 필요, 예: `postgresql://user:password@host:5432/dongle`)
 - `GOOGLE_MAPS_API_KEY` (`fetch_restaurant_tel.py` 실행 시 필요, Places API 활성화 필요)
+- `OPENAI_API_KEY`, `QDRANT_URL` (semantic 분석 시 필요, `ai/.env.example` 참고)
 
 ## 실행 순서
 
@@ -62,16 +67,26 @@ python -m pipeline.fetch_restaurant_tel  # → raw/tel/restaurant_tel.json
 # 5단계: DB 적재 (PLACE / PLACE_IMAGE, content_id 기준 upsert, 재실행해도 안전)
 python -m pipeline.load_places
 
-# 6단계 (선택, M2): 감성태그 분석 → PLACE_EMOTION_TAG 적재
-# ai/semantic_vector(GPT Vision)를 재사용하므로 아래 추가 설치/설정 필요:
-#   - pip install openai pydantic pydantic-settings qdrant-client
-#     (data/requirements.txt엔 일부러 안 넣음, ai 쪽 SDK 의존성 분리 원칙 — decision-log 참고)
-#   - .env에 OPENAI_API_KEY, QDRANT_URL 필요 (Qdrant는 실제로 호출 안 하지만
-#     SemanticVectorConfig 필수 필드라 값이 있어야 함)
-python -m pipeline.analyze_place_emotion
+# 6단계 (선택): semantic 분석 backfill
+python ../scripts/backfill_semantic_vectors.py
 ```
+
+## Semantic 분석 파이프라인
+
+장소당 대표사진 1장 + 추가사진 2장(총 3장)을 VLM으로 분석한다.
+
+```text
+3장 VLM 분석 → detail 평균 → major 계산
+  → place_semantic_vector (PostgreSQL, raw score + version metadata)
+  → Qdrant place_semantic_vectors (검색용 벡터 + raw score payload)
+```
+
+- **분석 완료 판정**: `place_emotion_tag` count가 아니라 `place_semantic_vector` 행 존재 여부
+- **재분석 기준**: `model_name`, `prompt_version`, `tag_schema_version`이 현재 설정과 다를 때
+- **마이그레이션**: `migrations/001_place_semantic_vector.sql`을 DB에 적용
+
+`analyze_place_emotion.py`의 threshold/count 기반 적재는 더 이상 사용하지 않는다.
 
 ## 다음 단계
 
 - `GOOGLE_MAPS_API_KEY` 설정 후 `fetch_restaurant_tel.py` 실행 → 음식점 tel 채워서 재적재
-- `analyze_place_emotion.py` 결과 검증 (태그 분포 확인)

@@ -34,7 +34,7 @@ class SemanticVectorConfig(BaseSettings):
     )
 
     prompt_version: str = Field(
-        default="semantic-image-v1",
+        default="semantic-image-v4.1",
         validation_alias="SEMANTIC_PROMPT_VERSION",
     )
     tag_schema_version: str = Field(
@@ -44,3 +44,15 @@ class SemanticVectorConfig(BaseSettings):
 
     max_retry_count: int = Field(default=3, validation_alias="SEMANTIC_MAX_RETRY_COUNT")
     batch_concurrency: int = Field(default=3, validation_alias="SEMANTIC_BATCH_CONCURRENCY")
+    images_per_place: int = Field(
+        default=3,
+        validation_alias="SEMANTIC_IMAGES_PER_PLACE",
+    )
+    trace_experiment: str | None = Field(
+        default=None,
+        validation_alias="SEMANTIC_TRACE_EXPERIMENT",
+    )
+    trace_run_type: str = Field(
+        default="production",
+        validation_alias="SEMANTIC_TRACE_RUN_TYPE",
+    )

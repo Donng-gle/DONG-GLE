@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import pytest
+
 from semantic_vector.constants import DETAIL_TAG_GROUPS, MAJOR_TAG_ORDER
-from semantic_vector.score_calculator import calculate_major_scores
+from semantic_vector.score_calculator import aggregate_detail_scores, calculate_major_scores
 from semantic_vector.tests.conftest import make_detail_scores
 
 
@@ -56,3 +58,12 @@ def test_major_scores_are_not_rounded() -> None:
 def test_each_group_uses_five_tags() -> None:
   for detail_tags in DETAIL_TAG_GROUPS.values():
     assert len(detail_tags) == 5
+
+
+def test_aggregate_detail_scores_averages_per_tag() -> None:
+  first = make_detail_scores(quiet=0.2, peaceful=0.4)
+  second = make_detail_scores(quiet=0.6, peaceful=0.8)
+  aggregated = aggregate_detail_scores([first, second])
+
+  assert aggregated.quiet == pytest.approx(0.4)
+  assert aggregated.peaceful == pytest.approx(0.6)
