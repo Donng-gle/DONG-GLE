@@ -187,8 +187,8 @@
   - [x] `/swipe/candidates`, `/swipe/sessions/{sessionId}`, `/swipe/sessions/{sessionId}/results` — **2026-08-30 구현 완료** (`feat/swipe-session`). 후보 랭킹은 `ai/place_recommender`(취향 벡터 기반 Qdrant 검색 + `place.hidden_score` 결합 Top-N, `POST /v1/places/recommend`, PR #25 포함분) 호출 + 신설한 `swipe_session`/`swipe_session_candidate` 테이블로 세션 상태 저장. 세부 값(후보 20장, mood_tags 가중치 등)은 decision-log 참고
   - [x] `/courses/generate` — **2026-08-30 구현 완료(스코프 축소)**. `ai/course_optimizer` 연동해서 좋아요/필수 표시 장소로 코스 1개를 생성. 스펙상 "최대 3개 후보"·"must 강제 포함"은 course_optimizer 알고리즘 자체의 한계(경로 1개만 반환 가능, 필수 장소 개념 없음)로 지금은 근사치 — 상세는 decision-log 참고. **김지광에게 알고리즘 확장(top-N 경로, 필수 장소 강제) 요청 필요**
   - [x] **구글맵 Directions(Routes API v2) 연동 완료** (2026-08-30) — `/courses/generate`와 `GET/PATCH /courses/{courseId}` 양쪽에서 이동거리(km)/시간(분)/장소별 구간 정보/폴리라인을 실제로 계산해서 반환. `ai/course_optimizer`가 이미 쓰던 것과 같은 Routes API 재사용. `course.transport` 컬럼 신규 추가(어떤 이동수단으로 재계산할지 저장). 실패해도 코스 조회 자체는 항상 가능(null로 안전하게 폴백). 상세는 decision-log 참고 — 테스트 중 RestClient 멀티 모킹 버그도 같이 발견/수정
-  - `/onboarding/cards`, `/onboarding/preferences` — api 스펙 자체에 `[DEPRECATED 가능성]` 표기됨. `Onboarding Algo.md`(v2.0.0)가 스와이프 방식(`/onboarding/next` 등)만 다루고 이 두 엔드포인트를 전혀 언급하지 않음 — 예전 카드 다중선택 방식의 흔적으로 추정되며, `/onboarding/complete`가 이미 같은 역할(결과 저장 + `has_onboarded` 갱신)을 스와이프 방식으로 수행 중이라 사실상 대체된 것으로 보임. 실제 필요 여부 팀 확인 후 스펙 정리 필요
-  - `/admin/sync/places` — TourAPI 재동기화 트리거 기능인데, "데이터 파트가 DB에 직접 적재" 결정(2026-06-29)과 책임이 겹침. 응답 스펙의 `deactivated`(비활성화 수)를 반영할 soft-delete 컬럼도 `place` 테이블에 없어 스키마 추가까지 필요 — 정말 필요한 기능인지 재검토 필요
+  - [x] `/onboarding/cards`, `/onboarding/preferences` — **2026-08-30 스펙에서 제거 완료**. `OnboardingController.kt`에 두 엔드포인트 구현 자체가 없음을 코드로 확인, `/onboarding/complete`가 이미 같은 역할(결과 저장 + `has_onboarded` 갱신)을 스와이프 방식으로 대체 수행 중이라 예전 카드 다중선택 설계의 흔적으로 결론. `api_1.3.1v.yaml`에서 두 경로 + 전용 스키마(`OnboardingPreferenceRequest`/`Response`) 삭제 (decision-log 참고)
+  - `/admin/sync/places` — **2026-08-30 재검토 후 보류로 결정, 스펙엔 유지**. 데이터 적재 방식(2026-06-29 결정)과는 성격이 다른 "관리자 수동 재동기화 트리거"라 제거하지 않기로 함. 실제 구현 필요 여부는 데이터 파트(이수연)의 재동기화 운영 계획에 달려있어 확인 필요 (decision-log 참고)
 
 **프론트 (설만수)**
 - [ ] 온보딩 API `dev` 머지되는 대로 온보딩 스와이프 화면 구현 착수

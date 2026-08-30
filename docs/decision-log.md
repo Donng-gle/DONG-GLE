@@ -440,3 +440,19 @@
 - **영향**: `schema.sql`/`schema.dbml`에 `course.transport` 컬럼 추가, 공용 Supabase에도 `ALTER TABLE`로 반영 완료(nullable 추가라 기존 데이터 영향 없음). `CoursePlaceItemResponse.distanceFromPrevKm`/`durationFromPrevMin`, `CourseDetailResponse`/`CourseCandidateResponse`의 `totalDistanceKm`/`totalDurationMin`/`polyline`이 이제 실제 값을 반환(그동안 전부 항상 null이었음). **테스트 작성 중 발견한 별도 버그(중요)**: `RestClient` 타입 빈이 여러 개(course-optimizer/place-recommender/google-routes) 있는 상태에서 `@TestConfiguration` + `@Primary`로 그중 하나만 교체해도, Spring이 "같은 타입이면 @Primary 하나가 전부를 이긴다"는 규칙 때문에 그 테스트 안에서 다른 외부 클라이언트까지 몽땅 그 목(mock)으로 뒤섞여버림 — `CourseGenerateApiIntegrationTest`가 course_optimizer와 google-routes를 동시에 호출하면서 처음 발견됨. `@Qualifier`로 임시 해결을 시도했으나 `NoUniqueBeanDefinitionException`으로 실패, 최종적으로 `CourseOptimizerClient`/`GoogleRoutesClient`를 `@MockitoBean`으로 직접 모킹하는 방식으로 전환해 해결(`CourseGenerateApiIntegrationTest`, `CourseApiIntegrationTest` 갱신). `SwipeApiIntegrationTest`(place_recommender만 단독으로 모킹)는 이 문제에 해당하지 않아 그대로 둠 — 앞으로 **한 테스트에서 외부 RestClient 클라이언트 2개 이상을 모킹해야 하면 반드시 `@MockitoBean`으로 클라이언트 자체를 모킹할 것**, `@Primary` RestClient 교체 방식은 쓰지 말 것
 
 ---
+
+## 2026-08-30 | `/onboarding/cards`, `/onboarding/preferences` API 스펙에서 제거 (미사용 확정)
+
+- **결정**: `api_1.3.1v.yaml`에서 `[DEPRECATED 가능성]` 표기돼 있던 `GET /onboarding/cards`, `POST /onboarding/preferences` 두 경로와 이들만 참조하던 `OnboardingPreferenceRequest`/`OnboardingPreferenceResponse` 스키마를 삭제. `OnboardingCard` 스키마는 `GET /onboarding/next`(`OnboardingNextResponse`)가 여전히 참조하므로 유지
+- **이유**: `server-back/OnboardingController.kt`에 `/status`, `/next`, `/swipe`, `/complete`, `/reset` 다섯 엔드포인트만 구현돼 있고 `cards`/`preferences`는 컨트롤러에 아예 없음(서비스/레포지토리에도 관련 로직 없음) — 실제로 안 쓰이는 게 코드로 확인됨. `Onboarding Algo.md`(v2.0.0)도 카드 다중 선택 방식을 전혀 언급하지 않고 스와이프 방식만 다룸. `POST /onboarding/complete`가 카드 선택 결과 집계 대신 스와이프 누적 벡터 기준으로 `has_onboarded` 갱신 + `top_tags` 반환까지 이미 같은 역할을 수행 중이라 `/onboarding/preferences`는 완전히 대체된 예전 설계(카드 다중 선택 방식)의 흔적으로 결론
+- **영향**: `api_1.3.1v.yaml` 스펙만 정리, 백엔드 코드 변경 없음(애초에 구현이 없었음). YAML 문법 검증(`ruby -ryaml`)만 확인, 버전 헤더(`1.3.1`)는 최근 다른 스펙 변경 커밋들과 동일하게 그대로 유지(변경 이력 섹션에 버전 bump 없이 반영해온 기존 패턴 따름)
+
+---
+
+## 2026-08-30 | `/admin/sync/places` 스펙에 남겨둠 (제거 보류)
+
+- **결정**: `/admin/sync/places`(TourAPI 재동기화 트리거)를 이번엔 스펙에서 제거하지 않고 그대로 둠
+- **이유**: "데이터 파트가 DB에 직접 적재"(2026-06-29 결정)와 책임이 겹치는 건 맞지만, 이건 데이터 적재 방식이 아니라 **관리자가 수동으로 재동기화를 트리거하는 운영 기능**이라 성격이 다름 — 공모전 데모/제출 전에 TourAPI 원본이 바뀌었을 때(주소·전화번호 수정 등) 백엔드 쪽에서 대응할 방법이 현재 전혀 없는데, 이 엔드포인트가 유일한 안전장치 역할을 할 수 있음. 다만 응답 스펙의 `deactivated`(비활성화 수)를 실제로 구현하려면 `place` 테이블에 soft-delete 컬럼이 없어 스키마 추가가 필요하고, 정말 이 기능이 필요한지는 데이터 파트(이수연)가 실제 재동기화 운영 계획이 있는지에 달려있어 백엔드 혼자 판단할 사안이 아니라고 재확인함
+- **영향**: 스펙/코드 변경 없음. 실제 구현 여부는 데이터 파트에 필요성 확인 후 결정 — 필요 없다고 확정되면 그때 스펙에서 제거
+
+---
