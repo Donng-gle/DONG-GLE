@@ -244,3 +244,29 @@ Table device_token {
     (user_id, platform) [unique]
   }
 }
+
+// 스와이프 세션 (일정짜기 화면. POST /swipe/candidates 발급, 24시간 유효)
+// id는 애플리케이션에서 'swipe_session_' + UUID로 생성 (세션 토큰 성격, 순번 노출 방지)
+Table swipe_session {
+  id          varchar(50) [pk]
+  user_id     bigint      [not null, ref: > user.id]
+  travel_date date        [not null]
+  transport   varchar(10) [not null, note: "CHECK: 'car' | 'walk' | 'public'"]
+  expires_at  timestamp   [not null]
+  created_at  timestamp   [not null, default: `now()`]
+}
+
+// 스와이프 세션의 후보 카드 (발급 시점 순서 고정). action이 NULL이면 아직 스와이프 안 한 잔여 후보
+Table swipe_session_candidate {
+  id         bigint      [pk, increment]
+  session_id varchar(50) [not null, ref: > swipe_session.id]
+  place_id   bigint      [not null, ref: > place.id]
+  sort_order int         [not null]
+  action     varchar(10) [note: "CHECK: 'like' | 'skip' | 'must', NULL = 미스와이프"]
+  swiped_at  timestamp
+
+  indexes {
+    (session_id, place_id) [unique]
+    (session_id, sort_order)
+  }
+}

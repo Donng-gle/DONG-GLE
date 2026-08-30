@@ -358,3 +358,17 @@
 - **결정**: `data/migrations/001_place_semantic_vector.sql` 삭제. `place_semantic_vector` 정의는 이미 `schema.sql`/`schema.dbml`에 있고(2026-08-21), 컬럼/인덱스가 완전히 동일한 것 확인 후 진행. `data/README.md`의 마이그레이션 참조도 `schema.sql`/`schema.dbml` 참조로 갱신
 - **이유**: `ai` 브랜치가 PR #25로 `dev`에 정상 병합된 뒤에도 이 파일이 남아있어서, 같은 테이블이 두 곳(schema.sql, migrations 파일)에 중복 정의된 상태였음. 방치하면 한쪽만 컬럼이 추가되는 식으로 나중에 어긋날 위험이 있어 SSOT 하나로 통일
 - **영향**: `ai/semantic_vector/semantic_ai.md`(AI 파트 문서)에도 이 마이그레이션 파일에 대한 참조가 남아있는데, 이건 AI 파트 소관이라 직접 수정하지 않음 — 필요시 해당 파트에서 정리 요청
+
+---
+
+## 2026-08-30 | 스와이프 세션 백엔드 구현 (`/swipe/candidates`, `/swipe/sessions/{id}`, `/swipe/sessions/{id}/results`)
+
+- **결정**: `ai/place_recommender`(취향 벡터 기반 Qdrant 유사도 + `place.hidden_score` 결합 랭킹, `POST /v1/places/recommend`)를 호출해 후보를 고르고, 그 진행 상태를 저장하는 `swipe_session`/`swipe_session_candidate` 테이블을 신설해 스와이프 세션 3개 엔드포인트를 구현. `api_1.3.1v.yaml`에 이미 있던 스펙(세션 24시간 유효, `SwipeCandidatesRequest`/`SwipeSessionDetail`/`SwipeResultRequest` 스키마)을 그대로 따름. 아래는 스펙에 명시 안 돼 있어 구현하며 정한 세부 값들:
+  - 세션당 후보 카드 수: 20장 고정(`SWIPE_CANDIDATE_COUNT`). `preferred_categories`가 여러 개면 place_recommender API가 category를 단일 문자열로만 받아서(1개 카테고리씩 나눠 호출 후 점수순 병합·상한 자르기) 처리
+  - `mood_tags` 미입력 + 미온보딩(=user_preference 빈 상태)이면 7개 태그 전부 0.5(중립)로 채운 취향 벡터로 폴백 — place_recommender의 Pydantic 검증(`require_preference_values`)이 최소 1개 이상의 취향 신호를 요구해서, 완전히 빈 상태로는 호출 자체가 불가능함
+  - `mood_tags` 직접 입력 시 해당 태그들에 0.9점 부여(`MOOD_TAG_SCORE`) — "이번 여행에 한해 우선 적용"(api 스펙 문구)을 강한 가중치로 해석
+  - 스와이프 결과(like/must/skip)의 `user_preference` 반영은 온보딩 알고리즘(v2.0.0)의 `EmotionVector.applySwipe` 상대적 업데이트 공식을 그대로 재사용(like/must→좋아요 학습률 0.40, skip→싫어요 학습률 0.25). 이 학습률은 온보딩 수렴 알고리즘 전용으로 튜닝된 값이라 스와이프 세션에도 최선인지는 검증 안 됨 — 코드에도 주석으로 명시, 필요시 별도 값으로 분리 가능
+- **이유**: 후보 선정 알고리즘(`place_recommender`)은 이미 있고 세션 저장/API 레이어만 없는 상태였음(지난 세션 결론). 위 세부 값들은 팀 확인 없이도 되돌리기 쉬운 순수 백엔드 구현 디테일이라 합리적 기본값으로 우선 구현
+- **영향**: `schema.sql`/`schema.dbml`에 `swipe_session`/`swipe_session_candidate` 테이블 추가, 공용 Supabase에도 반영 완료(둘 다 CREATE TABLE만 하는 순수 추가라 기존 데이터 영향 없음). `PlaceService.semanticVectorsByPlaceId`/`displayTags`를 `private`→공개로 변경해 `SwipeService`가 재사용(태그 노출 규칙 중복 방지). `place-recommender` 설정 키(`PLACE_RECOMMENDER_BASE_URL`)를 `course-optimizer`와 별도로 신설 — 실제로는 같은 FastAPI 서비스(`ai/api/app.py`)이므로 배포 시 두 값을 반드시 동일하게 맞춰야 함(당장 하나로 통합하지는 않음, `common/config/PlaceRecommenderProperties.kt` 주석 참고). `/courses/generate`(스와이프 결과로 실제 코스 후보 생성, course_optimizer 연동)는 이번 범위 밖 — 다음 작업 후보
+
+---

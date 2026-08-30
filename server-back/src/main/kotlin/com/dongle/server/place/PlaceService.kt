@@ -170,9 +170,14 @@ class PlaceService(
         if (userId == null || placeIds.isEmpty()) emptySet()
         else placeLikeRepository.findLikedPlaceIds(userId, placeIds)
 
-    private fun semanticVectorsByPlaceId(placeIds: List<Long>): Map<Long, PlaceSemanticVector> =
+    // SwipeService(스와이프 후보 카드) 등 다른 서비스도 동일한 place_semantic_vector 조회가 필요해 공개
+    fun semanticVectorsByPlaceId(placeIds: List<Long>): Map<Long, PlaceSemanticVector> =
         if (placeIds.isEmpty()) emptyMap()
         else placeSemanticVectorRepository.findByPlaceIdIn(placeIds).associateBy { it.placeId }
+
+    // SwipeCandidate.tags 등 place_semantic_vector/place_emotion_tag를 직접 다루지 않는 다른 서비스가
+    // 동일한 태그 노출 규칙을 재사용할 수 있도록 공개 래퍼로 노출
+    fun displayTags(place: Place, vector: PlaceSemanticVector?): List<String> = place.resolveTags(vector, TAG_DISPLAY_LIMIT)
 
     // place_emotion_tag(방문 로그 누적)에 데이터가 있으면 그걸 우선 사용하고,
     // 없으면 place_semantic_vector(AI 사전 분석, major_scores)의 상위 태그로 대체한다.
