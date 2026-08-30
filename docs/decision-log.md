@@ -456,3 +456,11 @@
 - **영향**: 스펙/코드 변경 없음. 실제 구현 여부는 데이터 파트에 필요성 확인 후 결정 — 필요 없다고 확정되면 그때 스펙에서 제거
 
 ---
+
+## 2026-08-30 | client-front 네이티브 라이브러리 3종 검토: image-picker만 도입, notifications/maps 보류
+
+- **결정**: `expo-image-picker`는 바로 도입해서 방문 기록 작성(`VisitLogCreateScreen`)에 사진 첨부를 연결. `expo-notifications`(푸시 디바이스 토큰)와 `react-native-maps`(지도 핀)는 이번엔 보류
+- **이유**: image-picker는 SSOT 기능 스펙("방문 장소에 사진 + 한줄 리뷰 남기기")에 명시된 기능이고, 이미 구글 네이티브 로그인 때문에 `expo-dev-client`로 전환된 상태라 추가 네이티브 복잡도·새 자격증명 없이 바로 붙일 수 있었음. notifications는 서버 쪽 실제 푸시 발송(FCM 연동, `course_reminder` 크론)이 스코프 아웃으로 확정돼 있어(milestone.md 참고) 토큰을 등록해도 아무것도 발송되지 않는 죽은 코드가 될 것이라 보류. maps는 SSOT상 "지도"가 별도 기능 대분류라 가치는 크지만, Android용 Google Maps SDK API 키를 새로 발급·제한 설정해야 해서(서버가 쓰는 Places/Routes 키와는 별개) 마감(9/20)까지 3주 남은 시점에 외부 자격증명 대기가 낄 수 있어 팀 확인 후 별도 진행하기로 함
+- **영향**: `client-front/package.json`에 `expo-image-picker` 추가, `app.json` plugins에 한국어 권한 문구로 설정 반영. `VisitLogCreateScreen.tsx`가 사진 선택 → `POST /uploads/presigned-url` → S3 PUT 업로드 → `photo_url`로 기록 생성까지 전체 흐름 연결됨(`photo_url`이 서버 스펙상 옵셔널이라 사진 없이도 기존처럼 작성 가능). `registerDeviceToken`(`user.ts`) API 함수와 `/places/map`(`place.ts`) API 함수는 라이브러리 도입 전이라 만들어만 두고 호출하는 화면은 없음 — 각 라이브러리 도입 결정 시 화면만 추가하면 됨
+
+---
