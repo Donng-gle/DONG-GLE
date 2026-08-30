@@ -43,5 +43,6 @@ async function request<T>(
 export const apiClient = {
   get: <T>(path: string, auth = false) => request<T>(path, { method: 'GET', auth }),
   post: <T>(path: string, body?: unknown, auth = false) => request<T>(path, { method: 'POST', body, auth }),
+  patch: <T>(path: string, body?: unknown, auth = false) => request<T>(path, { method: 'PATCH', body, auth }),
   delete: <T>(path: string, auth = false) => request<T>(path, { method: 'DELETE', auth }),
 };
