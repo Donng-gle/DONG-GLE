@@ -124,6 +124,15 @@ class SwipeService(
         saveUserVector(userRepository.getReferenceById(userId), vector)
     }
 
+    // CourseService.generate()(/courses/generate)가 재사용 — 세션 소유권/만료 검증 후 like/must로
+    // 표시된 후보만 반환한다. must 강제 포함은 course_optimizer에 그런 개념이 없어서 지원 불가 —
+    // 대신 후보 풀 자체를 이 목록으로 좁혀서 "가능하면 전부 포함"에 가깝게 근사한다 (decision-log 참고)
+    fun likedOrMustCandidates(userId: Long, sessionId: String): List<SwipeSessionCandidate> {
+        requireOwnedActiveSession(userId, sessionId)
+        return swipeSessionCandidateRepository.findBySessionIdOrderBySortOrder(sessionId)
+            .filter { it.action == SwipeAction.like || it.action == SwipeAction.must }
+    }
+
     private fun requireOwnedActiveSession(userId: Long, sessionId: String): SwipeSession {
         val session = swipeSessionRepository.findById(sessionId).orElseThrow { SwipeSessionNotFoundException(sessionId) }
         if (session.user.id != userId) throw SwipeSessionAccessDeniedException()

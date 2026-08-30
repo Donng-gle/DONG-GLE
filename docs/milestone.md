@@ -185,7 +185,7 @@
 - [ ] **미구현 잔여분 — 보류**:
   - [x] `POST /places/{placeId}/logs`(여행 기록 작성) — AI 감성 태그 자동 부여는 제외하고 우선 구현 완료 (2026-08-30, `feat/visit-log-create`). 기록 생성/저장, `visit_log_count` 증가는 정상 동작, 응답 `tags`는 AI 연동 전까지 항상 빈 배열. AI 태그 부여는 `ai/semantic_vector`의 이미지 분석이 아직 어떤 HTTP 엔드포인트로도 노출되지 않아서 계속 보류 (decision-log 2026-08-30 참고)
   - [x] `/swipe/candidates`, `/swipe/sessions/{sessionId}`, `/swipe/sessions/{sessionId}/results` — **2026-08-30 구현 완료** (`feat/swipe-session`). 후보 랭킹은 `ai/place_recommender`(취향 벡터 기반 Qdrant 검색 + `place.hidden_score` 결합 Top-N, `POST /v1/places/recommend`, PR #25 포함분) 호출 + 신설한 `swipe_session`/`swipe_session_candidate` 테이블로 세션 상태 저장. 세부 값(후보 20장, mood_tags 가중치 등)은 decision-log 참고
-  - `/courses/generate` — 스와이프 결과로 실제 코스 후보 생성(구글맵 Directions 연동 포함). `ai/course_optimizer` HTTP 클라이언트(`feat/course-optimizer-client`)는 준비됐지만 아직 이 엔드포인트와 연결 안 됨 — 다음 착수 후보
+  - [x] `/courses/generate` — **2026-08-30 구현 완료(스코프 축소)**. `ai/course_optimizer` 연동해서 좋아요/필수 표시 장소로 코스 1개를 생성. 스펙상 "최대 3개 후보"·"must 강제 포함"은 course_optimizer 알고리즘 자체의 한계(경로 1개만 반환 가능, 필수 장소 개념 없음)로 지금은 근사치 — 상세는 decision-log 참고. **김지광에게 알고리즘 확장(top-N 경로, 필수 장소 강제) 요청 필요**. 구글맵 Directions(거리/이동시간 재계산)는 여전히 스코프 외, `totalDurationMin`만 course_optimizer 실제값 사용
   - `/onboarding/cards`, `/onboarding/preferences` — api 스펙 자체에 `[DEPRECATED 가능성]` 표기됨. `Onboarding Algo.md`(v2.0.0)가 스와이프 방식(`/onboarding/next` 등)만 다루고 이 두 엔드포인트를 전혀 언급하지 않음 — 예전 카드 다중선택 방식의 흔적으로 추정되며, `/onboarding/complete`가 이미 같은 역할(결과 저장 + `has_onboarded` 갱신)을 스와이프 방식으로 수행 중이라 사실상 대체된 것으로 보임. 실제 필요 여부 팀 확인 후 스펙 정리 필요
   - `/admin/sync/places` — TourAPI 재동기화 트리거 기능인데, "데이터 파트가 DB에 직접 적재" 결정(2026-06-29)과 책임이 겹침. 응답 스펙의 `deactivated`(비활성화 수)를 반영할 soft-delete 컬럼도 `place` 테이블에 없어 스키마 추가까지 필요 — 정말 필요한 기능인지 재검토 필요
 

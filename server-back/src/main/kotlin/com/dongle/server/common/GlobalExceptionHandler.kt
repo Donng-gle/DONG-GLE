@@ -6,6 +6,8 @@ import com.dongle.server.auth.InvalidRefreshTokenException
 import com.dongle.server.course.CourseAccessDeniedException
 import com.dongle.server.course.CourseNotFoundException
 import com.dongle.server.course.InvalidCourseSourceException
+import com.dongle.server.course.NotEnoughSwipeCandidatesException
+import com.dongle.server.course.optimizer.CourseOptimizerUpstreamException
 import com.dongle.server.image.ImageProxyUpstreamException
 import com.dongle.server.image.InvalidPhotoReferenceException
 import com.dongle.server.onboarding.OnboardingCardAlreadySwipedException
@@ -142,6 +144,16 @@ class GlobalExceptionHandler {
     fun handlePlaceRecommenderUpstream(ex: PlaceRecommenderUpstreamException): ResponseEntity<ErrorResponse> =
         ResponseEntity.status(HttpStatus.BAD_GATEWAY)
             .body(ErrorResponse(code = "PLACE_RECOMMENDER_UPSTREAM_ERROR", message = ex.message ?: "장소 추천에 실패했습니다."))
+
+    @ExceptionHandler(CourseOptimizerUpstreamException::class)
+    fun handleCourseOptimizerUpstream(ex: CourseOptimizerUpstreamException): ResponseEntity<ErrorResponse> =
+        ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+            .body(ErrorResponse(code = "COURSE_OPTIMIZER_UPSTREAM_ERROR", message = ex.message ?: "코스 생성에 실패했습니다."))
+
+    @ExceptionHandler(NotEnoughSwipeCandidatesException::class)
+    fun handleNotEnoughSwipeCandidates(ex: NotEnoughSwipeCandidatesException): ResponseEntity<ErrorResponse> =
+        ResponseEntity.status(HttpStatus.BAD_REQUEST)
+            .body(ErrorResponse(code = "NOT_ENOUGH_SWIPE_CANDIDATES", message = ex.message ?: "코스를 만들 후보가 부족합니다."))
 
     @ExceptionHandler(MethodArgumentNotValidException::class)
     fun handleInvalidRequest(ex: MethodArgumentNotValidException): ResponseEntity<ErrorResponse> =
