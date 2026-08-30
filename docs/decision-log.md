@@ -397,3 +397,11 @@
 - **영향**: `schema.sql`/`schema.dbml`에 `swipe_session`/`swipe_session_candidate` 테이블 추가, 공용 Supabase에도 반영 완료(둘 다 CREATE TABLE만 하는 순수 추가라 기존 데이터 영향 없음). `PlaceService.semanticVectorsByPlaceId`/`displayTags`를 `private`→공개로 변경해 `SwipeService`가 재사용(태그 노출 규칙 중복 방지). `place-recommender` 설정 키(`PLACE_RECOMMENDER_BASE_URL`)를 `course-optimizer`와 별도로 신설 — 실제로는 같은 FastAPI 서비스(`ai/api/app.py`)이므로 배포 시 두 값을 반드시 동일하게 맞춰야 함(당장 하나로 통합하지는 않음, `common/config/PlaceRecommenderProperties.kt` 주석 참고). `/courses/generate`(스와이프 결과로 실제 코스 후보 생성, course_optimizer 연동)는 이번 범위 밖 — 다음 작업 후보
 
 ---
+
+## 2026-08-30 | (관찰) `./gradlew test` 전체 스위트 플레이크가 테스트 추가할수록 악화되는 중
+
+- **결정 아님, 현황 기록**: `SwipeApiIntegrationTest` 추가 후 `./gradlew clean test` 전체 실행 시 실패 개수가 회차마다 3~8건으로 늘어남(격리 실행하면 항상 통과). 원인은 기존에 파악한 것과 동일 — 공용 Supabase pooler가 세션 모드 커넥션을 15개로 제한하는데, `application.yml`의 `spring.datasource.hikari.maximum-pool-size: 5`가 테스트에도 그대로 적용되어 커스텀 `@TestConfiguration`을 쓰는 통합 테스트 클래스(현재 `ImageProxyApiIntegrationTest`, `SwipeApiIntegrationTest` — 서로 다른 Spring 컨텍스트를 만듦)가 늘어날수록 한 번의 전체 실행에서 동시에 열리는 커넥션 풀 개수가 늘어나 한도를 넘기기 쉬워짐
+- **왜 지금 안 고쳤는지**: `maximum-pool-size: 5`는 `application.yml` 하나로 테스트/운영(Render 배포)이 공유하는 값이라, 테스트 플레이크만 보고 낮추면 운영 동시 커넥션 여유도 함께 줄어듦 — 별도 테스트 프로파일 분리 같은 설계가 필요한 사안이라 이번 스와이프 세션 작업 범위를 벗어난다고 판단
+- **영향**: 앞으로 `@TestConfiguration`으로 외부 HTTP를 모킹하는 통합 테스트가 하나씩 늘어날 때마다 이 플레이크가 더 자주 재현될 것으로 예상됨. 근본 해결(테스트 전용 프로파일 + 별도 풀 크기, 또는 Supabase pool_size 자체 상향)은 별도 작업으로 필요
+
+---
