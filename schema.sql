@@ -268,6 +268,35 @@ CREATE TABLE onboarding_swipe_log (
 CREATE INDEX idx_onboarding_swipe_log_user ON onboarding_swipe_log (user_id, created_at);
 
 
+-- 스와이프 세션 (일정짜기 화면. POST /swipe/candidates 발급, 24시간 유효)
+-- id는 애플리케이션에서 'swipe_session_' + UUID로 생성해서 저장 (세션 토큰 성격, 순번 노출 방지)
+CREATE TABLE swipe_session (
+    id          VARCHAR(50) PRIMARY KEY,
+    user_id     BIGINT      NOT NULL REFERENCES "user" (id) ON DELETE CASCADE,
+    travel_date DATE        NOT NULL,
+    transport   VARCHAR(10) NOT NULL CHECK (transport IN ('car', 'walk', 'public')),
+    expires_at  TIMESTAMP   NOT NULL,
+    created_at  TIMESTAMP   NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_swipe_session_user ON swipe_session (user_id);
+
+
+-- 스와이프 세션의 후보 카드 (발급 시점 순서 고정)
+-- action이 NULL이면 아직 스와이프 안 한 잔여 후보, 값이 있으면 이미 제출된 결과
+CREATE TABLE swipe_session_candidate (
+    id         BIGSERIAL   PRIMARY KEY,
+    session_id VARCHAR(50) NOT NULL REFERENCES swipe_session (id) ON DELETE CASCADE,
+    place_id   BIGINT      NOT NULL REFERENCES place (id) ON DELETE CASCADE,
+    sort_order INT         NOT NULL,
+    action     VARCHAR(10) CHECK (action IN ('like', 'skip', 'must')),
+    swiped_at  TIMESTAMP,
+    UNIQUE (session_id, place_id)
+);
+
+CREATE INDEX idx_swipe_session_candidate_session ON swipe_session_candidate (session_id, sort_order);
+
+
 -- 공통 updated_at 자동 갱신
 CREATE OR REPLACE FUNCTION set_updated_at()
 RETURNS TRIGGER AS $$

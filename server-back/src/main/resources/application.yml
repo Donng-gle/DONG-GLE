@@ -56,6 +56,11 @@ course-optimizer:
   # 배포되면 COURSE_OPTIMIZER_BASE_URL로 실제 주소 주입 필요
   base-url: ${COURSE_OPTIMIZER_BASE_URL:http://localhost:8001}
 
+place-recommender:
+  # ai/place_recommender를 감싼 FastAPI 서비스(ai/api/app.py) 주소. course-optimizer와 실제로는 같은 서비스지만
+  # 우선 별도 키로 분리해둠 — 배포 시 반드시 COURSE_OPTIMIZER_BASE_URL과 같은 값으로 맞출 것
+  base-url: ${PLACE_RECOMMENDER_BASE_URL:http://localhost:8001}
+
 logging:
   level:
     org.hibernate.SQL: debug
