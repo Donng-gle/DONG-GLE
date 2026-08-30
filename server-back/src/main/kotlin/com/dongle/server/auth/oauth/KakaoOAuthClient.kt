@@ -13,9 +13,8 @@ import org.springframework.web.client.RestClientResponseException
 @Component
 class KakaoOAuthClient(
     private val oAuthProperties: OAuthProperties,
+    private val kakaoOAuthRestClient: RestClient,
 ) {
-    private val restClient = RestClient.create()
-
     fun getUserInfo(code: String): OAuthUserInfo =
         try {
             val kakaoAccessToken = requestToken(code)
@@ -41,7 +40,7 @@ class KakaoOAuthClient(
             if (kakao.clientSecret.isNotBlank()) add("client_secret", kakao.clientSecret)
         }
 
-        val response = restClient.post()
+        val response = kakaoOAuthRestClient.post()
             .uri("https://kauth.kakao.com/oauth/token")
             .contentType(MediaType.APPLICATION_FORM_URLENCODED)
             .body(form)
@@ -53,7 +52,7 @@ class KakaoOAuthClient(
     }
 
     private fun requestUserInfo(accessToken: String): OAuthUserInfo {
-        val response = restClient.get()
+        val response = kakaoOAuthRestClient.get()
             .uri("https://kapi.kakao.com/v2/user/me")
             .header("Authorization", "Bearer $accessToken")
             .retrieve()
