@@ -325,6 +325,7 @@
 - **결정**: `POST /places/{placeId}/logs`(여행 기록 작성)를 AI 감성 태그 자동 부여(`log_emotion_tag`/`place_emotion_tag` 갱신) 없이 우선 구현. 기록 생성/저장, `place.visit_log_count` +1은 정상 동작하고, 응답의 `tags`는 AI 연동 전까지 항상 빈 배열.
 - **이유**: `dev`/`ai` 브랜치를 다시 확인한 결과, 감성태그 분석 함수(`ai/semantic_vector.analyze_place`)는 순수 파이썬 함수일 뿐 백엔드가 호출할 수 있는 HTTP 서비스가 전혀 없음(`ai/course_optimizer`와 동일 상황, FastAPI 등 서버 레이어 없음). `place_emotion_tag`를 "AI 연동 방식이 정해질 때까지 어떻게 함께 쓸지는 별도 논의 필요"로 미뤄둔 2026-08-21 결정도 여전히 미해결 상태. 즉 이건 팀 의사결정 대기가 아니라 호출할 인프라 자체의 부재라서, 그 부분만 비워두고 나머지를 먼저 구현하는 게 합리적이라고 판단.
 - **영향**: `VisitLogCreateRequest`, `VisitLogService.create()`, `VisitLogController`의 `POST /places/{placeId}/logs` 추가. `api_1.3.1v.yaml`에 AI 미연동 상태 명시. 나중에 AI 연동 방식이 정해지면 `VisitLogService.create()`에 태그 부여 로직만 추가하면 됨 — 지금 만든 구조를 버릴 필요 없음.
+- **정정 (2026-08-30 늦은 시각)**: 위 "이유"에서 "`ai/course_optimizer`와 동일 상황(HTTP 서버 없음)"이라고 쓴 부분은 이 결정 직후 `dev`에 병합된 `ai/api/app.py`(FastAPI, PR #25 포함분)로 인해 틀린 비교가 됨 — `course_optimizer`는 이제 `POST /v1/courses/optimize`로 HTTP 노출됨. 다만 결론 자체(사진 기반 감성태그 자동분석, 즉 `ai/semantic_vector`의 `analyze_image_with_vision`)는 여전히 어떤 HTTP 엔드포인트로도 노출되지 않았음을 재확인함 — `ai/api/app.py`는 `place_recommender`/`course_optimizer`만 감싸고 `semantic_vector`는 다루지 않음. 그래서 이 결정의 실질적 결론(방문 기록 AI 태그 부여 보류)은 그대로 유효.
 
 ---
 
@@ -358,3 +359,27 @@
 - **결정**: `data/migrations/001_place_semantic_vector.sql` 삭제. `place_semantic_vector` 정의는 이미 `schema.sql`/`schema.dbml`에 있고(2026-08-21), 컬럼/인덱스가 완전히 동일한 것 확인 후 진행. `data/README.md`의 마이그레이션 참조도 `schema.sql`/`schema.dbml` 참조로 갱신
 - **이유**: `ai` 브랜치가 PR #25로 `dev`에 정상 병합된 뒤에도 이 파일이 남아있어서, 같은 테이블이 두 곳(schema.sql, migrations 파일)에 중복 정의된 상태였음. 방치하면 한쪽만 컬럼이 추가되는 식으로 나중에 어긋날 위험이 있어 SSOT 하나로 통일
 - **영향**: `ai/semantic_vector/semantic_ai.md`(AI 파트 문서)에도 이 마이그레이션 파일에 대한 참조가 남아있는데, 이건 AI 파트 소관이라 직접 수정하지 않음 — 필요시 해당 파트에서 정리 요청
+
+---
+
+## 2026-08-30 | feat/visit-log-create, feat/google-oauth-android-package → server/client/dev 통합 완료
+
+- **결정**: 두 미머지 브랜치를 각각 파트 브랜치에 머지 후 `dev`까지 반영. `feat/visit-log-create`(방문 기록 작성 API) → `server` → `dev`, `feat/google-oauth-android-package`(구글 네이티브 로그인 + 카카오 redirect 분리) → `client` → `dev`. 머지 전후 모두 충돌 없음 재확인, 서버는 `./gradlew clean test` 전체 통과, 클라이언트는 `tsc --noEmit` 통과 확인 후 push
+- **이유**: 지난 세션에 이미 충돌 없음을 확인해뒀던 항목이지만, 그 사이 `ai` 브랜치가 PR #25로 대량 병합돼 `dev`가 29커밋 뒤처져 있었음 — 재검증 후 안전하게 진행
+- **영향**: 없음(순수 머지, 신규 로직 추가 없음). 참고로 구글 로그인 실제 E2E 테스트는 여전히 미검증 상태로 남아있음(에뮬레이터 이슈, 사용자가 실기기로 추후 확인 예정)
+
+---
+
+## 2026-08-30 | 발견: feat/course-optimizer-client가 실제로는 server/dev에 미병합 상태였음
+
+- **결정**: 이 브랜치(`cad5f41`, 8/26 작업)를 지금 시점엔 병합하지 않고 보류. 대신 실제 상태를 문서에 정정 기록
+- **이유**: 지난 세션 메모에 "이미 병합 완료"로 남아있었으나 `git merge-base --is-ancestor` 확인 결과 `server`/`dev` 어디에도 포함되지 않은 별도 브랜치였음(착오 원인 불명). 내용 자체는 `server`에 지금도 충돌 없이 얹히고 DTO 필드(`TripInput`/`CourseOptimizationResult` 등)도 현재 `ai/course_optimizer/models.py`와 정확히 일치하지만, 유일하게 `CourseOptimizerClient.OPTIMIZE_PATH = "/optimize"`가 당시엔 몰라서 넣어둔 placeholder — 실제 `ai/api/app.py`가 노출하는 라우트는 `POST /v1/courses/optimize`라 그대로 머지하면 런타임에 404가 남
+- **영향**: 다음 작업으로 이 브랜치에서 `OPTIMIZE_PATH`를 `/v1/courses/optimize`로 수정하고, `TransportMode`(walk/transit/car) ↔ `api_1.3.1v.yaml`의 `CourseGenerateRequest.transport`(car/walk/public) 값 불일치도 그 커밋 주석에 이미 지적돼 있어 매핑 필요. 수정 후 재검증하고 병합 예정
+
+---
+
+## 2026-08-30 | 발견: ai/place_recommender 신규 — 스와이프 후보 추천 랭킹 알고리즘 확보
+
+- **결정**: 별도 결정 사항은 아니고 현황 기록. 김지광이 `d18f50d`(8/25, PR #25에 포함)로 `ai/place_recommender`를 구현 완료한 것을 이번에 재확인함 — 사용자 취향 벡터 → Qdrant 유사도 검색(`semantic_vector.qdrant_repository`) → `place.hidden_score`(기존 스키마 컬럼, 숨은명소 점수) 결합 → Top-N 랭킹. `ai/api/app.py`가 `POST /v1/places/recommend`로 HTTP 노출함
+- **이유**: 스프린트3 milestone에 남아있던 "`/swipe/candidates` 등은 추천 랭킹 알고리즘 자체가 미설계"라는 전제가 더 이상 사실이 아님 — 랭킹 알고리즘은 이제 존재함. 다만 스와이프 세션(발급/저장/만료/진행상태) 자체를 저장할 DB 테이블은 `schema.sql`에 여전히 없고, `/swipe/candidates`·`/swipe/sessions/{id}`·`/swipe/sessions/{id}/results` 백엔드 구현도 미착수 — 이 부분은 순수 백엔드 스코프라 팀 확인 없이 설계 가능
+- **영향**: `docs/milestone.md`의 관련 항목 갱신 필요(다음 커밋에서 반영 예정). 백엔드 다음 작업 후보로 등록: 스와이프 세션 테이블 설계 + 위 3개 엔드포인트 구현, `ai/api`의 `/v1/places/recommend` 호출 연동
