@@ -2,11 +2,13 @@ package com.dongle.server.auth.oauth
 
 import com.dongle.server.auth.InvalidOAuthCodeException
 import com.dongle.server.common.config.OAuthProperties
+import org.slf4j.LoggerFactory
 import org.springframework.http.MediaType
 import org.springframework.stereotype.Component
 import org.springframework.util.LinkedMultiValueMap
 import org.springframework.web.client.RestClient
 import org.springframework.web.client.RestClientException
+import org.springframework.web.client.RestClientResponseException
 
 @Component
 class KakaoOAuthClient(
@@ -19,6 +21,13 @@ class KakaoOAuthClient(
             val kakaoAccessToken = requestToken(code)
             requestUserInfo(kakaoAccessToken)
         } catch (e: RestClientException) {
+            // 카카오가 실제로 왜 거절했는지(redirect_uri 불일치, client_id 불일치, code 만료/재사용 등)는
+            // 이 응답 본문에 담겨오는데 기존엔 그냥 버려지고 있었음 — 원인 파악 위해 로그로 남김
+            if (e is RestClientResponseException) {
+                logger.warn("카카오 OAuth 요청 실패: status={}, body={}", e.statusCode, e.responseBodyAsString)
+            } else {
+                logger.warn("카카오 OAuth 요청 실패", e)
+            }
             throw InvalidOAuthCodeException("kakao")
         }
 
@@ -57,6 +66,10 @@ class KakaoOAuthClient(
             email = response.kakaoAccount?.email,
             profileImageUrl = response.kakaoAccount?.profile?.profileImageUrl,
         )
+    }
+
+    companion object {
+        private val logger = LoggerFactory.getLogger(KakaoOAuthClient::class.java)
     }
 }
 
