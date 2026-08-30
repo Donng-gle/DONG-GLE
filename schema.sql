@@ -187,6 +187,7 @@ CREATE TABLE course (
     title       VARCHAR(200) NOT NULL,
     source      VARCHAR(20)  NOT NULL CHECK (source IN ('ai', 'ai_edited', 'user')),
     travel_date DATE,
+    transport   VARCHAR(10)  CHECK (transport IN ('car', 'walk', 'public')),  -- 구글맵 경로 재계산용, nullable(과거 데이터/미입력 허용)
     created_at  TIMESTAMP    NOT NULL DEFAULT NOW(),
     updated_at  TIMESTAMP    NOT NULL DEFAULT NOW()
 );

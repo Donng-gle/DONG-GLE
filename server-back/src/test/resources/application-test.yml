@@ -1,0 +1,13 @@
+# 테스트 전용 프로파일(spring.profiles.active=test, build.gradle.kts의 Test 태스크에서 자동 주입).
+# src/main/resources/application.yml 위에 이 파일이 덮어써지는 방식(Spring Boot 프로파일 병합)이라
+# 운영(Render 배포) 설정에는 전혀 영향을 주지 않음.
+#
+# 배경: 공용 Supabase pooler가 세션 모드 커넥션을 15개로 제한하는데, @TestConfiguration으로
+# 별도 Spring 컨텍스트를 만드는 통합 테스트(ImageProxyApiIntegrationTest, SwipeApiIntegrationTest 등)가
+# 늘어날수록 `./gradlew clean test` 전체 실행 시 여러 컨텍스트가 동시에 자기만의 Hikari pool을 열어
+# 15개 한도를 넘기는 일이 잦아짐(decision-log.md 2026-08-30 "(관찰)" 항목). 컨텍스트당 풀 크기를
+# 최소로 낮춰서, 컨텍스트 수가 늘어나도 합계가 한도를 넘지 않도록 여유를 둠.
+spring:
+  datasource:
+    hikari:
+      maximum-pool-size: 2

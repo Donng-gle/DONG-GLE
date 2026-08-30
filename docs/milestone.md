@@ -175,7 +175,7 @@
 - [ ] 카카오/구글 OAuth 앱 자격증명 발급 + 로그인 E2E 검증 (스프린트2부터 이월)
 - [x] **여행 기록(방문 로그) 관련 제외한 나머지 엔드포인트 — 1차분 구현 완료** (2026-08-04):
   - `GET /users/me/preferences`, `GET /users/me/likes`, `GET /events` (월별 축제 목록, d_day 계산)
-  - 코스 CRUD 신규 구현: `GET /users/me/courses`, `POST /courses`, `POST /courses/manual`, `GET/PATCH/DELETE /courses/{courseId}` — 구글맵 Directions 경로 재계산(이동시간/거리/폴리라인)은 스코프 제외, 코드에 TODO로 명시(항상 null 반환)
+  - 코스 CRUD 신규 구현: `GET /users/me/courses`, `POST /courses`, `POST /courses/manual`, `GET/PATCH/DELETE /courses/{courseId}` — 구글맵 Directions 경로 재계산(이동시간/거리/폴리라인)은 스코프 제외였으나 **2026-08-30 구현 완료**(아래 항목 참고), 항상 null 반환하던 TODO 해소
   - `GET/PATCH /users/me/notification`, `POST /users/me/device-token` — `notification_setting`/`device_token` 테이블 신규 추가(`schema.sql`/`schema.dbml` 반영, 공용 Supabase에도 적용 완료). 설정값/토큰 저장까지만 구현, 실제 푸시 발송(FCM 연동, `course_reminder` 크론 등)은 스코프 외
   - `GET /health`
 - [x] **여행 기록 CRUD·유사 사용자 탐색 — 2차분 구현 완료** (2026-08-05, 재검토 후 착수) — 애초에 "여행 기록 관련은 전부 제외"로 뭉뚱그렸던 걸 다시 뜯어보니 AI 태그 분석이 필요 없는 부분은 스키마가 이미 있어서 바로 구현 가능했음:
@@ -185,7 +185,8 @@
 - [ ] **미구현 잔여분 — 보류**:
   - [x] `POST /places/{placeId}/logs`(여행 기록 작성) — AI 감성 태그 자동 부여는 제외하고 우선 구현 완료 (2026-08-30, `feat/visit-log-create`). 기록 생성/저장, `visit_log_count` 증가는 정상 동작, 응답 `tags`는 AI 연동 전까지 항상 빈 배열. AI 태그 부여는 `ai/semantic_vector`의 이미지 분석이 아직 어떤 HTTP 엔드포인트로도 노출되지 않아서 계속 보류 (decision-log 2026-08-30 참고)
   - [x] `/swipe/candidates`, `/swipe/sessions/{sessionId}`, `/swipe/sessions/{sessionId}/results` — **2026-08-30 구현 완료** (`feat/swipe-session`). 후보 랭킹은 `ai/place_recommender`(취향 벡터 기반 Qdrant 검색 + `place.hidden_score` 결합 Top-N, `POST /v1/places/recommend`, PR #25 포함분) 호출 + 신설한 `swipe_session`/`swipe_session_candidate` 테이블로 세션 상태 저장. 세부 값(후보 20장, mood_tags 가중치 등)은 decision-log 참고
-  - [x] `/courses/generate` — **2026-08-30 구현 완료(스코프 축소)**. `ai/course_optimizer` 연동해서 좋아요/필수 표시 장소로 코스 1개를 생성. 스펙상 "최대 3개 후보"·"must 강제 포함"은 course_optimizer 알고리즘 자체의 한계(경로 1개만 반환 가능, 필수 장소 개념 없음)로 지금은 근사치 — 상세는 decision-log 참고. **김지광에게 알고리즘 확장(top-N 경로, 필수 장소 강제) 요청 필요**. 구글맵 Directions(거리/이동시간 재계산)는 여전히 스코프 외, `totalDurationMin`만 course_optimizer 실제값 사용
+  - [x] `/courses/generate` — **2026-08-30 구현 완료(스코프 축소)**. `ai/course_optimizer` 연동해서 좋아요/필수 표시 장소로 코스 1개를 생성. 스펙상 "최대 3개 후보"·"must 강제 포함"은 course_optimizer 알고리즘 자체의 한계(경로 1개만 반환 가능, 필수 장소 개념 없음)로 지금은 근사치 — 상세는 decision-log 참고. **김지광에게 알고리즘 확장(top-N 경로, 필수 장소 강제) 요청 필요**
+  - [x] **구글맵 Directions(Routes API v2) 연동 완료** (2026-08-30) — `/courses/generate`와 `GET/PATCH /courses/{courseId}` 양쪽에서 이동거리(km)/시간(분)/장소별 구간 정보/폴리라인을 실제로 계산해서 반환. `ai/course_optimizer`가 이미 쓰던 것과 같은 Routes API 재사용. `course.transport` 컬럼 신규 추가(어떤 이동수단으로 재계산할지 저장). 실패해도 코스 조회 자체는 항상 가능(null로 안전하게 폴백). 상세는 decision-log 참고 — 테스트 중 RestClient 멀티 모킹 버그도 같이 발견/수정
   - `/onboarding/cards`, `/onboarding/preferences` — api 스펙 자체에 `[DEPRECATED 가능성]` 표기됨. `Onboarding Algo.md`(v2.0.0)가 스와이프 방식(`/onboarding/next` 등)만 다루고 이 두 엔드포인트를 전혀 언급하지 않음 — 예전 카드 다중선택 방식의 흔적으로 추정되며, `/onboarding/complete`가 이미 같은 역할(결과 저장 + `has_onboarded` 갱신)을 스와이프 방식으로 수행 중이라 사실상 대체된 것으로 보임. 실제 필요 여부 팀 확인 후 스펙 정리 필요
   - `/admin/sync/places` — TourAPI 재동기화 트리거 기능인데, "데이터 파트가 DB에 직접 적재" 결정(2026-06-29)과 책임이 겹침. 응답 스펙의 `deactivated`(비활성화 수)를 반영할 soft-delete 컬럼도 `place` 테이블에 없어 스키마 추가까지 필요 — 정말 필요한 기능인지 재검토 필요
 

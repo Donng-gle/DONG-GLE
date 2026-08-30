@@ -1,6 +1,9 @@
 package com.dongle.server.course
 
 import com.dongle.server.auth.jwt.JwtTokenProvider
+import com.dongle.server.course.directions.GoogleRoutesClient
+import com.dongle.server.course.directions.RouteLegResult
+import com.dongle.server.course.directions.RouteResult
 import com.dongle.server.place.Place
 import com.dongle.server.place.PlaceCategory
 import com.dongle.server.place.PlaceRepository
@@ -8,10 +11,13 @@ import com.dongle.server.user.OAuthProvider
 import com.dongle.server.user.User
 import com.dongle.server.user.UserRepository
 import org.junit.jupiter.api.Test
+import org.mockito.BDDMockito.given
+import org.mockito.Mockito
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.http.MediaType
+import org.springframework.test.context.bean.override.mockito.MockitoBean
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
@@ -22,6 +28,8 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import org.springframework.transaction.annotation.Transactional
 import com.jayway.jsonpath.JsonPath
 
+// GoogleRoutesClient를 컴포넌트 단위로 모킹한다 (@MockitoBean) — CourseGenerateApiIntegrationTest 주석 참고
+// (RestClient 레이어를 직접 모킹하는 방식은 같은 타입 빈이 여러 개일 때 서로 뒤섞이는 문제가 있었음).
 @SpringBootTest
 @AutoConfigureMockMvc
 @Transactional
@@ -38,6 +46,21 @@ class CourseApiIntegrationTest {
 
     @Autowired
     lateinit var jwtTokenProvider: JwtTokenProvider
+
+    @MockitoBean
+    lateinit var googleRoutesClient: GoogleRoutesClient
+
+    private fun <T> anyKt(): T = Mockito.any()
+
+    private fun stubDirectionsRoute() {
+        val route = RouteResult(
+            totalDistanceMeters = 1500,
+            totalDurationSeconds = 600,
+            legs = listOf(RouteLegResult(distanceMeters = 1500, durationSeconds = 600)),
+            encodedPolyline = "abc123",
+        )
+        given(googleRoutesClient.computeRoute(anyKt(), anyKt())).willReturn(route)
+    }
 
     private fun user(userId: String, oauthId: String): User =
         userRepository.save(User(userId = userId, nickname = "테스터", oauthProvider = OAuthProvider.kakao, oauthId = oauthId))
@@ -81,13 +104,20 @@ class CourseApiIntegrationTest {
             .andReturn()
 
         val courseId = JsonPath.read<Int>(saveResult.response.contentAsString, "$.course_id")
+        stubDirectionsRoute()
 
         mockMvc.perform(get("/courses/$courseId").header("Authorization", "Bearer $token"))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.title").value("테스트전용코스"))
             .andExpect(jsonPath("$.places[0].name").value("테스트전용코스장소A"))
             .andExpect(jsonPath("$.places[0].planned_time").value("10:00"))
+            .andExpect(jsonPath("$.places[0].distance_from_prev_km").doesNotExist())
             .andExpect(jsonPath("$.places[1].name").value("테스트전용코스장소B"))
+            .andExpect(jsonPath("$.places[1].distance_from_prev_km").value(1.5))
+            .andExpect(jsonPath("$.places[1].duration_from_prev_min").value(10))
+            .andExpect(jsonPath("$.total_distance_km").value(1.5))
+            .andExpect(jsonPath("$.total_duration_min").value(10))
+            .andExpect(jsonPath("$.polyline").value("abc123"))
     }
 
     @Test
