@@ -6,11 +6,13 @@ import { PlaceDetailScreen } from './PlaceDetailScreen';
 
 interface Props {
   onExit: () => void;
+  // 지정하면 장소를 눌렀을 때 상세화면 대신 이 콜백으로 선택 결과를 돌려줌 (코스 직접 만들기/수정 화면에서 재사용)
+  onSelectPlace?: (place: PlaceListItem) => void;
 }
 
 const CATEGORIES: PlaceCategory[] = ['관광지', '식당', '카페', '액티비티', '문화공간', '축제행사'];
 
-export function PlaceListScreen({ onExit }: Props) {
+export function PlaceListScreen({ onExit, onSelectPlace }: Props) {
   const [category, setCategory] = useState<PlaceCategory | null>(null);
   const [query, setQuery] = useState('');
   const [places, setPlaces] = useState<PlaceListItem[] | null>(null);
@@ -29,13 +31,13 @@ export function PlaceListScreen({ onExit }: Props) {
     setPlaces(response.places);
   }
 
-  if (selectedId != null) {
+  if (!onSelectPlace && selectedId != null) {
     return <PlaceDetailScreen placeId={selectedId} onExit={() => setSelectedId(null)} />;
   }
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>장소 둘러보기</Text>
+      <Text style={styles.title}>{onSelectPlace ? '장소 선택' : '장소 둘러보기'}</Text>
 
       <View style={styles.searchRow}>
         <TextInput
@@ -77,7 +79,9 @@ export function PlaceListScreen({ onExit }: Props) {
           data={places}
           keyExtractor={(item) => String(item.id)}
           ListEmptyComponent={<Text style={styles.emptyText}>결과가 없어요.</Text>}
-          renderItem={({ item }) => <PlaceListItemRow place={item} onPress={() => setSelectedId(item.id)} />}
+          renderItem={({ item }) => (
+            <PlaceListItemRow place={item} onPress={() => (onSelectPlace ? onSelectPlace(item) : setSelectedId(item.id))} />
+          )}
         />
       )}
 

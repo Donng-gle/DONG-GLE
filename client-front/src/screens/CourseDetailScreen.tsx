@@ -4,11 +4,12 @@ import { CourseDetail, courseApi } from '../api/course';
 
 interface Props {
   courseId: number;
+  onEdit: () => void;
   onDeleted: () => void;
   onExit: () => void;
 }
 
-export function CourseDetailScreen({ courseId, onDeleted, onExit }: Props) {
+export function CourseDetailScreen({ courseId, onEdit, onDeleted, onExit }: Props) {
   const [course, setCourse] = useState<CourseDetail | null>(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -72,6 +73,8 @@ export function CourseDetailScreen({ courseId, onDeleted, onExit }: Props) {
       ))}
 
       <View style={styles.actions}>
+        <Button title="수정" onPress={onEdit} disabled={deleting} />
+        <View style={styles.gap} />
         <Button title={deleting ? '삭제 중...' : '코스 삭제'} color="#d33" onPress={confirmDelete} disabled={deleting} />
         <View style={styles.gap} />
         <Button title="닫기" onPress={onExit} disabled={deleting} />

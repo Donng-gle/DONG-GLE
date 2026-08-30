@@ -1,6 +1,7 @@
-import { useState } from 'react';
-import { Alert, Button, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { SwipeCandidate, SwipeTransport, swipeApi } from '../api/swipe';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, Button, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { SwipeCandidate, SwipedResultItem, SwipeTransport, swipeApi } from '../api/swipe';
+import { swipeSessionStorage } from '../storage/swipeSessionStorage';
 import { CourseSwipeScreen } from './CourseSwipeScreen';
 import { CourseResultScreen } from './CourseResultScreen';
 
@@ -14,6 +15,7 @@ type Step =
       name: 'swiping';
       sessionId: string;
       candidates: SwipeCandidate[];
+      initialResults: SwipedResultItem[];
       travelDate: string;
       transport: SwipeTransport;
     }
@@ -34,6 +36,62 @@ export function CourseFlowScreen({ onExit }: Props) {
   const [travelDate, setTravelDate] = useState(TODAY);
   const [transport, setTransport] = useState<SwipeTransport>('walk');
   const [loading, setLoading] = useState(false);
+  const [checkingResume, setCheckingResume] = useState(true);
+
+  useEffect(() => {
+    checkForResumableSession();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 앱이 백그라운드/종료됐다 돌아왔을 때 진행 중이던 스와이프 세션(GET /swipe/sessions/:id)이 있으면
+  // 이어할지 물어본다. 세션이 만료됐거나(410) 없으면(404) 조용히 정리하고 새로 시작하도록 둠
+  async function checkForResumableSession() {
+    const savedSessionId = await swipeSessionStorage.load();
+    if (!savedSessionId) {
+      setCheckingResume(false);
+      return;
+    }
+
+    try {
+      const detail = await swipeApi.getSession(savedSessionId);
+
+      if (detail.candidates.length === 0) {
+        // 스와이프는 이미 다 끝났는데 코스 생성까지 못 갔던 경우 — 결과 화면으로 바로 이동
+        await swipeSessionStorage.clear();
+        setStep({ name: 'result', sessionId: savedSessionId, travelDate: detail.travel_date, transport: detail.transport });
+        setCheckingResume(false);
+        return;
+      }
+
+      Alert.alert('진행 중이던 스와이프가 있어요', '이어서 진행할까요?', [
+        {
+          text: '새로 시작',
+          style: 'destructive',
+          onPress: async () => {
+            await swipeSessionStorage.clear();
+            setCheckingResume(false);
+          },
+        },
+        {
+          text: '이어하기',
+          onPress: () => {
+            setStep({
+              name: 'swiping',
+              sessionId: savedSessionId,
+              candidates: detail.candidates,
+              initialResults: detail.swiped_results,
+              travelDate: detail.travel_date,
+              transport: detail.transport,
+            });
+            setCheckingResume(false);
+          },
+        },
+      ]);
+    } catch {
+      await swipeSessionStorage.clear();
+      setCheckingResume(false);
+    }
+  }
 
   // mood_tags/preferred_categories는 비워서 보냄 — 서버가 user_preference 상위 태그로 자동 추천
   async function startSwipe() {
@@ -44,10 +102,12 @@ export function CourseFlowScreen({ onExit }: Props) {
         Alert.alert('추천할 장소가 없어요', '조건을 바꿔서 다시 시도해주세요.');
         return;
       }
+      await swipeSessionStorage.save(response.session_id);
       setStep({
         name: 'swiping',
         sessionId: response.session_id,
         candidates: response.candidates,
+        initialResults: [],
         travelDate,
         transport,
       });
@@ -58,14 +118,24 @@ export function CourseFlowScreen({ onExit }: Props) {
     }
   }
 
+  if (checkingResume) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" />
+      </View>
+    );
+  }
+
   if (step.name === 'swiping') {
     return (
       <CourseSwipeScreen
         sessionId={step.sessionId}
         candidates={step.candidates}
-        onDone={() =>
-          setStep({ name: 'result', sessionId: step.sessionId, travelDate: step.travelDate, transport: step.transport })
-        }
+        initialResults={step.initialResults}
+        onDone={async () => {
+          await swipeSessionStorage.clear();
+          setStep({ name: 'result', sessionId: step.sessionId, travelDate: step.travelDate, transport: step.transport });
+        }}
       />
     );
   }
@@ -123,6 +193,7 @@ export function CourseFlowScreen({ onExit }: Props) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff', padding: 20, paddingTop: 32 },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' },
   title: { fontSize: 22, fontWeight: '700', marginBottom: 24 },
   label: { fontSize: 13, color: '#666', marginBottom: 8 },
   input: {

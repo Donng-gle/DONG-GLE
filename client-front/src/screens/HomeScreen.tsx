@@ -3,6 +3,7 @@ import { Button, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { UserProfile, authApi } from '../api/auth';
 import { tokenStorage } from '../auth/tokenStorage';
 import { CourseFlowScreen } from './CourseFlowScreen';
+import { CourseManualBuilderScreen } from './CourseManualBuilderScreen';
 import { EventsScreen } from './EventsScreen';
 import { ExploreScreen } from './ExploreScreen';
 import { MyCoursesScreen } from './MyCoursesScreen';
@@ -20,6 +21,7 @@ interface Props {
 type Screen =
   | 'home'
   | 'course-flow'
+  | 'course-manual'
   | 'my-courses'
   | 'places'
   | 'my-logs'
@@ -48,6 +50,8 @@ export function HomeScreen({ profile: initialProfile, onLogout }: Props) {
   switch (screen) {
     case 'course-flow':
       return <CourseFlowScreen onExit={exit} />;
+    case 'course-manual':
+      return <CourseManualBuilderScreen onSaved={exit} onExit={exit} />;
     case 'my-courses':
       return <MyCoursesScreen onExit={exit} />;
     case 'places':
@@ -82,6 +86,8 @@ export function HomeScreen({ profile: initialProfile, onLogout }: Props) {
 
       <View style={styles.buttons}>
         <Button title="코스 만들기" onPress={() => setScreen('course-flow')} />
+        <View style={styles.gap} />
+        <Button title="직접 코스 만들기" onPress={() => setScreen('course-manual')} />
         <View style={styles.gap} />
         <Button title="내 코스" onPress={() => setScreen('my-courses')} />
         <View style={styles.gap} />

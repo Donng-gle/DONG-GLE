@@ -2,14 +2,18 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Button, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { CourseListItem, courseApi } from '../api/course';
 import { CourseDetailScreen } from './CourseDetailScreen';
+import { CourseEditScreen } from './CourseEditScreen';
 
 interface Props {
   onExit: () => void;
 }
 
+type Mode = 'list' | 'detail' | 'edit';
+
 export function MyCoursesScreen({ onExit }: Props) {
   const [courses, setCourses] = useState<CourseListItem[] | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [mode, setMode] = useState<Mode>('list');
 
   useEffect(() => {
     load();
@@ -25,15 +29,34 @@ export function MyCoursesScreen({ onExit }: Props) {
     }
   }
 
-  if (selectedId != null) {
+  if (mode === 'edit' && selectedId != null) {
     return (
-      <CourseDetailScreen
+      <CourseEditScreen
         courseId={selectedId}
-        onDeleted={() => {
+        onSaved={() => {
+          setMode('list');
           setSelectedId(null);
           load();
         }}
-        onExit={() => setSelectedId(null)}
+        onExit={() => setMode('detail')}
+      />
+    );
+  }
+
+  if (mode === 'detail' && selectedId != null) {
+    return (
+      <CourseDetailScreen
+        courseId={selectedId}
+        onEdit={() => setMode('edit')}
+        onDeleted={() => {
+          setMode('list');
+          setSelectedId(null);
+          load();
+        }}
+        onExit={() => {
+          setMode('list');
+          setSelectedId(null);
+        }}
       />
     );
   }
@@ -54,7 +77,13 @@ export function MyCoursesScreen({ onExit }: Props) {
         keyExtractor={(item) => String(item.id)}
         ListEmptyComponent={<Text style={styles.emptyText}>저장한 코스가 없어요.</Text>}
         renderItem={({ item }) => (
-          <TouchableOpacity style={styles.row} onPress={() => setSelectedId(item.id)}>
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => {
+              setSelectedId(item.id);
+              setMode('detail');
+            }}
+          >
             <Text style={styles.rowTitle}>{item.title}</Text>
             <Text style={styles.rowMeta}>
               {item.travel_date ?? '날짜 미정'} · 장소 {item.place_count}곳
