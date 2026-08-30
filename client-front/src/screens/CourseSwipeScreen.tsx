@@ -5,14 +5,16 @@ import { SwipeAction, SwipeCandidate, SwipedResultItem, swipeApi } from '../api/
 interface Props {
   sessionId: string;
   candidates: SwipeCandidate[];
+  // 세션 복구 시 이미 스와이프한 결과(GET /swipe/sessions/:id의 swiped_results) — 최종 제출에 합쳐서 보냄
+  initialResults?: SwipedResultItem[];
   onDone: () => void;
 }
 
 // 온보딩 스와이프(OnboardingScreen)와 달리 여기는 서버가 후보를 한 번에 다 내려주므로,
 // 로컬에서 인덱스만 넘기다가 마지막 카드에서 한 번에 결과를 제출한다 (POST /swipe/sessions/:id/results).
-export function CourseSwipeScreen({ sessionId, candidates, onDone }: Props) {
+export function CourseSwipeScreen({ sessionId, candidates, initialResults = [], onDone }: Props) {
   const [index, setIndex] = useState(0);
-  const [results, setResults] = useState<SwipedResultItem[]>([]);
+  const [results, setResults] = useState<SwipedResultItem[]>(initialResults);
   const [submitting, setSubmitting] = useState(false);
 
   const current = candidates[index];
