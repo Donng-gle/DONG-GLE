@@ -370,11 +370,11 @@
 
 ---
 
-## 2026-08-30 | 발견: feat/course-optimizer-client가 실제로는 server/dev에 미병합 상태였음
+## 2026-08-30 | feat/course-optimizer-client 경로 수정 후 server/dev 병합 완료
 
-- **결정**: 이 브랜치(`cad5f41`, 8/26 작업)를 지금 시점엔 병합하지 않고 보류. 대신 실제 상태를 문서에 정정 기록
-- **이유**: 지난 세션 메모에 "이미 병합 완료"로 남아있었으나 `git merge-base --is-ancestor` 확인 결과 `server`/`dev` 어디에도 포함되지 않은 별도 브랜치였음(착오 원인 불명). 내용 자체는 `server`에 지금도 충돌 없이 얹히고 DTO 필드(`TripInput`/`CourseOptimizationResult` 등)도 현재 `ai/course_optimizer/models.py`와 정확히 일치하지만, 유일하게 `CourseOptimizerClient.OPTIMIZE_PATH = "/optimize"`가 당시엔 몰라서 넣어둔 placeholder — 실제 `ai/api/app.py`가 노출하는 라우트는 `POST /v1/courses/optimize`라 그대로 머지하면 런타임에 404가 남
-- **영향**: 다음 작업으로 이 브랜치에서 `OPTIMIZE_PATH`를 `/v1/courses/optimize`로 수정하고, `TransportMode`(walk/transit/car) ↔ `api_1.3.1v.yaml`의 `CourseGenerateRequest.transport`(car/walk/public) 값 불일치도 그 커밋 주석에 이미 지적돼 있어 매핑 필요. 수정 후 재검증하고 병합 예정
+- **결정**: `feat/course-optimizer-client`(`cad5f41`, 8/26 작업)가 실제로는 `server`/`dev`에 미병합 상태였음을 발견(지난 세션 메모엔 "이미 병합 완료"로 잘못 남아있었음, 착오 원인 불명). `CourseOptimizerClient.OPTIMIZE_PATH`를 당시 placeholder였던 `"/optimize"`에서 실제 `ai/api/app.py` 라우트인 `"/v1/courses/optimize"`로 수정 후 `server` → `dev` 순으로 병합
+- **이유**: DTO 필드(`TripInput`/`CourseOptimizationResult` 등)는 `ai/course_optimizer/models.py`와 이미 정확히 일치했고, 경로만 당시 미배포라 확인 불가능했던 부분 — 이번에 `ai/api/app.py` 실체를 확인했으니 바로 고쳐서 병합 가능한 상태였음
+- **영향**: `CourseOptimizerClient`/`CourseOptimizerClientTest`의 경로 문자열만 수정, DTO 변경 없음. `./gradlew clean test` 실행 시 무관한 `ImageProxyApiIntegrationTest` 3건이 공용 Supabase pooler 커넥션 경합으로 간헐적 실패(격리 실행 시 통과 확인, 기존부터 있던 인프라 플레이크로 판단, 이 변경과 무관). `CourseOptimizerClientTest`는 MockRestServiceServer 기반이라 항상 통과 확인. **여전히 남은 것**: `TransportMode`(walk/transit/car) ↔ `api_1.3.1v.yaml`의 `CourseGenerateRequest.transport`(car/walk/public) 값 불일치 매핑, 실제 `/courses/generate` 엔드포인트에서 이 클라이언트를 호출하는 연동 코드는 아직 없음(클라이언트만 존재)
 
 ---
 
