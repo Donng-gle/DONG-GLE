@@ -17,7 +17,7 @@ import tools.jackson.databind.json.JsonMapper
 import java.time.LocalDateTime
 import kotlin.test.assertEquals
 
-// 실제 AI 서비스(ai/course_optimizer, 아직 미배포) 없이 요청/응답 계약만 검증하는 순수 단위 테스트.
+// 실제 AI 서비스(ai/course_optimizer, ai/api/app.py) 없이 요청/응답 계약만 검증하는 순수 단위 테스트.
 // MockRestServiceServer로 HTTP 레이어를 가로채기 때문에 서버 기동이 전혀 필요 없다.
 // 앱 전역 Jackson 설정(application.yml의 SNAKE_CASE)을 그대로 재현해야 실제 운영 경로와 동일하게 검증되므로,
 // RestClient.builder()의 프레임워크 기본 컨버터 대신 SNAKE_CASE로 맞춘 JacksonJsonHttpMessageConverter를 직접 꽂는다.
@@ -64,7 +64,7 @@ class CourseOptimizerClientTest {
     fun `요청을 올바른 형태로 보내고 응답을 CourseOptimizationResult로 파싱한다`() {
         val (client, mockServer) = newClientBoundTo()
 
-        mockServer.expect(requestTo("http://test-course-optimizer/optimize"))
+        mockServer.expect(requestTo("http://test-course-optimizer/v1/courses/optimize"))
             .andExpect(method(HttpMethod.POST))
             .andExpect(jsonPath("$.transport_mode").value("walk"))
             .andExpect(jsonPath("$.candidates[0].place_id").value("1"))
@@ -125,7 +125,7 @@ class CourseOptimizerClientTest {
     fun `업스트림 서버가 오류를 반환하면 CourseOptimizerUpstreamException을 던진다`() {
         val (client, mockServer) = newClientBoundTo()
 
-        mockServer.expect(requestTo("http://test-course-optimizer/optimize"))
+        mockServer.expect(requestTo("http://test-course-optimizer/v1/courses/optimize"))
             .andRespond(withServerError())
 
         assertThrows<CourseOptimizerUpstreamException> {
