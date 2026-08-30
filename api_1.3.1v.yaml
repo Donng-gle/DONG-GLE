@@ -2153,6 +2153,10 @@ paths:
           2. place_emotion_tag count 업데이트 (장소의 분위기 태그 누적)
           3. place.visit_log_count +1 (방문 로그 수 증가 → 숨은 장소 판단 기준값)
 
+        ⚠️ 2026-08-30 기준: 1·2번(AI 감성 태그 자동 부여)은 아직 미연동 상태다 (decision-log 참고 —
+        호출할 AI 서비스 자체가 아직 없음). 3번(visit_log_count 증가)과 기록 생성/저장은 정상 동작하며,
+        응답의 tags는 AI 연동 전까지 항상 빈 배열이다.
+
         응답으로 VisitLogDetail 전체를 반환하므로, 클라이언트가 별도의 GET /logs/:logId 호출 없이
         작성 직후 화면을 바로 렌더링할 수 있다.
       parameters:

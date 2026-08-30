@@ -320,6 +320,14 @@
 
 ---
 
+## 2026-08-30 | 방문 기록 작성: AI 태그 부여 제외하고 우선 구현
+
+- **결정**: `POST /places/{placeId}/logs`(여행 기록 작성)를 AI 감성 태그 자동 부여(`log_emotion_tag`/`place_emotion_tag` 갱신) 없이 우선 구현. 기록 생성/저장, `place.visit_log_count` +1은 정상 동작하고, 응답의 `tags`는 AI 연동 전까지 항상 빈 배열.
+- **이유**: `dev`/`ai` 브랜치를 다시 확인한 결과, 감성태그 분석 함수(`ai/semantic_vector.analyze_place`)는 순수 파이썬 함수일 뿐 백엔드가 호출할 수 있는 HTTP 서비스가 전혀 없음(`ai/course_optimizer`와 동일 상황, FastAPI 등 서버 레이어 없음). `place_emotion_tag`를 "AI 연동 방식이 정해질 때까지 어떻게 함께 쓸지는 별도 논의 필요"로 미뤄둔 2026-08-21 결정도 여전히 미해결 상태. 즉 이건 팀 의사결정 대기가 아니라 호출할 인프라 자체의 부재라서, 그 부분만 비워두고 나머지를 먼저 구현하는 게 합리적이라고 판단.
+- **영향**: `VisitLogCreateRequest`, `VisitLogService.create()`, `VisitLogController`의 `POST /places/{placeId}/logs` 추가. `api_1.3.1v.yaml`에 AI 미연동 상태 명시. 나중에 AI 연동 방식이 정해지면 `VisitLogService.create()`에 태그 부여 로직만 추가하면 됨 — 지금 만든 구조를 버릴 필요 없음.
+
+---
+
 <!-- 결정되면 아래 양식으로 추가 -->
 <!--
 ## YYYY-MM-DD | 제목
