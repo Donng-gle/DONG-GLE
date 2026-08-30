@@ -1,4 +1,5 @@
 import { apiClient } from './client';
+import { PlaceCategory } from './place';
 
 // api_1.3.1v.yaml SwipeCandidatesRequest.transport / CourseGenerateRequest.transport와 동일한 값
 // (server-back SwipeTransport.kt 참고). ai/course_optimizer의 transport_mode와는 값이 다름 — public ≠ transit.
@@ -6,9 +7,6 @@ export type SwipeTransport = 'car' | 'walk' | 'public';
 
 // like: 마음에 드는 장소. skip: 넘긴 장소. must: 코스 생성 시 반드시 포함될 필수 방문 장소.
 export type SwipeAction = 'like' | 'skip' | 'must';
-
-// server-back PlaceCategory.kt 그대로 (한글 enum 값)
-export type PlaceCategory = '관광지' | '식당' | '카페' | '액티비티' | '문화공간' | '축제행사';
 
 export interface SwipeCandidatesRequest {
   travel_date: string; // YYYY-MM-DD
