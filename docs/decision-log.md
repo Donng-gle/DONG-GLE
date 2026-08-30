@@ -372,3 +372,26 @@
 - **영향**: `schema.sql`/`schema.dbml`에 `swipe_session`/`swipe_session_candidate` 테이블 추가, 공용 Supabase에도 반영 완료(둘 다 CREATE TABLE만 하는 순수 추가라 기존 데이터 영향 없음). `PlaceService.semanticVectorsByPlaceId`/`displayTags`를 `private`→공개로 변경해 `SwipeService`가 재사용(태그 노출 규칙 중복 방지). `place-recommender` 설정 키(`PLACE_RECOMMENDER_BASE_URL`)를 `course-optimizer`와 별도로 신설 — 실제로는 같은 FastAPI 서비스(`ai/api/app.py`)이므로 배포 시 두 값을 반드시 동일하게 맞춰야 함(당장 하나로 통합하지는 않음, `common/config/PlaceRecommenderProperties.kt` 주석 참고). `/courses/generate`(스와이프 결과로 실제 코스 후보 생성, course_optimizer 연동)는 이번 범위 밖 — 다음 작업 후보
 
 ---
+
+## 2026-08-30 | (관찰) `./gradlew test` 전체 스위트 플레이크가 테스트 추가할수록 악화되는 중
+
+- **결정 아님, 현황 기록**: `SwipeApiIntegrationTest` 추가 후 `./gradlew clean test` 전체 실행 시 실패 개수가 회차마다 3~8건으로 늘어남(격리 실행하면 항상 통과). 원인은 기존에 파악한 것과 동일 — 공용 Supabase pooler가 세션 모드 커넥션을 15개로 제한하는데, `application.yml`의 `spring.datasource.hikari.maximum-pool-size: 5`가 테스트에도 그대로 적용되어 커스텀 `@TestConfiguration`을 쓰는 통합 테스트 클래스(현재 `ImageProxyApiIntegrationTest`, `SwipeApiIntegrationTest` — 서로 다른 Spring 컨텍스트를 만듦)가 늘어날수록 한 번의 전체 실행에서 동시에 열리는 커넥션 풀 개수가 늘어나 한도를 넘기기 쉬워짐
+- **왜 지금 안 고쳤는지**: `maximum-pool-size: 5`는 `application.yml` 하나로 테스트/운영(Render 배포)이 공유하는 값이라, 테스트 플레이크만 보고 낮추면 운영 동시 커넥션 여유도 함께 줄어듦 — 별도 테스트 프로파일 분리 같은 설계가 필요한 사안이라 이번 스와이프 세션 작업 범위를 벗어난다고 판단
+- **영향**: 앞으로 `@TestConfiguration`으로 외부 HTTP를 모킹하는 통합 테스트가 하나씩 늘어날 때마다 이 플레이크가 더 자주 재현될 것으로 예상됨. 근본 해결(테스트 전용 프로파일 + 별도 풀 크기, 또는 Supabase pool_size 자체 상향)은 별도 작업으로 필요
+
+---
+
+## 2026-08-30 | `/courses/generate` 구현 — course_optimizer 연동, 1개 후보로 스코프 축소
+
+- **결정**: 스와이프 세션의 like/must 후보를 `ai/course_optimizer`(`POST /v1/courses/optimize`)에 넘겨 코스를 생성하는 `/courses/generate`를 구현하되, api_1.3.1v.yaml이 기대하는 "최대 3개 후보"가 아니라 **항상 1개만 반환**하도록 스코프를 좁힘(`minItems: 1`이라 스펙 위반은 아님). 코드 조사 결과 아래 두 가지가 course_optimizer 알고리즘 자체의 한계로 확인됨:
+  1. `search_optimal_route()`(`ai/course_optimizer/backtracking.py`)가 k(방문 개수)별로 최고점 경로 1개만 유지하고 나머지는 버림 — 평가된 경로들을 따로 안 남겨서 "상위 3개"를 뽑아낼 방법이 지금 코드엔 없음
+  2. `CandidatePlace`에 "필수 방문(must)" 플래그 자체가 없음 — 알고리즘이 그냥 주어진 후보 풀에서 점수 최고 조합을 고를 뿐이라, "무조건 포함"을 강제할 방법이 없음
+  - 2번은 후보 풀 자체를 스와이프의 like/must 표시 장소로만 좁혀서 근사(시간이 다 들어가면 전부 포함, 부족하면 무엇이 빠질지 보장 못 함)
+  - 사용자 출발 위치(origin)를 요청 스펙이 안 받아서, 안동 시내 대표 좌표(36.5684, 128.7294)로 고정 (MVP 근사치, 실제 GPS 연동 전까지)
+  - 코스 시간대는 여행일 09:00~21:00로 고정 (스펙에 명시 안 됨, 하루 코스 기준 임의 설정)
+  - `candidateId`는 서버에 저장하지 않는 순수 opaque 토큰(UUID) — `POST /courses` 저장 시 `candidateId`가 실제로 조회에 안 쓰이고(요청에 담긴 `places` 배열을 그대로 저장) 무시되는 걸 `CourseService.save()`에서 확인함
+  - `totalDurationMin`은 course_optimizer의 실제 값(`selectedRoute.score.totalTravelMinutes`)을 사용하지만, `totalDistanceKm`과 장소별 `distanceFromPrevKm`/`durationFromPrevMin`은 기존 `GET /courses/{courseId}` 패턴과 동일하게 항상 null(구글맵 Directions 연동 전까지 스코프 외)
+- **이유**: 3개 후보/must 강제 둘 다 course_optimizer 알고리즘 자체의 확장이 필요한 사안이라 백엔드가 임의로 구현할 수 없음 — 사용자(설만수) 확인 후 "1개 후보 우선 연결, 나머지는 김지광과 별도 논의"로 진행하기로 함
+- **영향**: `CourseService.generate()`, `CourseController.generate()`, `CourseGenerateRequest`/`CourseGenerateResponse`/`CourseCandidateResponse` 추가. `SwipeService.likedOrMustCandidates()` 공개 메서드 신설(세션 소유권/만료 검증 + like/must 필터링 재사용). `GlobalExceptionHandler`에 `CourseOptimizerUpstreamException`(502, 그동안 미등록 상태였음)·`NotEnoughSwipeCandidatesException`(400, 신규) 핸들러 추가. `api_1.3.1v.yaml`의 `CourseGenerateResponse.candidates` 설명에 위 제약사항 명시. **김지광에게 요청 필요**: (1) 상위 N개 경로 반환 지원, (2) 필수 방문 장소 강제 포함 지원 — 이 둘이 되면 이 구현의 스코프 제한을 풀 수 있음
+
+---

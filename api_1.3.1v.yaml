@@ -857,6 +857,12 @@ components:
           description: |
             생성된 코스 후보 목록 (최대 3개).
             각 후보는 사용자 취향 태그, 장소 카테고리 균형, 이동 거리, must 장소 포함 여부를 달리 조합하여 생성됨.
+
+            [구현 현황 2026-08-30] ai/course_optimizer가 아직 경로 1개만 반환할 수 있어(백트래킹이
+            k별 최고점 1개만 유지) 현재는 항상 1개만 채워짐. must 장소도 강제 포함이 안 돼서 스와이프에서
+            like/must로 표시한 장소만 후보 풀로 좁혀 넘기는 근사치로 처리 중 (완전히 시간에 다 들어가면
+            전부 포함되지만, 부족하면 어느 것이 빠질지는 보장 못 함). 둘 다 course_optimizer 알고리즘
+            자체의 확장이 필요해 별도 논의 대상 (decision-log 참고).
           items:
             $ref: '#/components/schemas/CourseCandidate'
 
