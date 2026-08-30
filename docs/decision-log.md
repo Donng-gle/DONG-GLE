@@ -464,3 +464,11 @@
 - **영향**: `client-front/package.json`에 `expo-image-picker` 추가, `app.json` plugins에 한국어 권한 문구로 설정 반영. `VisitLogCreateScreen.tsx`가 사진 선택 → `POST /uploads/presigned-url` → S3 PUT 업로드 → `photo_url`로 기록 생성까지 전체 흐름 연결됨(`photo_url`이 서버 스펙상 옵셔널이라 사진 없이도 기존처럼 작성 가능). `registerDeviceToken`(`user.ts`) API 함수와 `/places/map`(`place.ts`) API 함수는 라이브러리 도입 전이라 만들어만 두고 호출하는 화면은 없음 — 각 라이브러리 도입 결정 시 화면만 추가하면 됨
 
 ---
+
+## 2026-08-30 | client-front: 액세스 토큰 자동 갱신 연결
+
+- **결정**: `client-front/src/api/client.ts`의 공통 요청 함수가 인증 요청에서 401을 받으면 `refresh_token`으로 한 번 갱신 후 원요청을 재시도하도록 구현. 갱신까지 실패하면(리프레시 토큰도 만료/무효, 30일) 토큰을 정리하고 `App.tsx`에 등록된 리스너를 통해 로그인 화면으로 돌려보냄
+- **이유**: 서버 액세스 토큰 만료가 1시간(`application.yml access-token-expiry-seconds`)인데, 그동안 클라이언트엔 갱신 로직이 전혀 없어서 앱을 1시간 이상 켜두면 이후 모든 API 호출이 그냥 401로 실패하는 상태였음. `tokenStorage.ts`에 `setAccessToken()`이 이미 준비돼 있던 걸 보면 예전에 붙이려다 만 것으로 보여 마무리함
+- **영향**: 동시에 여러 요청이 401을 받아도 갱신 호출은 한 번만 나가도록 in-flight promise 공유 처리. `authApi.refresh`(auth.ts)와의 순환 의존을 피하려고 `client.ts` 내부에서 `/auth/refresh`를 fetch로 직접 호출(이 호출 자체는 `auth: false`라 갱신 재시도 로직 대상이 아님). 실기기 E2E 검증 시 1시간 이상 세션 유지 케이스도 같이 확인 필요(사용자 담당)
+
+---
