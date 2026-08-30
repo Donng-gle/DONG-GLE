@@ -5,6 +5,7 @@ import { UserProfile, authApi } from './src/api/auth';
 import { tokenStorage } from './src/auth/tokenStorage';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
+import { OnboardingScreen } from './src/screens/OnboardingScreen';
 
 export default function App() {
   const [checkingSession, setCheckingSession] = useState(true);
@@ -42,7 +43,11 @@ export default function App() {
   return (
     <View style={styles.container}>
       {profile ? (
-        <HomeScreen profile={profile} onLogout={() => setProfile(null)} />
+        profile.has_onboarded ? (
+          <HomeScreen profile={profile} onLogout={() => setProfile(null)} />
+        ) : (
+          <OnboardingScreen onComplete={() => setProfile({ ...profile, has_onboarded: true })} />
+        )
       ) : (
         <LoginScreen onLoginSuccess={setProfile} />
       )}
