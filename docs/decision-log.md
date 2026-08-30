@@ -395,3 +395,11 @@
 - **영향**: `CourseService.generate()`, `CourseController.generate()`, `CourseGenerateRequest`/`CourseGenerateResponse`/`CourseCandidateResponse` 추가. `SwipeService.likedOrMustCandidates()` 공개 메서드 신설(세션 소유권/만료 검증 + like/must 필터링 재사용). `GlobalExceptionHandler`에 `CourseOptimizerUpstreamException`(502, 그동안 미등록 상태였음)·`NotEnoughSwipeCandidatesException`(400, 신규) 핸들러 추가. `api_1.3.1v.yaml`의 `CourseGenerateResponse.candidates` 설명에 위 제약사항 명시. **김지광에게 요청 필요**: (1) 상위 N개 경로 반환 지원, (2) 필수 방문 장소 강제 포함 지원 — 이 둘이 되면 이 구현의 스코프 제한을 풀 수 있음
 
 ---
+
+## 2026-08-30 | 테스트 전용 Hikari 풀 크기 분리로 `./gradlew clean test` 플레이크 해결
+
+- **결정**: 위 "(관찰)" 항목에서 미룬 근본 해결 착수. `server-back/src/test/resources/application-test.yml` 신설(`spring.datasource.hikari.maximum-pool-size: 2`), `build.gradle.kts`의 `Test` 태스크에 `SPRING_PROFILES_ACTIVE=test` 환경변수를 자동 주입해 모든 테스트 JVM에서 이 프로파일이 항상 켜지도록 함(개별 테스트 클래스에 `@ActiveProfiles` 붙일 필요 없음). Spring Boot 프로파일 병합 방식이라 `src/main/resources/application.yml`(운영값 `5`)은 그대로 유지, 테스트만 값이 덮어써짐
+- **이유**: `@TestConfiguration`으로 별도 Spring 컨텍스트를 만드는 통합 테스트가 늘어날수록(`ImageProxyApiIntegrationTest`, `SwipeApiIntegrationTest` 등) 컨텍스트마다 자기 Hikari pool이 열려 공용 Supabase pooler 세션 모드 커넥션 한도(15개)를 넘기기 쉬웠음. 컨텍스트 수를 줄이는 방안(테스트 구조 조정)은 이번 스코프에서 제외하고, 컨텍스트당 풀 크기를 최소로 낮추는 쪽을 택함 — 운영 설정에 전혀 영향을 주지 않으면서 가장 빠르게 적용 가능
+- **영향**: `./gradlew clean test` 연속 2회 실행 모두 통과 확인(현재 컨텍스트 5개 × 풀 2개 = 최대 동시 커넥션 10개, 한도 15개 대비 여유 있음). 통합 테스트가 더 늘어나 컨텍스트가 6개를 넘으면(풀 2개 기준 총 12개, 7개부터 14개로 한도에 근접) 다시 플레이크가 재현될 수 있음 — 그 시점엔 풀 크기를 더 낮추거나(1개), Supabase `pool_size` 자체 상향, 또는 테스트 컨텍스트 캐시 재사용(공통 `@TestConfiguration` 통합 등)을 재검토 필요
+
+---
