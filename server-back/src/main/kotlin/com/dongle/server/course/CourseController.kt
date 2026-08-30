@@ -1,6 +1,8 @@
 package com.dongle.server.course
 
 import com.dongle.server.course.dto.CourseDetailResponse
+import com.dongle.server.course.dto.CourseGenerateRequest
+import com.dongle.server.course.dto.CourseGenerateResponse
 import com.dongle.server.course.dto.CourseManualRequest
 import com.dongle.server.course.dto.CourseSaveRequest
 import com.dongle.server.course.dto.CourseSaveResponse
@@ -29,6 +31,12 @@ class CourseController(
         @RequestParam(defaultValue = "1") page: Int,
         @RequestParam(defaultValue = "20") size: Int,
     ): MyCoursesResponse = courseService.myCourses(authentication.userId(), page, size)
+
+    @PostMapping("/courses/generate")
+    fun generate(
+        authentication: Authentication,
+        @Valid @RequestBody request: CourseGenerateRequest,
+    ): CourseGenerateResponse = courseService.generate(authentication.userId(), request)
 
     @PostMapping("/courses")
     fun save(
