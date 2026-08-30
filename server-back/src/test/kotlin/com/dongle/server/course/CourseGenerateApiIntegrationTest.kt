@@ -1,6 +1,14 @@
 package com.dongle.server.course
 
 import com.dongle.server.auth.jwt.JwtTokenProvider
+import com.dongle.server.course.directions.GoogleRoutesClient
+import com.dongle.server.course.directions.RouteLegResult
+import com.dongle.server.course.directions.RouteResult
+import com.dongle.server.course.optimizer.CourseOptimizationResult
+import com.dongle.server.course.optimizer.CourseOptimizerClient
+import com.dongle.server.course.optimizer.RouteScoreBreakdown
+import com.dongle.server.course.optimizer.ScoredRoute
+import com.dongle.server.course.optimizer.VisitStop
 import com.dongle.server.place.Place
 import com.dongle.server.place.PlaceCategory
 import com.dongle.server.place.PlaceRepository
@@ -15,35 +23,29 @@ import com.dongle.server.swipe.SwipeTransport
 import com.dongle.server.user.OAuthProvider
 import com.dongle.server.user.User
 import com.dongle.server.user.UserRepository
-import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
+import org.mockito.BDDMockito.given
+import org.mockito.Mockito
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
-import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
-import org.springframework.context.annotation.Bean
-import org.springframework.context.annotation.Primary
-import org.springframework.http.HttpMethod
 import org.springframework.http.MediaType
-import org.springframework.http.converter.json.JacksonJsonHttpMessageConverter
-import org.springframework.test.web.client.MockRestServiceServer
-import org.springframework.test.web.client.match.MockRestRequestMatchers.method
-import org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo
-import org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess
+import org.springframework.test.context.bean.override.mockito.MockitoBean
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import org.springframework.transaction.annotation.Transactional
-import org.springframework.web.client.RestClient
-import tools.jackson.databind.PropertyNamingStrategies
-import tools.jackson.databind.json.JsonMapper
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.OffsetDateTime
 
-// course_optimizer에 실제 네트워크 요청을 보내지 않도록, SwipeApiIntegrationTest와 동일한 방식으로
-// courseOptimizerRestClient 빈을 MockRestServiceServer 바인딩으로 대체한다 (@Primary).
+// CourseOptimizerClient/GoogleRoutesClient 둘 다를 컴포넌트 단위로 모킹한다 (@MockitoBean).
+// 처음엔 RestClient 레이어를 MockRestServiceServer로 가로채는 방식(SwipeApiIntegrationTest 참고)을
+// 썼으나, 같은 RestClient 타입 빈이 여러 개인 상태에서 한 테스트가 둘 이상을 동시에 교체하면
+// @Primary 하나가 전부를 이겨버려 서로 뒤섞이는 문제가 실제로 발생함(2026-08-30). 이 클라이언트들은
+// 각자 별개 타입(@Component)이라 @MockitoBean으로 바로 교체하면 그 문제 자체가 생기지 않음 —
+// 요청/응답의 실제 HTTP 계약 검증은 CourseOptimizerClientTest/GoogleRoutesClientTest(단위 테스트)가 이미 커버.
 @SpringBootTest
 @AutoConfigureMockMvc
 @Transactional
@@ -70,31 +72,13 @@ class CourseGenerateApiIntegrationTest {
     @Autowired
     lateinit var jwtTokenProvider: JwtTokenProvider
 
-    @AfterEach
-    fun resetMockServer() {
-        mockServer.reset()
-    }
+    @MockitoBean
+    lateinit var courseOptimizerClient: CourseOptimizerClient
 
-    @TestConfiguration
-    class MockCourseOptimizerRestClientConfig {
-        @Bean
-        @Primary
-        fun testCourseOptimizerRestClient(): RestClient {
-            val mapper = JsonMapper.builder()
-                .propertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE)
-                .build()
-            val builder = RestClient.builder()
-                .baseUrl(MOCK_BASE_URL)
-                .messageConverters { it.add(0, JacksonJsonHttpMessageConverter(mapper)) }
-            mockServer = MockRestServiceServer.bindTo(builder).build()
-            return builder.build()
-        }
-    }
+    @MockitoBean
+    lateinit var googleRoutesClient: GoogleRoutesClient
 
-    companion object {
-        private lateinit var mockServer: MockRestServiceServer
-        private const val MOCK_BASE_URL = "http://test-course-optimizer"
-    }
+    private fun <T> anyKt(): T = Mockito.any()
 
     private fun user(userId: String, oauthId: String) =
         userRepository.save(User(userId = userId, nickname = "테스터", oauthProvider = OAuthProvider.kakao, oauthId = oauthId))
@@ -147,39 +131,47 @@ class CourseGenerateApiIntegrationTest {
         return session
     }
 
-    private fun mockOptimize(vararg placeIds: Long) {
-        val stops = placeIds.joinToString(",") { id ->
-            """
-            {
-              "place_id": "$id",
-              "arrival_time": "2026-09-01T09:30:00",
-              "visit_start_time": "2026-09-01T09:30:00",
-              "departure_time": "2026-09-01T10:30:00",
-              "actual_stay_minutes": 60
-            }
-            """.trimIndent()
-        }
-        mockServer.expect(requestTo("$MOCK_BASE_URL/v1/courses/optimize"))
-            .andExpect(method(HttpMethod.POST))
-            .andRespond(
-                withSuccess(
-                    """
-                    {
-                      "selected_route": {
-                        "stops": [$stops],
-                        "score": {
-                          "time_score": 0.8, "transition_score": 0.7, "balance_score": 0.6,
-                          "experience_score": 0.75, "total_travel_minutes": 25, "travel_score": 0.9, "total_score": 0.82
-                        }
-                      },
-                      "candidate_route_count": 1, "evaluated_route_count": 1, "target_visit_count": ${placeIds.size},
-                      "free_time_minutes": 30, "prompt_version": "course-eval-v1", "model_name": "gpt-4.1-mini",
-                      "excluded_place_ids": [], "excluded_places": [], "exclusion_reason": {}, "replaced_places": {}
-                    }
-                    """.trimIndent(),
-                    MediaType.APPLICATION_JSON,
-                )
+    private fun stubOptimize(vararg placeIds: Long) {
+        val stops = placeIds.map { id ->
+            VisitStop(
+                placeId = id.toString(),
+                arrivalTime = LocalDateTime.of(2026, 9, 1, 9, 30),
+                visitStartTime = LocalDateTime.of(2026, 9, 1, 9, 30),
+                departureTime = LocalDateTime.of(2026, 9, 1, 10, 30),
+                actualStayMinutes = 60,
             )
+        }
+        val result = CourseOptimizationResult(
+            selectedRoute = ScoredRoute(
+                stops = stops,
+                score = RouteScoreBreakdown(
+                    timeScore = 0.8,
+                    transitionScore = 0.7,
+                    balanceScore = 0.6,
+                    experienceScore = 0.75,
+                    totalTravelMinutes = 25,
+                    travelScore = 0.9,
+                    totalScore = 0.82,
+                ),
+            ),
+            candidateRouteCount = 1,
+            evaluatedRouteCount = 1,
+            targetVisitCount = placeIds.size,
+            freeTimeMinutes = 30,
+            promptVersion = "course-eval-v1",
+            modelName = "gpt-4.1-mini",
+        )
+        given(courseOptimizerClient.optimizeCourse(anyKt())).willReturn(result)
+    }
+
+    private fun stubDirectionsRoute() {
+        val route = RouteResult(
+            totalDistanceMeters = 2000,
+            totalDurationSeconds = 1200,
+            legs = listOf(RouteLegResult(distanceMeters = 2000, durationSeconds = 1200)),
+            encodedPolyline = "gen-poly",
+        )
+        given(googleRoutesClient.computeRoute(anyKt(), anyKt())).willReturn(route)
     }
 
     @Test
@@ -191,7 +183,8 @@ class CourseGenerateApiIntegrationTest {
         semanticVector(placeA.id)
         semanticVector(placeB.id)
         val session = sessionWithLikedCandidates(owner, listOf(placeA, placeB))
-        mockOptimize(placeA.id, placeB.id)
+        stubOptimize(placeA.id, placeB.id)
+        stubDirectionsRoute()
 
         mockMvc.perform(
             post("/courses/generate")
@@ -205,9 +198,11 @@ class CourseGenerateApiIntegrationTest {
             .andExpect(jsonPath("$.candidates[0].places[0].place_id").value(placeA.id))
             .andExpect(jsonPath("$.candidates[0].places[0].name").value("테스트전용코스생성장소A"))
             .andExpect(jsonPath("$.candidates[0].places[0].visit_order").value(1))
-            .andExpect(jsonPath("$.candidates[0].total_duration_min").value(25))
-
-        mockServer.verify()
+            .andExpect(jsonPath("$.candidates[0].places[1].distance_from_prev_km").value(2.0))
+            .andExpect(jsonPath("$.candidates[0].places[1].duration_from_prev_min").value(20))
+            .andExpect(jsonPath("$.candidates[0].total_distance_km").value(2.0))
+            // Directions 응답(1200s=20분)이 course_optimizer 자체 산출값(25분)보다 우선함 (2026-08-30 변경)
+            .andExpect(jsonPath("$.candidates[0].total_duration_min").value(20))
     }
 
     @Test
