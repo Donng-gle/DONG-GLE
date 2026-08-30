@@ -13,6 +13,11 @@ import com.dongle.server.onboarding.OnboardingCardNotFoundException
 import com.dongle.server.place.PlaceAlreadyLikedException
 import com.dongle.server.place.PlaceLikeNotFoundException
 import com.dongle.server.place.PlaceNotFoundException
+import com.dongle.server.recommend.PlaceRecommenderUpstreamException
+import com.dongle.server.swipe.SwipeCandidateNotFoundException
+import com.dongle.server.swipe.SwipeSessionAccessDeniedException
+import com.dongle.server.swipe.SwipeSessionExpiredException
+import com.dongle.server.swipe.SwipeSessionNotFoundException
 import com.dongle.server.upload.UnsupportedContentTypeException
 import com.dongle.server.user.UserNotFoundException
 import com.dongle.server.visitlog.VisitLogAccessDeniedException
@@ -111,6 +116,32 @@ class GlobalExceptionHandler {
     fun handleVisitLogAccessDenied(ex: VisitLogAccessDeniedException): ResponseEntity<ErrorResponse> =
         ResponseEntity.status(HttpStatus.FORBIDDEN)
             .body(ErrorResponse(code = "VISIT_LOG_ACCESS_DENIED", message = ex.message ?: "본인 기록이 아닙니다."))
+
+    @ExceptionHandler(SwipeSessionNotFoundException::class)
+    fun handleSwipeSessionNotFound(ex: SwipeSessionNotFoundException): ResponseEntity<ErrorResponse> =
+        ResponseEntity.status(HttpStatus.NOT_FOUND)
+            .body(ErrorResponse(code = "SWIPE_SESSION_NOT_FOUND", message = ex.message ?: "스와이프 세션을 찾을 수 없습니다."))
+
+    @ExceptionHandler(SwipeSessionAccessDeniedException::class)
+    fun handleSwipeSessionAccessDenied(ex: SwipeSessionAccessDeniedException): ResponseEntity<ErrorResponse> =
+        ResponseEntity.status(HttpStatus.FORBIDDEN)
+            .body(ErrorResponse(code = "SWIPE_SESSION_ACCESS_DENIED", message = ex.message ?: "본인 세션이 아닙니다."))
+
+    // api_1.3.1v.yaml 예시가 code: SESSION_EXPIRED를 고정해뒀음 (SWIPE_SESSION_EXPIRED가 아님)
+    @ExceptionHandler(SwipeSessionExpiredException::class)
+    fun handleSwipeSessionExpired(ex: SwipeSessionExpiredException): ResponseEntity<ErrorResponse> =
+        ResponseEntity.status(HttpStatus.GONE)
+            .body(ErrorResponse(code = "SESSION_EXPIRED", message = ex.message ?: "스와이프 세션이 만료되었습니다."))
+
+    @ExceptionHandler(SwipeCandidateNotFoundException::class)
+    fun handleSwipeCandidateNotFound(ex: SwipeCandidateNotFoundException): ResponseEntity<ErrorResponse> =
+        ResponseEntity.status(HttpStatus.NOT_FOUND)
+            .body(ErrorResponse(code = "SWIPE_CANDIDATE_NOT_FOUND", message = ex.message ?: "세션의 후보 목록에 없는 장소입니다."))
+
+    @ExceptionHandler(PlaceRecommenderUpstreamException::class)
+    fun handlePlaceRecommenderUpstream(ex: PlaceRecommenderUpstreamException): ResponseEntity<ErrorResponse> =
+        ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+            .body(ErrorResponse(code = "PLACE_RECOMMENDER_UPSTREAM_ERROR", message = ex.message ?: "장소 추천에 실패했습니다."))
 
     @ExceptionHandler(MethodArgumentNotValidException::class)
     fun handleInvalidRequest(ex: MethodArgumentNotValidException): ResponseEntity<ErrorResponse> =

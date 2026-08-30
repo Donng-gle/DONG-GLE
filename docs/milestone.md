@@ -183,8 +183,9 @@
   - `GET /explore/similar-logs` — 내 상위 태그(score 상위 3개)와 겹치는(score 0.6 이상) 다른 유저의 공개 기록을 뷰포트 필터링해서 반환
   - `DELETE /logs/{logId}` 시 `place.visit_log_count`, `place_emotion_tag.count` 감소까지 스펙대로 구현
 - [ ] **미구현 잔여분 — 보류** (2026-08-05 재확인):
-  - `POST /places/{placeId}/logs`(여행 기록 작성) — 응답에 AI가 분석한 감성 태그를 동기적으로 포함해야 하는데, 그 이미지 분석 로직(`ai/semantic_vector`)이 김지광님 소유의 Python 코드라 백엔드에서 중복 구현 시 로직이 두 군데로 갈라짐. AI 연동 방식(백엔드에서 직접 재구현할지, 다른 방식으로 연동할지) 결정 필요
-  - `/courses/generate`, `/swipe/candidates`, `/swipe/sessions/{sessionId}`, `/swipe/sessions/{sessionId}/results` — 코스 추천 알고리즘 미확정이 선행 조건(김지광 담당). 스와이프 세션 저장용 테이블도 아직 없음
+  - [x] `POST /places/{placeId}/logs`(여행 기록 작성) — AI 감성 태그 자동 부여는 제외하고 우선 구현 완료 (2026-08-30, `feat/visit-log-create`). 기록 생성/저장, `visit_log_count` 증가는 정상 동작, 응답 `tags`는 AI 연동 전까지 항상 빈 배열 (decision-log 참고)
+  - [x] `/swipe/candidates`, `/swipe/sessions/{sessionId}`, `/swipe/sessions/{sessionId}/results` — **2026-08-30 구현 완료** (`feat/swipe-session`). `ai/place_recommender`(취향 벡터 기반 랭킹, PR #25 포함분) 호출 + 신설한 `swipe_session`/`swipe_session_candidate` 테이블로 세션 상태 저장. 세부 값(후보 20장, mood_tags 가중치 등)은 decision-log 참고
+  - `/courses/generate` — 스와이프 결과로 실제 코스 후보 생성(구글맵 Directions 연동 포함). `ai/course_optimizer` HTTP 클라이언트(`feat/course-optimizer-client`)는 준비됐지만 아직 이 엔드포인트와 연결 안 됨 — 다음 착수 후보
   - `/onboarding/cards`, `/onboarding/preferences` — api 스펙 자체에 `[DEPRECATED 가능성]` 표기됨. `Onboarding Algo.md`(v2.0.0)가 스와이프 방식(`/onboarding/next` 등)만 다루고 이 두 엔드포인트를 전혀 언급하지 않음 — 예전 카드 다중선택 방식의 흔적으로 추정되며, `/onboarding/complete`가 이미 같은 역할(결과 저장 + `has_onboarded` 갱신)을 스와이프 방식으로 수행 중이라 사실상 대체된 것으로 보임. 실제 필요 여부 팀 확인 후 스펙 정리 필요
   - `/admin/sync/places` — TourAPI 재동기화 트리거 기능인데, "데이터 파트가 DB에 직접 적재" 결정(2026-06-29)과 책임이 겹침. 응답 스펙의 `deactivated`(비활성화 수)를 반영할 soft-delete 컬럼도 `place` 테이블에 없어 스키마 추가까지 필요 — 정말 필요한 기능인지 재검토 필요
 
