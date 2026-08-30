@@ -13,6 +13,9 @@ import com.dongle.server.course.dto.CourseSaveRequest
 import com.dongle.server.course.dto.CourseSaveResponse
 import com.dongle.server.course.dto.CourseUpdateRequest
 import com.dongle.server.course.dto.MyCoursesResponse
+import com.dongle.server.course.directions.GoogleRoutesClient
+import com.dongle.server.course.directions.GoogleTravelMode
+import com.dongle.server.course.directions.RouteResult
 import com.dongle.server.course.optimizer.CandidatePlace
 import com.dongle.server.course.optimizer.CourseOptimizationResult
 import com.dongle.server.course.optimizer.CourseOptimizerClient
@@ -46,6 +49,7 @@ class CourseService(
     private val userRepository: UserRepository,
     private val swipeService: SwipeService,
     private val courseOptimizerClient: CourseOptimizerClient,
+    private val googleRoutesClient: GoogleRoutesClient,
     private val objectMapper: ObjectMapper,
 ) {
     fun myCourses(userId: Long, page: Int, size: Int): MyCoursesResponse {
@@ -70,6 +74,7 @@ class CourseService(
             title = request.title,
             source = requireNotNull(request.source),
             travelDate = request.travelDate,
+            transport = request.transport,
         )
         applyPlaces(course, request.places)
         return CourseSaveResponse(courseId = courseRepository.save(course).id)
@@ -82,6 +87,7 @@ class CourseService(
             title = request.title,
             source = CourseSource.user,
             travelDate = request.travelDate,
+            transport = request.transport,
         )
         applyPlaces(course, request.places)
         return CourseSaveResponse(courseId = courseRepository.save(course).id)
@@ -112,12 +118,14 @@ class CourseService(
         )
         val result = courseOptimizerClient.optimizeCourse(tripInput)
         val placesById = candidates.associate { it.place.id.toString() to it.place }
+        val stopPlaces = result.selectedRoute.stops.mapNotNull { placesById[it.placeId] }
+        val route = routeFor(stopPlaces, transport.toGoogleTravelMode())
 
-        return CourseGenerateResponse(candidates = listOf(result.toCourseCandidateResponse(placesById)))
+        return CourseGenerateResponse(candidates = listOf(result.toCourseCandidateResponse(placesById, route)))
     }
 
     fun getDetail(userId: Long, courseId: Long): CourseDetailResponse =
-        findOwnedCourse(userId, courseId).toDetailResponse()
+        courseDetailWithRoute(findOwnedCourse(userId, courseId))
 
     @Transactional
     fun update(userId: Long, courseId: Long, request: CourseUpdateRequest): CourseDetailResponse {
@@ -131,7 +139,7 @@ class CourseService(
         request.places?.let { applyPlaces(course, it) }
         course.updatedAt = LocalDateTime.now()
 
-        return course.toDetailResponse()
+        return courseDetailWithRoute(course)
     }
 
     @Transactional
@@ -169,6 +177,29 @@ class CourseService(
         SwipeTransport.`public` -> TransportMode.transit
     }
 
+    // api_1.3.1v.yaml의 SwipeTransport(car/walk/public) ↔ Google Routes API TravelMode(DRIVE/WALK/TRANSIT) 매핑
+    private fun SwipeTransport.toGoogleTravelMode(): GoogleTravelMode = when (this) {
+        SwipeTransport.car -> GoogleTravelMode.DRIVE
+        SwipeTransport.walk -> GoogleTravelMode.WALK
+        SwipeTransport.`public` -> GoogleTravelMode.TRANSIT
+    }
+
+    // 저장된 코스 조회/수정 응답에 구글맵 경로(이동거리/시간/폴리라인)를 재계산해서 채워넣는 공통 경로.
+    // course.transport가 없으면(과거 데이터, 직접 코스 짜기에서 미입력) walk로 기본 계산
+    private fun courseDetailWithRoute(course: Course): CourseDetailResponse {
+        val sorted = course.places.sortedBy { it.visitOrder }
+        val route = routeFor(sorted.map { it.place }, (course.transport ?: SwipeTransport.walk).toGoogleTravelMode())
+        return course.toDetailResponse(sorted, route)
+    }
+
+    // 좌표 없는 장소가 하나라도 섞여 있으면(스키마상 nullable) leg 인덱스가 안 맞게 되므로 아예 계산을 건너뛴다.
+    // Google Routes API 자체가 실패해도 GoogleRoutesClient가 null로 폴백하므로 코스 표시 자체는 항상 가능
+    private fun routeFor(places: List<Place>, mode: GoogleTravelMode): RouteResult? {
+        val waypoints = places.mapNotNull { p -> p.lat?.let { lat -> p.lng?.let { lng -> LatLng(lat, lng) } } }
+        if (waypoints.size != places.size || waypoints.size < 2) return null
+        return googleRoutesClient.computeRoute(waypoints, mode)
+    }
+
     // 좌표 없는 장소(스키마상 nullable)는 course_optimizer에 보낼 수 없어 조용히 제외
     private fun SwipeSessionCandidate.toOptimizerCandidateOrNull(vector: PlaceSemanticVector?): CandidatePlace? {
         val lat = place.lat ?: return null
@@ -200,9 +231,13 @@ class CourseService(
             null
         }
 
-    private fun CourseOptimizationResult.toCourseCandidateResponse(placesById: Map<String, Place>): CourseCandidateResponse {
+    private fun CourseOptimizationResult.toCourseCandidateResponse(
+        placesById: Map<String, Place>,
+        route: RouteResult?,
+    ): CourseCandidateResponse {
         val places = selectedRoute.stops.mapIndexed { index, stop ->
             val place = placesById[stop.placeId]
+            val leg = if (index == 0) null else route?.legs?.getOrNull(index - 1)
             CoursePlaceItemResponse(
                 placeId = place?.id ?: stop.placeId.toLongOrNull() ?: -1L,
                 name = place?.name ?: stop.placeId,
@@ -211,16 +246,18 @@ class CourseService(
                 lat = place?.lat,
                 lng = place?.lng,
                 mainImageUrl = place?.mainImageUrl,
-                distanceFromPrevKm = null,
-                durationFromPrevMin = null,
+                distanceFromPrevKm = leg?.distanceMeters?.let { it / 1000.0 },
+                durationFromPrevMin = leg?.durationSeconds?.let { Math.round(it / 60.0).toInt() },
             )
         }
         return CourseCandidateResponse(
             candidateId = "course_candidate_" + UUID.randomUUID(),
             title = DEFAULT_COURSE_TITLE,
             places = places,
-            totalDistanceKm = null,
-            totalDurationMin = selectedRoute.score.totalTravelMinutes,
+            totalDistanceKm = route?.totalDistanceMeters?.let { it / 1000.0 },
+            // Directions 실패 시에도 course_optimizer 자체 산출값으로 폴백 (2026-08-30 이전엔 이 값을 그대로 썼음)
+            totalDurationMin = route?.totalDurationSeconds?.let { Math.round(it / 60.0).toInt() }
+                ?: selectedRoute.score.totalTravelMinutes,
         )
     }
 
@@ -259,26 +296,27 @@ private fun Course.toListItemResponse() = CourseListItemResponse(
     createdAt = createdAt,
 )
 
-private fun Course.toDetailResponse() = CourseDetailResponse(
+private fun Course.toDetailResponse(sortedPlaces: List<CoursePlace>, route: RouteResult?) = CourseDetailResponse(
     id = id,
     title = title,
     travelDate = travelDate,
     source = source.name,
-    places = places.sortedBy { it.visitOrder }.map {
+    places = sortedPlaces.mapIndexed { index, cp ->
+        val leg = if (index == 0) null else route?.legs?.getOrNull(index - 1)
         CoursePlaceItemResponse(
-            placeId = it.place.id,
-            name = it.place.name,
-            visitOrder = it.visitOrder,
-            plannedTime = it.plannedTime?.toString(),
-            lat = it.place.lat,
-            lng = it.place.lng,
-            mainImageUrl = it.place.mainImageUrl,
-            distanceFromPrevKm = null,
-            durationFromPrevMin = null,
+            placeId = cp.place.id,
+            name = cp.place.name,
+            visitOrder = cp.visitOrder,
+            plannedTime = cp.plannedTime?.toString(),
+            lat = cp.place.lat,
+            lng = cp.place.lng,
+            mainImageUrl = cp.place.mainImageUrl,
+            distanceFromPrevKm = leg?.distanceMeters?.let { it / 1000.0 },
+            durationFromPrevMin = leg?.durationSeconds?.let { Math.round(it / 60.0).toInt() },
         )
     },
-    totalDistanceKm = null,
-    totalDurationMin = null,
-    polyline = null,
+    totalDistanceKm = route?.totalDistanceMeters?.let { it / 1000.0 },
+    totalDurationMin = route?.totalDurationSeconds?.let { Math.round(it / 60.0).toInt() },
+    polyline = route?.encodedPolyline,
     updatedAt = updatedAt,
 )

@@ -403,3 +403,15 @@
 - **영향**: `./gradlew clean test` 연속 2회 실행 모두 통과 확인(현재 컨텍스트 5개 × 풀 2개 = 최대 동시 커넥션 10개, 한도 15개 대비 여유 있음). 통합 테스트가 더 늘어나 컨텍스트가 6개를 넘으면(풀 2개 기준 총 12개, 7개부터 14개로 한도에 근접) 다시 플레이크가 재현될 수 있음 — 그 시점엔 풀 크기를 더 낮추거나(1개), Supabase `pool_size` 자체 상향, 또는 테스트 컨텍스트 캐시 재사용(공통 `@TestConfiguration` 통합 등)을 재검토 필요
 
 ---
+
+## 2026-08-30 | 구글맵 Directions(Routes API) 연동 — `/courses/generate`, `GET /courses/{courseId}` 이동거리/시간/폴리라인 계산
+
+- **결정**: Google **Routes API v2**(`POST https://routes.googleapis.com/directions/v2:computeRoutes`, `X-Goog-Api-Key`/`X-Goog-FieldMask` 헤더 방식)로 코스의 이동거리/시간/폴리라인을 계산하는 `GoogleRoutesClient` 신규 작성, `/courses/generate`와 `GET /courses/{courseId}`(및 `PATCH`) 양쪽에 연결. 레거시 Directions API(`maps.googleapis.com/maps/api/directions/json`)가 아니라 Routes API를 택한 이유는 `ai/course_optimizer/routes_client.py`(김지광)가 이미 내부 이동시간 행렬 계산에 이 API를 쓰고 있어서 — 같은 Google Cloud 프로젝트에서 이미 활성화·검증된 API를 재사용
+  - waypoint 순서는 그대로 사용하고 Google에 재최적화(waypoint optimize)를 요청하지 않음 — course_optimizer/사용자가 이미 감성 점수·영업시간 등을 고려해 정한 순서를 순수 거리 기준으로 다시 흔들면 안 되기 때문. 예전 api_1.3.1v.yaml 문구("경유지 최적화 호출 시 사용")와는 의도적으로 다르게 구현
+  - 실패해도 코스 자체는 보여줘야 하므로(이동거리/시간은 부가 정보) `GoogleRoutesClient`가 예외를 던지지 않고 항상 null로 폴백. 좌표 없는 장소가 하나라도 섞이면(스키마상 nullable) leg 인덱스가 안 맞아 아예 계산을 건너뜀
+  - `course` 테이블에 `transport` 컬럼 신규 추가(nullable, car/walk/public) — 저장된 코스를 조회할 때 어떤 이동수단으로 재계산할지 알아야 하는데 기존엔 저장 시점에 이 값을 받는 필드 자체가 없었음(`CourseManualRequest.transport`가 "구글맵 도입 시 사용 예정, 현재는 저장 안 함" 주석과 함께 이미 존재했고, `CourseSaveRequest`엔 아예 없었음). 둘 다 이번에 실제로 저장하도록 연결, `CourseSaveRequest`에도 옵셔널로 신규 추가(api_1.3.1v.yaml 반영). 값이 없으면(과거 데이터, 미입력) `walk` 기본값으로 계산
+  - `/courses/generate`의 `totalDurationMin`은 이제 Directions 실계산값을 우선 사용하고(기존엔 course_optimizer의 `selectedRoute.score.totalTravelMinutes`), Directions 실패 시에만 그 값으로 폴백
+- **이유**: 스프린트3부터 "구글맵 Directions 경로 재계산(이동시간/거리/폴리라인)은 스코프 제외, 코드에 TODO"로 미뤄뒀던 항목. 팀 확인 없이 바로 진행 가능한 순수 백엔드 구현 항목이라 착수
+- **영향**: `schema.sql`/`schema.dbml`에 `course.transport` 컬럼 추가, 공용 Supabase에도 `ALTER TABLE`로 반영 완료(nullable 추가라 기존 데이터 영향 없음). `CoursePlaceItemResponse.distanceFromPrevKm`/`durationFromPrevMin`, `CourseDetailResponse`/`CourseCandidateResponse`의 `totalDistanceKm`/`totalDurationMin`/`polyline`이 이제 실제 값을 반환(그동안 전부 항상 null이었음). **테스트 작성 중 발견한 별도 버그(중요)**: `RestClient` 타입 빈이 여러 개(course-optimizer/place-recommender/google-routes) 있는 상태에서 `@TestConfiguration` + `@Primary`로 그중 하나만 교체해도, Spring이 "같은 타입이면 @Primary 하나가 전부를 이긴다"는 규칙 때문에 그 테스트 안에서 다른 외부 클라이언트까지 몽땅 그 목(mock)으로 뒤섞여버림 — `CourseGenerateApiIntegrationTest`가 course_optimizer와 google-routes를 동시에 호출하면서 처음 발견됨. `@Qualifier`로 임시 해결을 시도했으나 `NoUniqueBeanDefinitionException`으로 실패, 최종적으로 `CourseOptimizerClient`/`GoogleRoutesClient`를 `@MockitoBean`으로 직접 모킹하는 방식으로 전환해 해결(`CourseGenerateApiIntegrationTest`, `CourseApiIntegrationTest` 갱신). `SwipeApiIntegrationTest`(place_recommender만 단독으로 모킹)는 이 문제에 해당하지 않아 그대로 둠 — 앞으로 **한 테스트에서 외부 RestClient 클라이언트 2개 이상을 모킹해야 하면 반드시 `@MockitoBean`으로 클라이언트 자체를 모킹할 것**, `@Primary` RestClient 교체 방식은 쓰지 말 것
+
+---

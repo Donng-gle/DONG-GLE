@@ -883,6 +883,13 @@ components:
           format: date
           nullable: true
           description: 여행 예정일. 이 날짜를 기준으로 course_reminder 알림이 발송됨.
+        transport:
+          type: string
+          enum: [car, walk, public]
+          nullable: true
+          description: |
+            [2026-08-30 추가] 구글맵 경로 재계산(GET /courses/{courseId})에 사용할 이동수단.
+            AI 생성 코스는 보통 /swipe/candidates에서 쓴 값을 그대로 전달. 비어있으면 조회 시 walk로 계산.
         source:
           type: string
           enum: [ai, ai_edited, user]

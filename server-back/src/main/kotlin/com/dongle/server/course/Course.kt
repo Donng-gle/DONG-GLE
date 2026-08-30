@@ -1,5 +1,6 @@
 package com.dongle.server.course
 
+import com.dongle.server.swipe.SwipeTransport
 import com.dongle.server.user.User
 import jakarta.persistence.CascadeType
 import jakarta.persistence.Column
@@ -38,6 +39,11 @@ class Course(
 
     @Column(name = "travel_date")
     var travelDate: LocalDate? = null,
+
+    // 구글맵 경로 재계산(GoogleRoutesClient)에 쓰는 이동수단. 과거 데이터/미입력 허용(nullable)
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = true)
+    var transport: SwipeTransport? = null,
 
     @Column(name = "created_at", nullable = false)
     val createdAt: LocalDateTime = LocalDateTime.now(),
