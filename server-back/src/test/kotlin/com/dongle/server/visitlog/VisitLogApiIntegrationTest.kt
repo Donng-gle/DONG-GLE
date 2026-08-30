@@ -18,6 +18,7 @@ import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import org.springframework.transaction.annotation.Transactional
@@ -65,6 +66,73 @@ class VisitLogApiIntegrationTest {
         val saved = visitLogRepository.save(VisitLog(user = user, place = place, oneLine = oneLine))
         tags.forEach { saved.emotionTags.add(LogEmotionTag(visitLog = saved, tag = it)) }
         return visitLogRepository.save(saved)
+    }
+
+    @Test
+    fun `여행 기록을 작성하면 장소의 방문 카운트가 증가하고 태그는 빈 배열로 응답한다`() {
+        val owner = user("log_user_create_1", "kakao-log-create-1")
+        val token = jwtTokenProvider.generateAccessToken(owner.id)
+        val place = place("LOG_CREATE001", "테스트전용기록작성장소", visitLogCount = 2)
+
+        mockMvc.perform(
+            post("/places/${place.id}/logs")
+                .header("Authorization", "Bearer $token")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"photo_url":"https://example.com/a.jpg","one_line":"테스트전용신규기록","visited_at":"2026-08-01T10:00:00"}""")
+        )
+            .andExpect(status().isCreated)
+            .andExpect(jsonPath("$.place_id").value(place.id))
+            .andExpect(jsonPath("$.place_name").value("테스트전용기록작성장소"))
+            .andExpect(jsonPath("$.one_line").value("테스트전용신규기록"))
+            .andExpect(jsonPath("$.photo_url").value("https://example.com/a.jpg"))
+            // AI 이미지 분석 미연동(2026-08-30 결정) — 태그는 항상 빈 배열
+            .andExpect(jsonPath("$.tags.length()").value(0))
+
+        val updatedPlace = placeRepository.findById(place.id).orElseThrow()
+        assert(updatedPlace.visitLogCount == 3) { "visitLogCount expected 3 but was ${updatedPlace.visitLogCount}" }
+    }
+
+    @Test
+    fun `사진과 방문일 없이도 여행 기록을 작성할 수 있다`() {
+        val owner = user("log_user_create_2", "kakao-log-create-2")
+        val token = jwtTokenProvider.generateAccessToken(owner.id)
+        val place = place("LOG_CREATE002", "테스트전용최소필드장소")
+
+        mockMvc.perform(
+            post("/places/${place.id}/logs")
+                .header("Authorization", "Bearer $token")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"one_line":"테스트전용최소필드기록"}""")
+        )
+            .andExpect(status().isCreated)
+            .andExpect(jsonPath("$.photo_url").doesNotExist())
+            .andExpect(jsonPath("$.visited_at").exists())
+    }
+
+    @Test
+    fun `존재하지 않는 장소에 기록을 작성하면 404를 반환한다`() {
+        val owner = user("log_user_create_3", "kakao-log-create-3")
+        val token = jwtTokenProvider.generateAccessToken(owner.id)
+
+        mockMvc.perform(
+            post("/places/999999999/logs")
+                .header("Authorization", "Bearer $token")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"one_line":"테스트"}""")
+        )
+            .andExpect(status().isNotFound)
+    }
+
+    @Test
+    fun `인증 없이 여행 기록을 작성하면 401을 반환한다`() {
+        val place = place("LOG_CREATE004", "테스트전용비인증장소")
+
+        mockMvc.perform(
+            post("/places/${place.id}/logs")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"one_line":"테스트"}""")
+        )
+            .andExpect(status().isUnauthorized)
     }
 
     @Test
