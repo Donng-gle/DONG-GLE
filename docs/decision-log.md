@@ -498,3 +498,15 @@
 - **결정**: 실제 Supabase `onboarding_card` 테이블을 직접 조회해 현재 상태를 수치로 확인. 전체 11건(시드 7 + 일반 4)뿐이고, 태그별 커버리지가 relaxing 4 / lively 2 / romantic 1 / local 3 / photogenic 6 / traditional 3 / modern 2 — 7개 태그 중 5개가 milestone.md에 명시된 "최소 4장" 기준 미달(`romantic`은 1장뿐)
 - **이유**: 사용자가 "온보딩에 유저 사진이 뜨는지" 질문한 걸 계기로 실데이터 상태를 처음으로 직접 확인함(그동안 `onboarding_card` 시드 스크립트 자체가 스프린트3까지 계속 `[ ]` 미완료로만 기록돼 있었고, 실제 DB 상태 수치는 기록된 적 없었음). 시드 7장을 다 보여준 뒤 이어서 보여줄 카드가 4장뿐이라, 온보딩 알고리즘 스펙(균형 60%+탐색 30%+랜덤 10%로 최소 15장~최대 25장 진행)이 실제로는 작동할 수 없는 상태
 - **영향**: `milestone.md`의 `onboarding_card` 시드 스크립트 항목(이수연 담당)에 이 수치 반영. 공모전 데모 전 반드시 채워야 하는 항목으로 우선순위 상향 필요 — 이수연에게 수치 전달 필요
+
+---
+
+## 2026-08-31 | 디자인 적용 착수 — Pretendard 폰트 도입, LoginScreen 1차 반영
+
+- **결정**: Figma 문서("디자인" 페이지, 77개 프레임)를 화면 우선순위 없이 앱 플로우 순서대로(로그인부터) 하나씩 실제 코드에 반영하기로 함. 첫 화면으로 `LoginScreen.tsx`를 Figma 노드 `330:1293`(로그인 프레임, 카카오/구글 버튼 있는 최종 상태) 스펙대로 재작성. 이 과정에서 앱 전역에 처음 필요해진 두 가지를 같이 결정:
+  1. **Pretendard 폰트**: 프로젝트에 폰트 로딩 자체가 없었음(디자인 반영 전 화면들은 시스템 기본 폰트). `pretendard` npm 패키지 배포본(jsdelivr CDN, `dist/public/static/alternative/*.ttf`)에서 Regular/Medium/SemiBold/Bold 4종만 받아 `client-front/assets/fonts/`에 번들, `App.tsx`에서 `expo-font`의 `useFonts`로 앱 시작 시 한 번만 로드(로딩 전엔 스피너). `app.config.js`가 동적 설정이라 `expo-font` config-plugin이 `app.json`에 자동으로 못 써서 `plugins` 배열에 수기로 추가함. 화면마다 반복 쓸 `fontFamily`/색상 상수는 `src/theme/fonts.ts`·`src/theme/colors.ts`로 신설 — 앞으로 디자인 반영하는 모든 화면이 이 두 파일을 공유
+  2. **로그인 배경 사진 교체**: Figma의 배경 사진(노드 `330:1294`/`330:1295`, 월영교)을 그대로 export해보니 우측 하단에 스톡사진 미리보기 워터마크가 찍혀 있어 그대로 쓸 수 없었음. Supabase `place` 테이블에서 월영교(`id=116`)를 직접 조회해 TourAPI 적재 사진(`https://tong.visitkorea.or.kr/cms/resource_photo/85/4062785_image2_1.jpg`, 야경 컷)으로 교체 — 이미 라이선스가 확인된 프로젝트 데이터셋 사진이라 워터마크/저작권 문제 없음
+  - **"비로그인 상태로 계속 진행" 버튼**: 이번엔 UI만 반영(버튼 배치·문구까지 디자인대로), 실제 동작은 "준비 중" 알림만 뜸. `App.tsx`의 네비게이션 구조가 아직 비로그인 상태를 지원하지 않아서(로그인 성공 시에만 다음 화면 진입) 게스트 모드 전체 구현은 범위가 커서 별도 작업으로 분리하기로 함
+  - **카카오/구글 버튼 아이콘**: Figma 아이콘 노드(`334:1399` 카카오, `334:1404` 구글)를 export해도 이 세션의 MCP 툴 경로로는 이미지 바이트를 실제 파일로 저장할 방법이 없었음(항상 렌더링된 미리보기로만 반환됨). 구글은 공식 배포 자산(`developers.google.com/identity/images/g-logo.png`)을 받아 번들. 카카오는 카카오 공식 디자인 가이드(색상 규정: 심볼 `#FEE500` 배경 + 검정 심볼) 색상만 따르고, 심볼 자체는 RN View 조합(노란 원 + 검정 말풍선 사각형)으로 근사 구현 — 실제 브랜드 리소스 파일로 나중에 교체 가능하도록 컴포넌트 분리는 안 해두었음(단순 인라인)
+- **이유**: 디자인 팀 산출물을 코드로 옮기는 첫 화면이라, 이후 모든 화면이 재사용할 폰트/색상 로딩 기반을 여기서 먼저 갖춰야 했음. 배경 사진은 라이선스 리스크가 명확해서 임의로 넘어가지 않고 즉시 교체
+- **영향**: `client-front/App.tsx`, `app.config.js`, `src/screens/LoginScreen.tsx`, `src/theme/{colors,fonts}.ts`, `assets/fonts/Pretendard-*.ttf`(4종, 총 ~10.3MB), `assets/images/google-logo.png` 추가/수정. `tsc --noEmit` 통과 확인, 실기기 시각 확인은 이번 세션엔 Metro/adb 연결이 없어서 못함(다음 실기기 세션에서 확인 필요). `feat/react-native-maps` 브랜치에 커밋·push 완료(`client` 기준 미병합). **다음 화면 작업 시에도 이 결정(폰트 로딩 방식, 배경 사진 교체 원칙, 게스트 버튼 UI-only 범위)을 그대로 따를 것**
