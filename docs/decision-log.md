@@ -510,3 +510,11 @@
   - **카카오/구글 버튼 아이콘**: Figma 아이콘 노드(`334:1399` 카카오, `334:1404` 구글)를 export해도 이 세션의 MCP 툴 경로로는 이미지 바이트를 실제 파일로 저장할 방법이 없었음(항상 렌더링된 미리보기로만 반환됨). 구글은 공식 배포 자산(`developers.google.com/identity/images/g-logo.png`)을 받아 번들. 카카오는 카카오 공식 디자인 가이드(색상 규정: 심볼 `#FEE500` 배경 + 검정 심볼) 색상만 따르고, 심볼 자체는 RN View 조합(노란 원 + 검정 말풍선 사각형)으로 근사 구현 — 실제 브랜드 리소스 파일로 나중에 교체 가능하도록 컴포넌트 분리는 안 해두었음(단순 인라인)
 - **이유**: 디자인 팀 산출물을 코드로 옮기는 첫 화면이라, 이후 모든 화면이 재사용할 폰트/색상 로딩 기반을 여기서 먼저 갖춰야 했음. 배경 사진은 라이선스 리스크가 명확해서 임의로 넘어가지 않고 즉시 교체
 - **영향**: `client-front/App.tsx`, `app.config.js`, `src/screens/LoginScreen.tsx`, `src/theme/{colors,fonts}.ts`, `assets/fonts/Pretendard-*.ttf`(4종, 총 ~10.3MB), `assets/images/google-logo.png` 추가/수정. `tsc --noEmit` 통과 확인, 실기기 시각 확인은 이번 세션엔 Metro/adb 연결이 없어서 못함(다음 실기기 세션에서 확인 필요). `feat/react-native-maps` 브랜치에 커밋·push 완료(`client` 기준 미병합). **다음 화면 작업 시에도 이 결정(폰트 로딩 방식, 배경 사진 교체 원칙, 게스트 버튼 UI-only 범위)을 그대로 따를 것**
+
+---
+
+## 2026-08-31 | 앱 전체에 세이프에어리어 처리가 아예 없던 버그 발견/수정 (`react-native-safe-area-context` 도입)
+
+- **결정**: 위 LoginScreen을 실기기(SM_S901N, Android)로 처음 띄워보고서야 발견 — 앱 전체에 `react-native-safe-area-context`가 한 번도 설치된 적이 없어서, 화면 하단 콘텐츠가 시스템 내비게이션 바(제스처바/3버튼 내비 모두)에 그냥 가려지고 있었음(Expo SDK 57이 Android edge-to-edge를 기본으로 렌더링하기 때문). `react-native-safe-area-context` 설치 후 `App.tsx` 최상단을 `SafeAreaProvider`로 감싸고, `LoginScreen`은 `useSafeAreaInsets()`로 받은 `insets.bottom`을 하단 시트 `paddingBottom`에 반영(`Math.max(디자인값 36, insets.bottom + 16)`)
+- **이유**: 이 프로젝트가 지금까지 화면 대부분을 에뮬레이터/타입체크로만 검증하고 실기기 육안 확인 없이 넘어와서 안 걸렸던 것으로 보임(온보딩/코스/탐색 등 기존 화면들도 같은 문제를 안고 있을 가능성이 높음 — 이번엔 LoginScreen만 고침). 디자인 반영을 시작한 첫 화면에서 바로 걸려서 지금 고치고 넘어감
+- **영향**: `client-front/package.json`에 `react-native-safe-area-context` 추가(네이티브 모듈이라 `expo run:android` 재빌드 필요했음 — JS Fast Refresh만으로는 `IllegalViewOperationException`으로 크래시). 실기기(SM_S901N)로 하단 문구 안 가리는 것 확인 완료. **다음 화면부터도 하단/좌우 여백이 있는 화면은 처음부터 `useSafeAreaInsets`를 반영할 것** — 기존 화면(온보딩, 홈, 탐색 등)도 언젠가 실기기로 훑어서 같은 문제 있는지 점검 필요(별도 작업)
