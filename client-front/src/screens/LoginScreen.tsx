@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { ActivityIndicator, Alert, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as WebBrowser from 'expo-web-browser';
 import { GoogleSignin, isSuccessResponse } from '@react-native-google-signin/google-signin';
@@ -22,7 +23,12 @@ interface Props {
   onLoginSuccess: (profile: UserProfile) => void;
 }
 
+type Step = 'intro' | 'login';
+
 export function LoginScreen({ onLoginSuccess }: Props) {
+  // 실제 Figma 플로우: 히어로 사진 + "계속하기"(intro) → 탭하면 로그인 옵션 바텀시트(login)가
+  // 같은 사진 위로 올라오는 2단계 구성 (2026-08-31 확인, decision-log 참고)
+  const [step, setStep] = useState<Step>('intro');
   const [loading, setLoading] = useState<Provider | null>(null);
   const insets = useSafeAreaInsets();
 
@@ -96,66 +102,111 @@ export function LoginScreen({ onLoginSuccess }: Props) {
     <View style={styles.container}>
       <StatusBar style="light" />
 
-      <View style={styles.hero}>
-        <Image source={{ uri: HERO_IMAGE_URL }} style={StyleSheet.absoluteFill} resizeMode="cover" />
-      </View>
+      <Image source={{ uri: HERO_IMAGE_URL }} style={StyleSheet.absoluteFill} resizeMode="cover" />
 
-      <View style={[styles.sheet, { paddingBottom: Math.max(36, insets.bottom + 16) }]}>
-        <View style={styles.handle} />
+      {step === 'intro' ? (
+        <View style={styles.introOverlay}>
+          <LinearGradient colors={['transparent', colors.white]} style={styles.introGradient} />
 
-        <Text style={styles.title}>로그인하기</Text>
-
-        <TouchableOpacity
-          style={[styles.button, styles.kakaoButton]}
-          disabled={loading !== null}
-          onPress={() => promptKakaoLoginAsync()}
-        >
-          {loading === 'kakao' ? (
-            <ActivityIndicator color={colors.gray700} />
-          ) : (
-            <>
-              <View style={styles.kakaoSymbol}>
-                <View style={styles.kakaoSymbolBubble} />
-              </View>
-              <Text style={styles.kakaoButtonText}>카카오 로그인</Text>
-            </>
-          )}
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.button, styles.googleButton]}
-          disabled={loading !== null}
-          onPress={() => promptGoogleLoginAsync()}
-        >
-          {loading === 'google' ? (
-            <ActivityIndicator color={colors.white} />
-          ) : (
-            <>
-              <View style={styles.googleSymbol}>
-                <Image source={require('../../assets/images/google-logo.png')} style={styles.googleLogoImage} />
-              </View>
-              <Text style={styles.googleButtonText}>Google 로그인</Text>
-            </>
-          )}
-        </TouchableOpacity>
-
-        <View style={styles.guestRow}>
-          <View style={styles.divider} />
-          <TouchableOpacity onPress={handleGuestPress} disabled={loading !== null}>
-            <Text style={styles.guestText}>비로그인 상태로 계속 진행</Text>
-          </TouchableOpacity>
-          <View style={styles.divider} />
+          <View style={[styles.introContent, { paddingBottom: Math.max(24, insets.bottom + 16) }]}>
+            <Text style={styles.introTitle}>여행지를{'\n'}발견해보세요</Text>
+            <Text style={styles.introSubtitle}>
+              안동의 멋진 장소와 숨겨진 명소를{'\n'}앱에서 손쉽게 탐험해보세요.
+            </Text>
+            <TouchableOpacity style={styles.continueButton} onPress={() => setStep('login')}>
+              <Text style={styles.continueButtonText}>계속하기</Text>
+            </TouchableOpacity>
+          </View>
         </View>
+      ) : (
+        <View style={styles.loginOverlay}>
+          {/* 시트 바깥(사진 영역)을 탭하면 intro로 돌아감 — 바텀시트 흔한 관례 */}
+          <Pressable style={styles.dismissArea} onPress={() => setStep('intro')} />
 
-        <Text style={styles.guideText}>개인 맞춤형 장소 추천 및 코스 생성을 원하시면 로그인하세요</Text>
-      </View>
+          <View style={[styles.sheet, { paddingBottom: Math.max(36, insets.bottom + 16) }]}>
+            <View style={styles.handle} />
+
+            <Text style={styles.title}>로그인하기</Text>
+
+            <TouchableOpacity
+              style={[styles.button, styles.kakaoButton]}
+              disabled={loading !== null}
+              onPress={() => promptKakaoLoginAsync()}
+            >
+              {loading === 'kakao' ? (
+                <ActivityIndicator color={colors.gray700} />
+              ) : (
+                <>
+                  <View style={styles.kakaoSymbol}>
+                    <View style={styles.kakaoSymbolBubble} />
+                  </View>
+                  <Text style={styles.kakaoButtonText}>카카오 로그인</Text>
+                </>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.button, styles.googleButton]}
+              disabled={loading !== null}
+              onPress={() => promptGoogleLoginAsync()}
+            >
+              {loading === 'google' ? (
+                <ActivityIndicator color={colors.white} />
+              ) : (
+                <>
+                  <View style={styles.googleSymbol}>
+                    <Image source={require('../../assets/images/google-logo.png')} style={styles.googleLogoImage} />
+                  </View>
+                  <Text style={styles.googleButtonText}>Google 로그인</Text>
+                </>
+              )}
+            </TouchableOpacity>
+
+            <View style={styles.guestRow}>
+              <View style={styles.divider} />
+              <TouchableOpacity onPress={handleGuestPress} disabled={loading !== null}>
+                <Text style={styles.guestText}>비로그인 상태로 계속 진행</Text>
+              </TouchableOpacity>
+              <View style={styles.divider} />
+            </View>
+
+            <Text style={styles.guideText}>개인 맞춤형 장소 추천 및 코스 생성을 원하시면 로그인하세요</Text>
+          </View>
+        </View>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.black },
-  hero: { flex: 1 },
+  introOverlay: { flex: 1 },
+  introGradient: { position: 'absolute', top: '28%', left: 0, right: 0, bottom: 0 },
+  introContent: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 20 },
+  introTitle: {
+    fontFamily: fonts.bold,
+    fontSize: 28,
+    lineHeight: 33.6,
+    color: colors.black,
+    marginBottom: 12,
+  },
+  introSubtitle: {
+    fontFamily: fonts.medium,
+    fontSize: 16,
+    lineHeight: 19.2,
+    color: colors.gray500,
+    marginBottom: 32,
+  },
+  continueButton: {
+    height: 48,
+    borderRadius: 6,
+    backgroundColor: colors.black,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  continueButtonText: { fontFamily: fonts.semiBold, fontSize: 16, letterSpacing: -0.4, color: colors.white },
+  loginOverlay: { flex: 1 },
+  dismissArea: { flex: 1 },
   sheet: {
     backgroundColor: colors.white,
     borderTopLeftRadius: 20,
