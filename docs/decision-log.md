@@ -484,3 +484,17 @@
 - **영향**: `server-back/src/main/kotlin/com/dongle/server/auth/oauth/KakaoOAuthHttpConfig.kt` 신설, `KakaoOAuthClient` 생성자에 `kakaoOAuthRestClient: RestClient` 주입(`server` 브랜치 배포 완료). `client-front/src/api/config.ts`/`​.env.example`에 `EXPO_PUBLIC_API_BASE_URL` 추가(`client` 브랜치, `dev`엔 아직 미병합). **작업 방식 교훈**: 이번 세션 중 백엔드 코드를 고치려고 같은 작업 디렉토리에서 `git checkout server`를 여러 번 했다가, 그때마다 Metro가 실기기에 설치된 앱의 `client-front` 파일 변경을 감지해서 옛날 코드를 핫리로드해버리는 사고가 반복 발생함(카카오 KOE006 오류의 실제 원인이었음) — **실기기 테스트가 진행 중인 동안 다른 브랜치 작업이 필요하면 반드시 `git worktree add`로 별도 디렉토리를 만들어 작업할 것**, 같은 디렉토리에서 `git checkout`으로 브랜치를 오가면 안 됨
 
 ---
+
+## 2026-08-31 | 방문 기록 AI 태그: 백엔드는 이미 준비됨, AI 쪽이 `log_emotion_tag`에 직접 적재 예정으로 확인
+
+- **결정**: 김지광 확인 결과 (1) 방문 기록 사진 감성 태그는 AI 서버가 별도 배치로 DB(`log_emotion_tag`)에 직접 적재하는 방식으로 진행, (2) AI 코스 생성은 지금처럼 사용자 요청 시점에 백엔드가 동기 호출하는 방식이 맞음(변경 없음)을 코드로 재확인
+- **이유**: `VisitLogService`의 `tags` 필드가 하드코딩된 빈 배열이 아니라 `VisitLog.emotionTags`(`log_emotion_tag` 테이블에 대한 JPA `@OneToMany` 실시간 조회)를 그대로 매핑하는 구조임을 코드로 확인 — AI가 `visit_log_id` 기준으로 `log_emotion_tag`에 행을 채워넣기 시작하면 백엔드 추가 작업 없이 GET 엔드포인트들이 자동으로 태그를 반환함. `CourseService.generate()`도 이미 요청 시점에 `ai/course_optimizer`를 동기 호출하는 구조라 김지광이 설명한 방식과 정확히 일치함을 확인
+- **영향**: 코드 변경 없음. **미해결 질문**: `place_emotion_tag.count`(장소별 감성태그 집계)를 AI가 `log_emotion_tag` 적재 시 같이 갱신해주는지, 아니면 백엔드가 별도 동기화 로직을 추가해야 하는지 김지광에게 확인 필요 — 현재 `VisitLogService.delete()`엔 감소 로직만 있고 증가 로직이 없는 상태(AI 연동 전이라 애초에 필요 없었음). 확인되면 필요 시 `create()`에 증가 로직 추가
+
+---
+
+## 2026-08-31 | onboarding_card 실데이터 부족 확인 — 데모 전 반드시 보강 필요
+
+- **결정**: 실제 Supabase `onboarding_card` 테이블을 직접 조회해 현재 상태를 수치로 확인. 전체 11건(시드 7 + 일반 4)뿐이고, 태그별 커버리지가 relaxing 4 / lively 2 / romantic 1 / local 3 / photogenic 6 / traditional 3 / modern 2 — 7개 태그 중 5개가 milestone.md에 명시된 "최소 4장" 기준 미달(`romantic`은 1장뿐)
+- **이유**: 사용자가 "온보딩에 유저 사진이 뜨는지" 질문한 걸 계기로 실데이터 상태를 처음으로 직접 확인함(그동안 `onboarding_card` 시드 스크립트 자체가 스프린트3까지 계속 `[ ]` 미완료로만 기록돼 있었고, 실제 DB 상태 수치는 기록된 적 없었음). 시드 7장을 다 보여준 뒤 이어서 보여줄 카드가 4장뿐이라, 온보딩 알고리즘 스펙(균형 60%+탐색 30%+랜덤 10%로 최소 15장~최대 25장 진행)이 실제로는 작동할 수 없는 상태
+- **영향**: `milestone.md`의 `onboarding_card` 시드 스크립트 항목(이수연 담당)에 이 수치 반영. 공모전 데모 전 반드시 채워야 하는 항목으로 우선순위 상향 필요 — 이수연에게 수치 전달 필요
