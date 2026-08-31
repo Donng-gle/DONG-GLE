@@ -172,7 +172,8 @@
 - [x] **이미지 프록시 엔드포인트 구현** (2026-08-04) — `GET /images/proxy?ref={photo_reference}&maxWidth=`. Google Places Photo API 키는 서버사이드에서만 다루고 이미지 바이너리를 중계하는 방식. `server` 머지 완료
 - [x] **백엔드 Render 배포** (2026-08-04) — `https://dong-gle.onrender.com` (무료 플랜, Docker 멀티스테이지 빌드, `server` 브랜치 push 시 자동 배포). 무료 플랜 512MB 메모리 제한으로 배포 직후 OOM(Exit 137) 발생 확인 → JVM 힙/GC 옵션 조정으로 해결. `main`은 아직 서버 코드가 반영 안 된 상태라 배포 소스는 임시로 `server` 사용 중 — `dev`/`main` 통합되면 배포 브랜치 전환 필요
 - [ ] `server` → `dev` 통합 (계속 이월, 의도적으로 보류 중)
-- [x] 카카오/구글 OAuth 앱 자격증명 발급 + 코드 구현 완료 (스프린트2부터 이월). **2026-08-30 재확인**: 클라이언트 쪽(네이티브 Google Sign-In 전환, 카카오 `WebBrowser.openAuthSessionAsync` 전환)이 각각 2026-08-26/2026-08-27 결정 당시엔 "미착수"였으나, 이후 세션에서 `dev`에 직접 커밋(`71f7983`, `a21dcf5` — 브랜치 안 거치고 바로 `dev`에 올라간 것으로 확인, 정상 워크플로우 위반이지만 내용 자체는 검증 완료: `LoginScreen.tsx`/`oauthConfig.ts`/`auth.ts`가 결정 내용과 정확히 일치, `tsc --noEmit` 통과)로 이미 반영되어 있었음 — 문서만 안 따라갔던 것. 남은 건 **실기기 E2E 검증**뿐(사용자 확인 예정)
+- [x] 카카오/구글 OAuth 앱 자격증명 발급 + 코드 구현 완료 (스프린트2부터 이월). **2026-08-30 재확인**: 클라이언트 쪽(네이티브 Google Sign-In 전환, 카카오 `WebBrowser.openAuthSessionAsync` 전환)이 각각 2026-08-26/2026-08-27 결정 당시엔 "미착수"였으나, 이후 세션에서 `dev`에 직접 커밋(`71f7983`, `a21dcf5` — 브랜치 안 거치고 바로 `dev`에 올라간 것으로 확인, 정상 워크플로우 위반이지만 내용 자체는 검증 완료: `LoginScreen.tsx`/`oauthConfig.ts`/`auth.ts`가 결정 내용과 정확히 일치, `tsc --noEmit` 통과)로 이미 반영되어 있었음 — 문서만 안 따라갔던 것.
+- [x] **실기기 E2E 검증 완료** (2026-08-31) — 안드로이드 실기기(무선 디버깅)로 카카오/구글 로그인 둘 다 성공 확인. 이 과정에서 카카오 OAuth 응답 역직렬화 버그 발견/수정, `client-front` 실기기 백엔드 주소 문제 수정, 디버그 키스토어 위치·구글 테스트 사용자 등록 등 운영 노하우 정리 완료 (decision-log 2026-08-31 참고)
 - [x] **여행 기록(방문 로그) 관련 제외한 나머지 엔드포인트 — 1차분 구현 완료** (2026-08-04):
   - `GET /users/me/preferences`, `GET /users/me/likes`, `GET /events` (월별 축제 목록, d_day 계산)
   - 코스 CRUD 신규 구현: `GET /users/me/courses`, `POST /courses`, `POST /courses/manual`, `GET/PATCH/DELETE /courses/{courseId}` — 구글맵 Directions 경로 재계산(이동시간/거리/폴리라인)은 스코프 제외였으나 **2026-08-30 구현 완료**(아래 항목 참고), 항상 null 반환하던 TODO 해소
