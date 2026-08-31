@@ -472,3 +472,15 @@
 - **영향**: 동시에 여러 요청이 401을 받아도 갱신 호출은 한 번만 나가도록 in-flight promise 공유 처리. `authApi.refresh`(auth.ts)와의 순환 의존을 피하려고 `client.ts` 내부에서 `/auth/refresh`를 fetch로 직접 호출(이 호출 자체는 `auth: false`라 갱신 재시도 로직 대상이 아님). 실기기 E2E 검증 시 1시간 이상 세션 유지 케이스도 같이 확인 필요(사용자 담당)
 
 ---
+
+## 2026-08-31 | 카카오/구글 로그인 실기기 E2E 검증 완료 — 버그 1건 발견/수정, 운영 노하우 정리
+
+- **결정**: 안드로이드 실기기(무선 디버깅)로 카카오/구글 로그인을 처음부터 끝까지 검증. 이 과정에서 카카오 OAuth 응답 역직렬화 버그를 발견해 수정하고(`server`), client-front가 실기기에서 백엔드 주소를 못 찾던 문제를 고쳤음(`client`). 둘 다 지금 실기기에서 로그인 성공 확인 완료
+- **이유/발견 내용**:
+  1. **`client-front` `API_BASE_URL`이 실기기에서 작동 안 함**: `10.0.2.2`(에뮬레이터 전용)/`localhost` 둘 다 실기기에선 연결 자체가 안 됨(`ConnectException` 실제 확인). `EXPO_PUBLIC_API_BASE_URL` env로 덮어쓸 수 있게 고치고, 실기기 테스트 시엔 배포된 Render 백엔드(`https://dong-gle.onrender.com`)를 가리키도록 설정 — 로컬 백엔드를 따로 띄울 필요 없어짐
+  2. **카카오 OAuth 진짜 버그 발견**: `KakaoOAuthClient`가 `RestClient.create()`(정적 팩토리)를 직접 썼는데, 이 기본 컨버터는 `application.yml`의 전역 Jackson SNAKE_CASE 설정을 안 물려받음(`CourseOptimizerHttpConfig` 등 기존 외부 클라이언트들이 각자 컨버터를 직접 구성해온 이유와 동일). 카카오 토큰/사용자 응답은 실제로 `access_token`/`kakao_account`/`profile_image_url`처럼 스네이크케이스라 `KakaoTokenResponse.accessToken` 등이 계속 null로 역직렬화되고 있었음 — 카카오 로그인이 이번 세션 전까지 한 번도 실기기로 끝까지 테스트된 적이 없어서 안 걸렸던 버그. `KakaoOAuthHttpConfig`를 신설해 SNAKE_CASE 컨버터를 명시적으로 꽂는 방식으로 수정(`CourseOptimizerHttpConfig`와 동일 패턴)
+  3. **디버그 키스토어 SHA-1 확인 시 주의**: 이 프로젝트(Expo bare Android)는 전역 `~/.android/debug.keystore`가 아니라 **`client-front/android/app/debug.keystore`(프로젝트 로컬)**를 쓰도록 `build.gradle`에 명시돼 있음(`storeFile file('debug.keystore')`). 전역 키스토어에서 SHA-1을 뽑아 Google Cloud Console에 등록했다가 완전히 다른 값이라 구글 네이티브 로그인이 `DEVELOPER_ERROR`로 계속 실패했던 사례 있음 — **디버그 SHA-1은 항상 `keytool -list -v -keystore client-front/android/app/debug.keystore -alias androiddebugkey -storepass android -keypass android`로 뽑을 것**
+  4. **구글 OAuth 동의 화면(대상/Audience) 테스트 사용자 등록 필요**: GCP 프로젝트가 "테스트 중" 게시 상태라 "테스트 사용자" 목록에 없는 구글 계정은 SHA-1/webClientId가 전부 맞아도 로그인 자체가 막힘(0명 등록 상태였음). 실기기로 로그인 테스트할 계정은 GCP 콘솔 → 대상(Audience) → 테스트 사용자에 미리 추가해둬야 함
+- **영향**: `server-back/src/main/kotlin/com/dongle/server/auth/oauth/KakaoOAuthHttpConfig.kt` 신설, `KakaoOAuthClient` 생성자에 `kakaoOAuthRestClient: RestClient` 주입(`server` 브랜치 배포 완료). `client-front/src/api/config.ts`/`​.env.example`에 `EXPO_PUBLIC_API_BASE_URL` 추가(`client` 브랜치, `dev`엔 아직 미병합). **작업 방식 교훈**: 이번 세션 중 백엔드 코드를 고치려고 같은 작업 디렉토리에서 `git checkout server`를 여러 번 했다가, 그때마다 Metro가 실기기에 설치된 앱의 `client-front` 파일 변경을 감지해서 옛날 코드를 핫리로드해버리는 사고가 반복 발생함(카카오 KOE006 오류의 실제 원인이었음) — **실기기 테스트가 진행 중인 동안 다른 브랜치 작업이 필요하면 반드시 `git worktree add`로 별도 디렉토리를 만들어 작업할 것**, 같은 디렉토리에서 `git checkout`으로 브랜치를 오가면 안 됨
+
+---
