@@ -6,4 +6,6 @@ export const fonts = {
   medium: 'Pretendard-Medium',
   semiBold: 'Pretendard-SemiBold',
   bold: 'Pretendard-Bold',
+  // "Dong_Gle" 워드마크 전용 — 헤더에서만 사용 (Figma 노드 506:11141 등)
+  logo: 'SquadaOne-Regular',
 } as const;

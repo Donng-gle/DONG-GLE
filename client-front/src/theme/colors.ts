@@ -8,4 +8,5 @@ export const colors = {
   border: '#e5e5ec',
   divider: '#dddddd',
   white: '#ffffff',
+  backgroundMuted: '#f7f7fb',
 } as const;

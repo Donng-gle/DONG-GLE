@@ -19,6 +19,7 @@ export default function App() {
     'Pretendard-Medium': require('./assets/fonts/Pretendard-Medium.ttf'),
     'Pretendard-SemiBold': require('./assets/fonts/Pretendard-SemiBold.ttf'),
     'Pretendard-Bold': require('./assets/fonts/Pretendard-Bold.ttf'),
+    'SquadaOne-Regular': require('./assets/fonts/SquadaOne-Regular.ttf'),
   });
 
   useEffect(() => {
