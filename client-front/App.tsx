@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { UserProfile, authApi } from './src/api/auth';
+import { registerSessionExpiredListener } from './src/api/client';
 import { tokenStorage } from './src/auth/tokenStorage';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
@@ -13,6 +14,11 @@ export default function App() {
 
   useEffect(() => {
     restoreSession();
+
+    // 액세스 토큰 갱신까지 실패하면(리프레시 토큰 만료/무효) apiClient가 이걸 호출 —
+    // 화면 어디에 있든 자동으로 로그인 화면으로 돌려보냄 (api/client.ts 참고)
+    registerSessionExpiredListener(() => setProfile(null));
+    return () => registerSessionExpiredListener(null);
   }, []);
 
   async function restoreSession() {
