@@ -1,14 +1,21 @@
 import { useState } from 'react';
-import { ActivityIndicator, Alert, Button, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
 import * as WebBrowser from 'expo-web-browser';
 import { GoogleSignin, isSuccessResponse } from '@react-native-google-signin/google-signin';
 import { authApi, UserProfile } from '../api/auth';
 import { tokenStorage } from '../auth/tokenStorage';
 import { KAKAO_CLIENT_ID, KAKAO_HTTPS_REDIRECT_URI, kakaoAppReturnUrl, kakaoDiscovery } from '../auth/oauthConfig';
+import { colors } from '../theme/colors';
+import { fonts } from '../theme/fonts';
 
 WebBrowser.maybeCompleteAuthSession();
 
 type Provider = 'kakao' | 'google';
+
+// TourAPI 190건 중 월영교(place.id=116)의 실제 등록 사진 — Figma 목업이 쓰던 사진은
+// 워터마크 있는 미리보기 스톡 이미지라 그대로 못 씀 (2026-08-31 결정, decision-log 참고)
+const HERO_IMAGE_URL = 'https://tong.visitkorea.or.kr/cms/resource_photo/85/4062785_image2_1.jpg';
 
 interface Props {
   onLoginSuccess: (profile: UserProfile) => void;
@@ -77,35 +84,155 @@ export function LoginScreen({ onLoginSuccess }: Props) {
     }
   }
 
+  // 게스트 모드: 이번 단계는 UI만 반영 — App.tsx 네비게이션 구조가 아직 비로그인 상태를
+  // 지원하지 않음, 실제 게스트 진입 구현은 별도 작업으로 확정됨 (2026-08-31 결정, decision-log 참고)
+  function handleGuestPress() {
+    Alert.alert('준비 중', '비로그인 이용은 아직 준비 중이에요. 곧 만나요!');
+  }
+
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>동글</Text>
-      <Text style={styles.subtitle}>안동 감성 여행 코스 추천</Text>
+      <StatusBar style="light" />
 
-      <View style={styles.buttons}>
-        <Button
-          title={loading === 'kakao' ? '로그인 중...' : '카카오로 로그인'}
-          disabled={loading !== null}
-          onPress={() => promptKakaoLoginAsync()}
-        />
-        <View style={styles.gap} />
-        <Button
-          title={loading === 'google' ? '로그인 중...' : '구글로 로그인'}
-          disabled={loading !== null}
-          onPress={() => promptGoogleLoginAsync()}
-        />
+      <View style={styles.hero}>
+        <Image source={{ uri: HERO_IMAGE_URL }} style={StyleSheet.absoluteFill} resizeMode="cover" />
       </View>
 
-      {loading && <ActivityIndicator style={styles.spinner} />}
+      <View style={styles.sheet}>
+        <View style={styles.handle} />
+
+        <Text style={styles.title}>로그인하기</Text>
+
+        <TouchableOpacity
+          style={[styles.button, styles.kakaoButton]}
+          disabled={loading !== null}
+          onPress={() => promptKakaoLoginAsync()}
+        >
+          {loading === 'kakao' ? (
+            <ActivityIndicator color={colors.gray700} />
+          ) : (
+            <>
+              <View style={styles.kakaoSymbol}>
+                <View style={styles.kakaoSymbolBubble} />
+              </View>
+              <Text style={styles.kakaoButtonText}>카카오 로그인</Text>
+            </>
+          )}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.button, styles.googleButton]}
+          disabled={loading !== null}
+          onPress={() => promptGoogleLoginAsync()}
+        >
+          {loading === 'google' ? (
+            <ActivityIndicator color={colors.white} />
+          ) : (
+            <>
+              <View style={styles.googleSymbol}>
+                <Image source={require('../../assets/images/google-logo.png')} style={styles.googleLogoImage} />
+              </View>
+              <Text style={styles.googleButtonText}>Google 로그인</Text>
+            </>
+          )}
+        </TouchableOpacity>
+
+        <View style={styles.guestRow}>
+          <View style={styles.divider} />
+          <TouchableOpacity onPress={handleGuestPress} disabled={loading !== null}>
+            <Text style={styles.guestText}>비로그인 상태로 계속 진행</Text>
+          </TouchableOpacity>
+          <View style={styles.divider} />
+        </View>
+
+        <Text style={styles.guideText}>개인 맞춤형 장소 추천 및 코스 생성을 원하시면 로그인하세요</Text>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff', padding: 24 },
-  title: { fontSize: 32, fontWeight: 'bold', marginBottom: 8 },
-  subtitle: { fontSize: 14, color: '#666', marginBottom: 48 },
-  buttons: { width: '100%' },
-  gap: { height: 12 },
-  spinner: { marginTop: 24 },
+  container: { flex: 1, backgroundColor: colors.black },
+  hero: { flex: 1 },
+  sheet: {
+    backgroundColor: colors.white,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 36,
+  },
+  handle: {
+    alignSelf: 'center',
+    width: 32,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.divider,
+    marginBottom: 18,
+  },
+  title: {
+    fontFamily: fonts.medium,
+    fontSize: 20,
+    lineHeight: 24,
+    letterSpacing: -0.5,
+    color: colors.black,
+    marginBottom: 20,
+  },
+  button: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 52,
+    borderRadius: 6,
+  },
+  kakaoButton: {
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: 8,
+  },
+  kakaoSymbol: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#fee500',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+  },
+  kakaoSymbolBubble: { width: 11, height: 9, borderRadius: 4, backgroundColor: colors.black },
+  kakaoButtonText: { fontFamily: fonts.regular, fontSize: 16, letterSpacing: -0.4, color: colors.gray700 },
+  googleButton: { backgroundColor: colors.black, marginBottom: 20 },
+  googleSymbol: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+  },
+  googleLogoImage: { width: 12, height: 12 },
+  googleButtonText: { fontFamily: fonts.regular, fontSize: 16, letterSpacing: -0.4, color: colors.white },
+  guestRow: { flexDirection: 'row', alignItems: 'center' },
+  divider: { flex: 1, height: 1, backgroundColor: colors.border },
+  guestText: {
+    fontFamily: fonts.regular,
+    fontSize: 12,
+    lineHeight: 16.8,
+    letterSpacing: -0.3,
+    color: colors.gray700,
+    marginHorizontal: 8,
+  },
+  guideText: {
+    fontFamily: fonts.regular,
+    fontSize: 12,
+    lineHeight: 16.8,
+    letterSpacing: -0.3,
+    color: colors.gray400,
+    textAlign: 'center',
+    marginTop: 24,
+  },
 });

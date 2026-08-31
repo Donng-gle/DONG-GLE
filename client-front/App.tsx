@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { useFonts } from 'expo-font';
 import { UserProfile, authApi } from './src/api/auth';
 import { registerSessionExpiredListener } from './src/api/client';
 import { tokenStorage } from './src/auth/tokenStorage';
@@ -11,6 +12,13 @@ import { OnboardingScreen } from './src/screens/OnboardingScreen';
 export default function App() {
   const [checkingSession, setCheckingSession] = useState(true);
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  // Figma 디자인 전체가 Pretendard 기준이라 앱 진입점에서 한 번만 로드 (2026-08-31 결정, decision-log 참고)
+  const [fontsLoaded] = useFonts({
+    'Pretendard-Regular': require('./assets/fonts/Pretendard-Regular.ttf'),
+    'Pretendard-Medium': require('./assets/fonts/Pretendard-Medium.ttf'),
+    'Pretendard-SemiBold': require('./assets/fonts/Pretendard-SemiBold.ttf'),
+    'Pretendard-Bold': require('./assets/fonts/Pretendard-Bold.ttf'),
+  });
 
   useEffect(() => {
     restoreSession();
@@ -37,7 +45,7 @@ export default function App() {
     }
   }
 
-  if (checkingSession) {
+  if (checkingSession || !fontsLoaded) {
     return (
       <View style={styles.center}>
         <ActivityIndicator />

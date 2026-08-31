@@ -13,4 +13,6 @@ module.exports = () => ({
       },
     },
   },
+  // Pretendard 폰트(assets/fonts) 로드용 — expo-font 자동 config-plugin이 app.json에 못 써서 수기로 추가
+  plugins: [...(appJson.expo.plugins ?? []), 'expo-font'],
 });
