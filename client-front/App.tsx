@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
 import { UserProfile, authApi } from './src/api/auth';
@@ -47,26 +48,30 @@ export default function App() {
 
   if (checkingSession || !fontsLoaded) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator />
-        <StatusBar style="auto" />
-      </View>
+      <SafeAreaProvider>
+        <View style={styles.center}>
+          <ActivityIndicator />
+          <StatusBar style="auto" />
+        </View>
+      </SafeAreaProvider>
     );
   }
 
   return (
-    <View style={styles.container}>
-      {profile ? (
-        profile.has_onboarded ? (
-          <HomeScreen profile={profile} onLogout={() => setProfile(null)} />
+    <SafeAreaProvider>
+      <View style={styles.container}>
+        {profile ? (
+          profile.has_onboarded ? (
+            <HomeScreen profile={profile} onLogout={() => setProfile(null)} />
+          ) : (
+            <OnboardingScreen onComplete={() => setProfile({ ...profile, has_onboarded: true })} />
+          )
         ) : (
-          <OnboardingScreen onComplete={() => setProfile({ ...profile, has_onboarded: true })} />
-        )
-      ) : (
-        <LoginScreen onLoginSuccess={setProfile} />
-      )}
-      <StatusBar style="auto" />
-    </View>
+          <LoginScreen onLoginSuccess={setProfile} />
+        )}
+        <StatusBar style="auto" />
+      </View>
+    </SafeAreaProvider>
   );
 }
 

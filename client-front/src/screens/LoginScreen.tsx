@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ActivityIndicator, Alert, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as WebBrowser from 'expo-web-browser';
 import { GoogleSignin, isSuccessResponse } from '@react-native-google-signin/google-signin';
 import { authApi, UserProfile } from '../api/auth';
@@ -23,6 +24,7 @@ interface Props {
 
 export function LoginScreen({ onLoginSuccess }: Props) {
   const [loading, setLoading] = useState<Provider | null>(null);
+  const insets = useSafeAreaInsets();
 
   // GoogleSignin.configure()는 oauthConfig.ts 모듈 로드 시 이미 한 번 호출됨.
   // 네이티브 로그인이라 브라우저/리다이렉트가 아예 없음 — Play Services가 기기 안에서 직접 처리
@@ -98,7 +100,7 @@ export function LoginScreen({ onLoginSuccess }: Props) {
         <Image source={{ uri: HERO_IMAGE_URL }} style={StyleSheet.absoluteFill} resizeMode="cover" />
       </View>
 
-      <View style={styles.sheet}>
+      <View style={[styles.sheet, { paddingBottom: Math.max(36, insets.bottom + 16) }]}>
         <View style={styles.handle} />
 
         <Text style={styles.title}>로그인하기</Text>
@@ -160,7 +162,6 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 20,
     paddingHorizontal: 20,
     paddingTop: 10,
-    paddingBottom: 36,
   },
   handle: {
     alignSelf: 'center',
