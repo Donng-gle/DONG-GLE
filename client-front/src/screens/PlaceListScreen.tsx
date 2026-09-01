@@ -1,7 +1,11 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Button, FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PlaceCategory, PlaceListItem, placeApi } from '../api/place';
 import { PlaceListItemRow } from '../components/PlaceListItemRow';
+import { colors } from '../theme/colors';
+import { fonts } from '../theme/fonts';
 import { PlaceDetailScreen } from './PlaceDetailScreen';
 
 interface Props {
@@ -12,7 +16,10 @@ interface Props {
 
 const CATEGORIES: PlaceCategory[] = ['관광지', '식당', '카페', '액티비티', '문화공간', '축제행사'];
 
+// Figma 노드 362:3724("검색창") 색/형태 반영 — 자동완성 추천어 목록은 대응 데이터가 없어서
+// (인기 검색어 API 없음) 제외, 기존 카테고리+검색 통합 화면 구조는 유지
 export function PlaceListScreen({ onExit, onSelectPlace }: Props) {
+  const insets = useSafeAreaInsets();
   const [category, setCategory] = useState<PlaceCategory | null>(null);
   const [query, setQuery] = useState('');
   const [places, setPlaces] = useState<PlaceListItem[] | null>(null);
@@ -37,20 +44,36 @@ export function PlaceListScreen({ onExit, onSelectPlace }: Props) {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>{onSelectPlace ? '장소 선택' : '장소 둘러보기'}</Text>
+      <StatusBar style="dark" />
 
-      <View style={styles.searchRow}>
-        <TextInput
-          style={styles.searchInput}
-          value={query}
-          onChangeText={setQuery}
-          placeholder="장소 이름 검색"
-          onSubmitEditing={load}
-          returnKeyType="search"
-        />
-        <TouchableOpacity style={styles.searchButton} onPress={load}>
-          <Text style={styles.searchButtonText}>검색</Text>
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+        <TouchableOpacity onPress={onExit} hitSlop={8} style={styles.backButton}>
+          <Text style={styles.backIcon}>←</Text>
         </TouchableOpacity>
+
+        <View style={styles.searchBar}>
+          <Text style={styles.searchIcon}>🔍</Text>
+          <TextInput
+            style={styles.searchInput}
+            value={query}
+            onChangeText={setQuery}
+            placeholder={onSelectPlace ? '장소 검색' : '안동'}
+            placeholderTextColor={colors.gray500}
+            onSubmitEditing={load}
+            returnKeyType="search"
+          />
+          {query.length > 0 && (
+            <TouchableOpacity
+              onPress={() => {
+                setQuery('');
+                load();
+              }}
+              hitSlop={8}
+            >
+              <Text style={styles.clearIcon}>✕</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
       <FlatList
@@ -59,6 +82,7 @@ export function PlaceListScreen({ onExit, onSelectPlace }: Props) {
         data={CATEGORIES}
         keyExtractor={(item) => item}
         style={styles.categoryList}
+        contentContainerStyle={styles.categoryListContent}
         renderItem={({ item }) => (
           <TouchableOpacity
             style={[styles.categoryChip, category === item && styles.categoryChipSelected]}
@@ -73,50 +97,47 @@ export function PlaceListScreen({ onExit, onSelectPlace }: Props) {
       />
 
       {places === null ? (
-        <ActivityIndicator size="large" style={styles.loading} />
+        <ActivityIndicator size="large" color={colors.black} style={styles.loading} />
       ) : (
         <FlatList
           data={places}
           keyExtractor={(item) => String(item.id)}
-          ListEmptyComponent={<Text style={styles.emptyText}>결과가 없어요.</Text>}
+          contentContainerStyle={styles.listContent}
+          ListEmptyComponent={<Text style={styles.emptyText}>결과가 없어요</Text>}
           renderItem={({ item }) => (
             <PlaceListItemRow place={item} onPress={() => (onSelectPlace ? onSelectPlace(item) : setSelectedId(item.id))} />
           )}
         />
       )}
-
-      <Button title="닫기" onPress={onExit} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff', padding: 20, paddingTop: 32 },
-  title: { fontSize: 22, fontWeight: '700', marginBottom: 16 },
-  searchRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
-  searchInput: {
+  container: { flex: 1, backgroundColor: colors.white },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 12, gap: 12 },
+  backButton: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
+  backIcon: { fontSize: 18, color: colors.black },
+  searchBar: {
     flex: 1,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    fontSize: 14,
-  },
-  searchButton: { justifyContent: 'center', paddingHorizontal: 16, backgroundColor: '#ff5a5f', borderRadius: 8 },
-  searchButtonText: { color: '#fff', fontWeight: '700' },
-  categoryList: { flexGrow: 0, marginBottom: 12 },
-  categoryChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.backgroundMuted,
     paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    marginRight: 8,
+    gap: 8,
   },
-  categoryChipSelected: { backgroundColor: '#222', borderColor: '#222' },
-  categoryChipText: { fontSize: 13, color: '#222' },
-  categoryChipTextSelected: { color: '#fff', fontWeight: '700' },
+  searchIcon: { fontSize: 14 },
+  searchInput: { flex: 1, fontFamily: fonts.regular, fontSize: 15, color: colors.black, padding: 0 },
+  clearIcon: { fontSize: 14, color: colors.gray500 },
+  categoryList: { flexGrow: 0 },
+  categoryListContent: { paddingHorizontal: 20, gap: 8, paddingBottom: 12 },
+  categoryChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: colors.border },
+  categoryChipSelected: { backgroundColor: colors.black, borderColor: colors.black },
+  categoryChipText: { fontFamily: fonts.medium, fontSize: 13, letterSpacing: -0.3, color: colors.gray700 },
+  categoryChipTextSelected: { color: colors.white },
   loading: { marginTop: 40 },
-  emptyText: { textAlign: 'center', color: '#999', marginTop: 40 },
+  listContent: { paddingHorizontal: 20, paddingBottom: 24 },
+  emptyText: { fontFamily: fonts.regular, fontSize: 14, color: colors.gray500, textAlign: 'center', marginTop: 40 },
 });
