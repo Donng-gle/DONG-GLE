@@ -577,3 +577,16 @@
 - **디자인과 실제 구현이 갈린 지점**: 장소 카드의 카테고리 라벨("관광명소" 등) — `CoursePlaceItem`에 카테고리 필드 자체가 없어서(장소당 상세 조회를 추가로 N번 해야 해서 비용 대비 가치가 낮다고 판단) 생략. "장소 추가" 버튼 — 이 화면(결과 확인 후 저장)의 책임이 아니라 `CourseEditScreen`이 담당할 영역이라 여기서는 안 넣음
 - **이유**: 참조용 UI 킷 템플릿과 실제 완성된 디자인을 구분해서, 완성 안 된 부분은 앱의 확립된 톤(Pretendard/검정 강조/기존 컴포넌트 패턴)을 그대로 따라가는 쪽으로 판단
 - **영향**: `client-front/src/components/CalendarPicker.tsx` 신규, `CourseBuilderPlaceList.tsx` 테마 적용, `CourseFlowScreen`/`CourseManualBuilderScreen`/`CourseSwipeScreen`/`CourseResultScreen.tsx` 재작성. 새 네이티브 의존성 없음(Animated/PanResponder는 코어, react-native-maps는 이미 링크됨) — 재빌드 불필요. 실기기 시각 확인 아직 안 함. **다음**: `CourseDetailScreen`(저장된 코스 조회)/`CourseEditScreen`/`MyCoursesScreen` 아직 디자인 미반영 상태로 남음
+
+---
+
+## 2026-09-01 | AI 서버 EC2 배포 확인 — `COURSE_OPTIMIZER_BASE_URL`/`PLACE_RECOMMENDER_BASE_URL`을 `AI_SERVER_URL` 하나로 통합
+
+- **결정**: 김지광이 AI 서버(course_optimizer + place_recommender)를 EC2 인스턴스에 Docker로 배포 완료, 단일 호스트(`http://3.27.148.167:8000`)에서 `GET /health`, `POST /v1/places/recommend`, `POST /v1/courses/optimize` 세 엔드포인트를 함께 서빙함을 확인. 8/26·8/30에 각각 도입된 `CourseOptimizerProperties`/`PlaceRecommenderProperties`(둘 다 "실제로는 같은 서비스, 배포 시 통합 검토"라고 미리 코멘트 남겨뒀던 상태)를 이번에 실제로 `AiServerProperties`(`ai-server.base-url`, env `AI_SERVER_URL`) 하나로 통합
+- **이유**: 배포가 한 프로세스/한 호스트로 확정된 이상 설정을 굳이 두 키로 나눠 관리할 이유가 없어짐(예전엔 "혹시 나중에 분리 배포될 수도" 대비였는데 실제로 안 그렇게 됨). `CourseOptimizerClient`/`PlaceRecommenderClient`의 요청 경로(`/v1/courses/optimize`, `/v1/places/recommend`)는 이미 8/30에 실제 라우트로 검증된 상태라 그대로 유지, RestClient 빈 자체는 클라이언트별로 계속 분리해둠(8/30 "`@Primary` RestClient 여러 개 섞이는 문제" 재발 방지 목적)
+- **타임아웃 추가**: 두 RestClient 모두 `SimpleClientHttpRequestFactory`로 connect timeout 5s를 명시. read timeout은 course-optimizer 30s(LLM 호출 포함이라 여유), place-recommender 15s로 설정 — 예전엔 로컬(`localhost:8001`) 기준이라 타임아웃이 없어도 문제없었지만, 이제 실제 네트워크(EC2) 너머라 응답 지연/장애 시 요청 스레드가 무한정 걸리는 걸 방지
+- **미검증 사항**: 이 세션 환경(샌드박스)에서 `3.27.148.167:8000`으로 직접 `curl`/TCP 연결을 시도했으나 **타임아웃**(연결 자체가 안 됨, 일반 인터넷 접속은 정상이라 이 환경 IP가 AI 서버 보안그룹에서 허용 안 된 것으로 추정) — 그래서 실제 요청/응답 검증(스키마 일치 여부, 실제 응답 지연시간 등)은 못 하고 코드/설정만 반영함. **사용자가 직접 확인 필요**: 아래 curl로 연결·요청 성공 여부, 또는 Render(운영 백엔드)가 이 환경 대신 실제로 호출 성공하는지
+  ```bash
+  curl http://3.27.148.167:8000/health
+  ```
+- **영향**: `server-back/src/main/kotlin/com/dongle/server/common/config/AiServerProperties.kt` 신규(`CourseOptimizerProperties`/`PlaceRecommenderProperties` 삭제), `CourseOptimizerHttpConfig`/`PlaceRecommenderHttpConfig`가 이 프로퍼티 사용하도록 수정, `application.yml`/`.env.example`의 `course-optimizer`/`place-recommender` 키를 `ai-server.base-url`(`AI_SERVER_URL`)로 통합. 로컬 `.env`에 실제 EC2 주소 반영 완료(커밋 안 됨). 관련 테스트(`PlaceRecommenderClientTest`/`CourseOptimizerClientTest`/`CourseGenerateApiIntegrationTest`/`SwipeApiIntegrationTest`) 전부 통과 확인 — 단 이 테스트들은 `MockRestServiceServer`로 HTTP 레이어를 가로채는 방식이라 실제 EC2 서버 연동 자체를 검증하진 못함. `feat/ai-server-url-consolidation` → `server` 병합·push 완료
