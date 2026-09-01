@@ -565,3 +565,15 @@
 - **디자인과 실제 구현이 갈린 지점**: 별점(★4.0), 리뷰 작성자 프로필(아바타+닉네임+여행 시기), 리뷰 좋아요·댓글 수, "가는 방법"(예: "신세동 벽화 마을에서 차로 6분") — 전부 대응하는 백엔드 데이터가 없어서 생략함(`place_like`는 내 찜 여부만 있고 개수 없음, `visit_log`엔 별점·작성자 노출 필드 없음, `place`엔 랜드마크 기준 이동시간 필드 없음). 검색 화면의 "인기 검색어"/자동완성 추천 목록도 대응 API가 없어서 생략
 - **이유**: 없는 데이터를 지어내지 않기 위한 선택 — 반복되는 원칙(8/31 HomeScreen 결정과 동일)
 - **영향**: `client-front/src/screens/{PlaceDetailScreen,PlaceListScreen}.tsx`, `src/components/PlaceListItemRow.tsx` 재작성. 상세 페이지에 `react-native-maps` 위치 미리보기(스크롤/줌 비활성) 신규 추가. 실기기 시각 확인 아직 안 함
+
+---
+
+## 2026-09-01 | 코스 만들기 플로우(AI/직접) 디자인 적용 — Figma에 없는 부분은 자체 판단으로 채움
+
+- **결정**: Figma 노드 `316:4643`("직접 일정 만들기-날짜 선택", 달력), `510:11265`("AI일정 짜기-스와이프"), `510:11285`("AI 일정 만들기-화면") 반영해서 `CourseFlowScreen`(AI 코스 설정)/`CourseManualBuilderScreen`(직접 코스)/`CourseSwipeScreen`/`CourseResultScreen` 전면 재작성
+  - **캘린더 날짜 선택기 신규 도입**(`src/components/CalendarPicker.tsx`): 기존엔 `YYYY-MM-DD` 텍스트 직접입력이었음. 원본 디자인은 Poppins 폰트+파란 강조색(`#0066ff`)을 쓰고 있었는데, 이건 다른 부분(399:3661 "계획짜기" 등)과 마찬가지로 **범용 UI 킷 템플릿을 그대로 붙여넣은 흔적**으로 판단해서(Inter/Poppins 폰트, "Lorem ipsum", "$250 per person" 같은 영문 목업 텍스트가 섞여 있음) 실제 앱 톤(Pretendard, 검정 강조)으로 통일함. AI 코스/직접 코스 양쪽에서 공용으로 씀
+  - **CourseSwipeScreen 3-way 스와이프**: 노드 `510:11265`는 실제로 온보딩 스와이프 프레임(`501:12699`)을 그대로 복제해둔 것뿐이라(텍스트까지 "당신의 취향을 선택하세요" 동일) 이 화면 전용 스펙이 없음. OnboardingScreen에서 확립한 드래그 카드 언어(Animated+PanResponder)를 재사용하되, 온보딩과 달리 좋아요/넘기기/**꼭 가기** 3가지 결과가 필요해서(SSOT: "필수 방문 장소 지정") 좌우 드래그(좋아요/넘기기)에 "꼭 가기 ★" 버튼을 별도로 추가 — 이 구성 자체는 화면 판단으로 정함
+  - **CourseResultScreen 번호 핀 지도**: `CoursePlaceItem`의 실좌표(lat/lng)로 `react-native-maps` `Marker`(방문 순서 번호 배지)+`Polyline`(점선, 좌표 순서 연결)을 그림 — 디자인의 "번호 핀+점선 경로" 컨셉을 실제 데이터로 구현. 장소 카드 좌측엔 디자인처럼 세로 연결선을 그려 Day-리스트 느낌 유지
+- **디자인과 실제 구현이 갈린 지점**: 장소 카드의 카테고리 라벨("관광명소" 등) — `CoursePlaceItem`에 카테고리 필드 자체가 없어서(장소당 상세 조회를 추가로 N번 해야 해서 비용 대비 가치가 낮다고 판단) 생략. "장소 추가" 버튼 — 이 화면(결과 확인 후 저장)의 책임이 아니라 `CourseEditScreen`이 담당할 영역이라 여기서는 안 넣음
+- **이유**: 참조용 UI 킷 템플릿과 실제 완성된 디자인을 구분해서, 완성 안 된 부분은 앱의 확립된 톤(Pretendard/검정 강조/기존 컴포넌트 패턴)을 그대로 따라가는 쪽으로 판단
+- **영향**: `client-front/src/components/CalendarPicker.tsx` 신규, `CourseBuilderPlaceList.tsx` 테마 적용, `CourseFlowScreen`/`CourseManualBuilderScreen`/`CourseSwipeScreen`/`CourseResultScreen.tsx` 재작성. 새 네이티브 의존성 없음(Animated/PanResponder는 코어, react-native-maps는 이미 링크됨) — 재빌드 불필요. 실기기 시각 확인 아직 안 함. **다음**: `CourseDetailScreen`(저장된 코스 조회)/`CourseEditScreen`/`MyCoursesScreen` 아직 디자인 미반영 상태로 남음
