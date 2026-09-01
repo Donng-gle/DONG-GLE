@@ -546,3 +546,22 @@
   2. **하단 플로팅 네비게이션(홈+공유 아이콘, 중앙 그라디언트 원형 버튼)**: 3개 메인 탭 프레임 모두 아이콘 구성이 동일(홈/공유_1/홈 중복)해서 tab별 전환이 아니라 고정 UI로 판단. 실제 동작은 추측으로 연결함 — 홈(양옆+중앙 모두)은 "이미 홈 화면이라 사실상 no-op", 공유는 `Share.share()`로 앱 소개 텍스트 공유. **실제 의도(예: 중앙 버튼이 다른 화면에서 홈으로 복귀하는 용도인지)는 디자인팀(전성빈) 확인 필요**
   3. **지도 뷰포트**: `안동 거리`/`나의 일지` 탭 모두 지도 이동에 따른 재조회(팬/줌 시 bounds 갱신) 없이 안동시 전역을 덮는 고정 좌표로만 조회함 — 추후 지도 `onRegionChangeComplete` 연동 필요
 - **영향**: `client-front/src/screens/HomeScreen.tsx`, `src/screens/home/*.tsx` 신규, `src/theme/colors.ts`에 `backgroundMuted` 추가, `src/theme/fonts.ts`에 로고 전용 `SquadaOne-Regular` 추가(`assets/fonts/`). 실기기 시각 확인은 아직 안 함(다음에 확인 필요) — 특히 지도 렌더링(Google Maps API 키 적용 여부)과 플로팅 네비게이션 겹침 레이아웃은 꼭 실기기로 봐야 함
+
+---
+
+## 2026-09-01 | `app.config.js`의 구글맵 키가 실제 매니페스트에 반영 안 되던 버그 발견/수정 — 디버그 키스토어 SHA-1도 함께 재발급됨
+
+- **결정**: 실기기로 HomeScreen 지도(`나의 일지`/`안동 거리` 탭)를 처음 열어보니 `IllegalStateException: API key not found`로 크래시. `client-front/android/`가 `.gitignore`로 완전히 무시되는 자동 생성 폴더인데, 로컬에 이미 존재하던 `android/`가 `app.config.js`(8/31에 구글맵 키 주입 추가)보다 먼저 생성된 상태로 남아있어서 `expo run:android`가 재빌드만 하고 설정을 다시 안 읽어들이고 있었음. `npx expo prebuild --platform android`로 `android/`를 완전히 새로 생성해서 해결
+- **부작용(중요)**: prebuild가 `android/`를 통째로 지우고 새로 만들면서 `debug.keystore`도 새로 생성됨 → SHA-1이 랜덤하게 바뀜 → 8/31에 검증 완료했던 구글/카카오 로그인이 다시 막힐 상태가 됨(새 SHA-1을 GCP/카카오 콘솔에 재등록해야 함, 사용자에게 안내 후 별도 진행하기로 함)
+- **재발 방지**: `client-front/.gitignore`에서 `android/app/debug.keystore` 하나만 예외로 두고 git에 커밋함(비밀번호가 `android`/`android`로 공개된 디버그 전용 키라 커밋해도 안전, 릴리즈 서명과 무관). 디렉토리 단위 `/android` 무시 규칙 안에 있는 파일이라 단순 `!` negate로는 안 먹혀서 `/android/*` → `!/android/app/` → `/android/app/*` → `!/android/app/debug.keystore` 순으로 단계별로 열어줘야 했음(git이 무시된 디렉토리는 아예 안 훑는 특성 때문)
+- **이유**: `android/`가 자동 생성 폴더라는 이유로 아무 파일도 git에 안 잡혀있었는데, `debug.keystore`만큼은 예외로 둬야 한다는 걸 이번에 실제로 겪고서야 알게 됨. 앞으로 `expo prebuild`(또는 `--clean` 옵션)를 다시 돌릴 일이 생겨도 이 파일만큼은 git에서 복원되므로 SHA-1이 다시는 안 바뀜
+- **영향**: `client-front/.gitignore` 수정, `client-front/android/app/debug.keystore` 신규 커밋. **사용자 확인 필요**: 새 SHA-1(`5E:8F:16:06:2E:A3:CD:2C:4A:0D:54:78:76:BA:A6:F3:8C:AB:F6:25`)을 GCP 콘솔(Android OAuth 클라이언트)과 카카오 디벨로퍼스(플랫폼 키 해시)에 재등록해야 로그인이 다시 동작함 — 콘솔 접근 권한이 없어 직접 등록은 못 함
+
+---
+
+## 2026-09-01 | PlaceDetailScreen·PlaceListScreen 디자인 적용
+
+- **결정**: Figma 노드 `358:5134`("관광지 상세 페이지")/`362:3724`("검색창") 반영. 상세 페이지는 사진 캐러셀+점 인디케이터, 이름+찜 버튼, 감성태그+카테고리 칩, 개요, "기본정보"(지도 미리보기+주소/전화/홈페이지/영업시간), "리뷰"(방문 기록 목록) 순으로 재구성. 검색 화면은 기존 카테고리+검색 통합 구조를 유지한 채 디자인의 알약형 검색바 스타일만 입힘
+- **디자인과 실제 구현이 갈린 지점**: 별점(★4.0), 리뷰 작성자 프로필(아바타+닉네임+여행 시기), 리뷰 좋아요·댓글 수, "가는 방법"(예: "신세동 벽화 마을에서 차로 6분") — 전부 대응하는 백엔드 데이터가 없어서 생략함(`place_like`는 내 찜 여부만 있고 개수 없음, `visit_log`엔 별점·작성자 노출 필드 없음, `place`엔 랜드마크 기준 이동시간 필드 없음). 검색 화면의 "인기 검색어"/자동완성 추천 목록도 대응 API가 없어서 생략
+- **이유**: 없는 데이터를 지어내지 않기 위한 선택 — 반복되는 원칙(8/31 HomeScreen 결정과 동일)
+- **영향**: `client-front/src/screens/{PlaceDetailScreen,PlaceListScreen}.tsx`, `src/components/PlaceListItemRow.tsx` 재작성. 상세 페이지에 `react-native-maps` 위치 미리보기(스크롤/줌 비활성) 신규 추가. 실기기 시각 확인 아직 안 함
