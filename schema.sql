@@ -169,10 +169,15 @@ CREATE INDEX idx_visit_log_visited ON visit_log (visited_at);
 
 
 -- 로그 감성 태그 (AI 분석)
+-- 태그 행 자체는 여전히 threshold를 넘긴 것만 생성(장소 top_tags GROUP BY 집계 의미를 유지하기 위해 필요).
+-- score는 그 판단에 쓰인 원본 점수를 같이 보존 — threshold만 남기고 원본을 버렸던 예전 place_emotion_tag의 한계를 반복하지 않기 위함
+-- (2026-09-02 place_emotion_tag 제거 결정 참고). AI가 log_emotion_tag에 직접 배치 적재하므로(2026-08-31 결정),
+-- 실제 적재 시 이 컬럼을 채울지는 김지광 확인 필요 — 아직 확정된 결정 아님(제안 단계)
 CREATE TABLE log_emotion_tag (
     id           BIGSERIAL   PRIMARY KEY,
     visit_log_id BIGINT      NOT NULL REFERENCES visit_log (id) ON DELETE CASCADE,
     tag          VARCHAR(50) NOT NULL,
+    score        FLOAT       NOT NULL,  -- AI가 판단한 이 태그의 원본 점수(0.0~1.0)
     UNIQUE (visit_log_id, tag)
 );
 

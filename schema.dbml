@@ -193,6 +193,9 @@ Table log_emotion_tag {
   id           bigint      [pk, increment]
   visit_log_id bigint      [not null, ref: > visit_log.id]
   tag          varchar(50) [not null]
+  score        float       [not null, note: 'AI가 판단한 이 태그의 원본 점수(0.0~1.0)']
+
+  Note: '태그 행은 threshold를 넘긴 것만 생성(장소 top_tags 집계용). score는 원본 점수 보존 목적 — 제안 단계, 김지광 확인 필요'
 
   indexes {
     (visit_log_id, tag) [unique]
