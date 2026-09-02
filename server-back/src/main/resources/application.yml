@@ -52,15 +52,11 @@ google:
   # Google Places 사진 프록시(/images/proxy)용. 데이터 파트가 음식점 tel 보완에 쓰는 것과 동일한 키 재사용 가능
   places-api-key: ${GOOGLE_MAPS_API_KEY:CHANGE_ME}
 
-course-optimizer:
-  # ai/course_optimizer를 감싼 FastAPI 서비스 주소. 아직 배포 전이라 로컬 기본값(placeholder) —
-  # 배포되면 COURSE_OPTIMIZER_BASE_URL로 실제 주소 주입 필요
-  base-url: ${COURSE_OPTIMIZER_BASE_URL:http://localhost:8001}
-
-place-recommender:
-  # ai/place_recommender를 감싼 FastAPI 서비스(ai/api/app.py) 주소. course-optimizer와 실제로는 같은 서비스지만
-  # 우선 별도 키로 분리해둠 — 배포 시 반드시 COURSE_OPTIMIZER_BASE_URL과 같은 값으로 맞출 것
-  base-url: ${PLACE_RECOMMENDER_BASE_URL:http://localhost:8001}
+ai-server:
+  # ai/course_optimizer + ai/place_recommender를 함께 감싼 단일 FastAPI 서비스(EC2+Docker) 주소.
+  # 2026-09-01 EC2 배포 확정으로 course-optimizer/place-recommender 두 키를 이걸로 통합함
+  # (decision-log 참고). 로컬 기본값은 이전 placeholder 그대로 유지
+  base-url: ${AI_SERVER_URL:http://localhost:8001}
 
 logging:
   level:

@@ -3,8 +3,6 @@ package com.dongle.server.visitlog
 import com.dongle.server.auth.jwt.JwtTokenProvider
 import com.dongle.server.place.Place
 import com.dongle.server.place.PlaceCategory
-import com.dongle.server.place.PlaceEmotionTag
-import com.dongle.server.place.PlaceEmotionTagRepository
 import com.dongle.server.place.PlaceRepository
 import com.dongle.server.user.OAuthProvider
 import com.dongle.server.user.User
@@ -36,9 +34,6 @@ class VisitLogApiIntegrationTest {
 
     @Autowired
     lateinit var placeRepository: PlaceRepository
-
-    @Autowired
-    lateinit var placeEmotionTagRepository: PlaceEmotionTagRepository
 
     @Autowired
     lateinit var visitLogRepository: VisitLogRepository
@@ -186,12 +181,17 @@ class VisitLogApiIntegrationTest {
     }
 
     @Test
-    fun `기록을 삭제하면 장소의 방문 카운트와 감성태그 카운트가 감소한다`() {
+    fun `기록을 삭제하면 장소의 방문 카운트가 감소하고 해당 기록의 감성태그가 장소 상위 태그에서 더 이상 집계되지 않는다`() {
         val owner = user("log_user_4", "kakao-log-4")
         val token = jwtTokenProvider.generateAccessToken(owner.id)
         val place = place("LOG004", "테스트전용기록장소D", visitLogCount = 5)
-        placeEmotionTagRepository.save(PlaceEmotionTag(place = place, tag = "relaxing", count = 3))
+        // log_emotion_tag를 조회 시점에 직접 집계하므로(place_emotion_tag 카운터 테이블 제거,
+        // 2026-09-02 결정) 삭제 전/후로 장소 상세의 top_tags가 실제로 바뀌는지로 검증한다
         val savedLog = log(owner, place, tags = listOf("relaxing"))
+
+        mockMvc.perform(get("/places/${place.id}"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.top_tags[?(@ == 'relaxing')]").exists())
 
         mockMvc.perform(delete("/logs/${savedLog.id}").header("Authorization", "Bearer $token"))
             .andExpect(status().isNoContent)
@@ -199,8 +199,9 @@ class VisitLogApiIntegrationTest {
         val updatedPlace = placeRepository.findById(place.id).orElseThrow()
         assert(updatedPlace.visitLogCount == 4) { "visitLogCount expected 4 but was ${updatedPlace.visitLogCount}" }
 
-        val tagRow = placeEmotionTagRepository.findByPlaceIdAndTag(place.id, "relaxing")
-        assert(tagRow != null && tagRow.count == 2) { "relaxing tag count expected 2 but was ${tagRow?.count}" }
+        mockMvc.perform(get("/places/${place.id}"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.top_tags[?(@ == 'relaxing')]").doesNotExist())
 
         mockMvc.perform(get("/logs/${savedLog.id}").header("Authorization", "Bearer $token"))
             .andExpect(status().isNotFound)

@@ -1,7 +1,6 @@
 package com.dongle.server.visitlog
 
 import com.dongle.server.common.PaginationMeta
-import com.dongle.server.place.PlaceEmotionTagRepository
 import com.dongle.server.place.PlaceNotFoundException
 import com.dongle.server.place.PlaceRepository
 import com.dongle.server.user.UserRepository
@@ -22,13 +21,14 @@ import java.time.LocalDateTime
 class VisitLogService(
     private val visitLogRepository: VisitLogRepository,
     private val placeRepository: PlaceRepository,
-    private val placeEmotionTagRepository: PlaceEmotionTagRepository,
     private val userRepository: UserRepository,
 ) {
     // AI 이미지 분석 연동 전까지의 임시 스코프 (2026-08-30 결정, decision-log 참고): 방문 기록
-    // 생성/저장은 지금 구현하되, 감성 태그 자동 부여(log_emotion_tag/place_emotion_tag 갱신)는 뺀다.
-    // AI 서비스 자체가 아직 없어(course_optimizer와 동일 상황) 백엔드가 호출할 대상이 없기 때문 —
-    // 나중에 AI 연동 방식이 정해지면 이 메서드에 태그 부여 로직만 추가하면 됨
+    // 생성/저장은 지금 구현하되, 감성 태그 자동 부여(log_emotion_tag 적재)는 뺀다.
+    // AI가 사진을 분석해서 log_emotion_tag에 직접 적재하는 별도 배치 경로로 진행하기로 확인됨
+    // (2026-08-31 결정) — 이 메서드가 직접 태그를 채워넣을 필요는 없음. 장소의 감성 태그는
+    // log_emotion_tag를 조회 시점에 집계해서 노출되므로(PlaceService.resolveTags 참고),
+    // AI가 적재를 시작하면 이 메서드 변경 없이 자동으로 반영됨
     @Transactional
     fun create(userId: Long, placeId: Long, request: VisitLogCreateRequest): VisitLogDetailResponse {
         val place = placeRepository.findById(placeId).orElseThrow { PlaceNotFoundException(placeId) }
@@ -98,11 +98,9 @@ class VisitLogService(
 
         place.visitLogCount = (place.visitLogCount - 1).coerceAtLeast(0)
 
-        log.emotionTags.forEach { logTag ->
-            val placeTag = placeEmotionTagRepository.findByPlaceIdAndTag(place.id, logTag.tag) ?: return@forEach
-            if (placeTag.count <= 1) placeEmotionTagRepository.delete(placeTag) else placeTag.count -= 1
-        }
-
+        // log_emotion_tag는 visit_log 삭제 시 FK ON DELETE CASCADE로 같이 지워짐 — 장소의 감성 태그는
+        // 조회 시점에 log_emotion_tag를 직접 집계하므로(LogEmotionTagRepository.countTagsByPlaceId)
+        // 여기서 별도로 카운트를 갱신할 대상 자체가 없음 (2026-09-02 결정, decision-log 참고)
         visitLogRepository.delete(log)
     }
 

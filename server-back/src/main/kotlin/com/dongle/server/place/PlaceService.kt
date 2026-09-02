@@ -10,6 +10,8 @@ import com.dongle.server.place.dto.PlaceMapPinResponse
 import com.dongle.server.place.dto.PlaceMapResponse
 import com.dongle.server.place.dto.PlacesResponse
 import com.dongle.server.user.UserPreferenceRepository
+import com.dongle.server.visitlog.LogEmotionTagRepository
+import com.dongle.server.visitlog.PlaceTagCount
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Sort
@@ -26,6 +28,7 @@ class PlaceService(
     private val placeSemanticVectorRepository: PlaceSemanticVectorRepository,
     private val placeHoursRepository: PlaceHoursRepository,
     private val userPreferenceRepository: UserPreferenceRepository,
+    private val logEmotionTagRepository: LogEmotionTagRepository,
     private val objectMapper: ObjectMapper,
 ) {
     fun listPlaces(category: PlaceCategory?, travelDate: LocalDate?, page: Int, size: Int, userId: Long?): PlacesResponse {
@@ -179,12 +182,15 @@ class PlaceService(
     // 동일한 태그 노출 규칙을 재사용할 수 있도록 공개 래퍼로 노출
     fun displayTags(place: Place, vector: PlaceSemanticVector?): List<String> = place.resolveTags(vector, TAG_DISPLAY_LIMIT)
 
-    // place_emotion_tag(방문 로그 누적)에 데이터가 있으면 그걸 우선 사용하고,
+    // 방문 로그 누적 감성 태그(log_emotion_tag)에 데이터가 있으면 그걸 우선 사용하고,
     // 없으면 place_semantic_vector(AI 사전 분석, major_scores)의 상위 태그로 대체한다.
-    // 2026-08-21 아키텍처 전환으로 place_emotion_tag가 당분간 전부 비어있는 임시 조치 —
-    // 두 신호를 어떻게 함께 쓸지 정식 설계 나오면 교체 필요 (milestone.md 참고)
+    // 예전엔 place_emotion_tag(place_id, tag, count) 테이블을 따로 두고 증감시켰는데,
+    // AI가 log_emotion_tag에 직접 배치로 적재하면서 그 카운트 동기화를 누가 책임질지 애매해짐 —
+    // 아예 저장을 없애고 조회 시점에 log_emotion_tag를 직접 집계하는 방식으로 전환
+    // (2026-09-02 결정, decision-log 참고). 두 신호(누적 방문 태그 vs AI 사전 분석)를 어떻게
+    // 함께 쓸지 정식 설계는 여전히 필요 (milestone.md 참고)
     private fun Place.resolveTags(vector: PlaceSemanticVector?, limit: Int): List<String> {
-        val fromVisitLogs = emotionTags.sortedByDescending { it.count }.map { it.tag }
+        val fromVisitLogs = logEmotionTagRepository.countTagsByPlaceId(id).map { it.tag }
         if (fromVisitLogs.isNotEmpty()) return fromVisitLogs.take(limit)
         return vector?.let { topTagsFromMajorScores(it.majorScores, limit) } ?: emptyList()
     }

@@ -6,6 +6,7 @@ import com.dongle.server.event.dto.EventsResponse
 import com.dongle.server.place.Place
 import com.dongle.server.place.PlaceCategory
 import com.dongle.server.place.PlaceRepository
+import com.dongle.server.visitlog.LogEmotionTagRepository
 import org.springframework.data.domain.PageRequest
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -17,6 +18,7 @@ import java.time.temporal.ChronoUnit
 @Transactional(readOnly = true)
 class EventService(
     private val placeRepository: PlaceRepository,
+    private val logEmotionTagRepository: LogEmotionTagRepository,
 ) {
     fun listEvents(month: String?, page: Int, size: Int): EventsResponse {
         val yearMonth = month?.let { YearMonth.parse(it) } ?: YearMonth.now()
@@ -30,7 +32,7 @@ class EventService(
         )
 
         return EventsResponse(
-            events = result.content.map { it.toEventListItemResponse() },
+            events = result.content.map { it.toEventListItemResponse(logEmotionTagRepository) },
             meta = PaginationMeta(
                 total = result.totalElements,
                 page = page,
@@ -41,7 +43,8 @@ class EventService(
     }
 }
 
-private fun Place.toEventListItemResponse(): EventListItemResponse {
+// 방문 로그 누적 감성 태그를 조회 시점에 직접 집계 (2026-09-02 결정, decision-log 참고 — PlaceService.resolveTags와 동일한 이유)
+private fun Place.toEventListItemResponse(logEmotionTagRepository: LogEmotionTagRepository): EventListItemResponse {
     val start = requireNotNull(eventStartDate) { "축제행사 장소는 event_start_date가 있어야 합니다. placeId=$id" }
     val end = requireNotNull(eventEndDate) { "축제행사 장소는 event_end_date가 있어야 합니다. placeId=$id" }
 
@@ -52,7 +55,7 @@ private fun Place.toEventListItemResponse(): EventListItemResponse {
         addr1 = addr1,
         eventStartDate = start,
         eventEndDate = end,
-        tags = emotionTags.sortedByDescending { it.count }.take(3).map { it.tag },
+        tags = logEmotionTagRepository.countTagsByPlaceId(id).take(3).map { it.tag },
         dDay = calculateDDay(start, end),
     )
 }
