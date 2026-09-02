@@ -15,6 +15,7 @@ from pipeline.semantic_vector_sync import (
   summarize_saved_places_for_semantic,
   sync_pending_semantic_vectors,
 )
+from semantic_vector.batch import BatchAnalysisWithDetailsResult
 from semantic_vector.models import BatchAnalysisFailure, BatchAnalysisResult
 
 
@@ -84,8 +85,10 @@ def test_filter_pending_semantic_places_excludes_analyzed(saved_places: list[dic
 
 
 @pytest.mark.asyncio
-async def test_analyze_saved_places_calls_analyze_places(saved_places: list[dict]) -> None:
-  expected = BatchAnalysisResult(
+async def test_analyze_saved_places_calls_analyze_places_with_details(
+  saved_places: list[dict],
+) -> None:
+  expected = BatchAnalysisWithDetailsResult(
     total_count=1,
     success_count=1,
     failed_count=0,
@@ -95,7 +98,7 @@ async def test_analyze_saved_places_calls_analyze_places(saved_places: list[dict
 
   with (
     patch(
-      "pipeline.semantic_vector_sync.analyze_places",
+      "pipeline.semantic_vector_sync.analyze_places_with_details",
       new=AsyncMock(return_value=expected),
     ) as analyze_mock,
     patch("pipeline.semantic_vector_sync.get_connection"),

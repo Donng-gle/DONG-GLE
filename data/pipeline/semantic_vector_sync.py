@@ -12,7 +12,7 @@ from pipeline.semantic_score_store import (
   save_semantic_analysis_results,
   summarize_place_batch_for_semantic,
 )
-from semantic_vector import analyze_places
+from semantic_vector import analyze_places_with_details
 from semantic_vector.config import SemanticVectorConfig
 from semantic_vector.input_mapper import (
   map_place_to_semantic_input,
@@ -156,19 +156,28 @@ async def analyze_saved_places(
       failures=[],
     )
 
-  result = await analyze_places(
+  detailed = await analyze_places_with_details(
     inputs,
     config=resolved_config,
     concurrency=concurrency,
   )
 
-  if persist_scores and result.results:
+  if persist_scores and detailed.results:
     with get_connection() as conn:
       with conn.cursor() as cur:
-        saved_count = save_semantic_analysis_results(cur, result.results, inputs)
-    logger.info("place_semantic_vector saved: %s건", saved_count)
+        saved_count = save_semantic_analysis_results(cur, detailed.results, inputs)
+    logger.info(
+      "place_semantic_vector saved: %s건 (이미지별 place_image_semantic_vector 동시 저장)",
+      saved_count,
+    )
 
-  return result
+  return BatchAnalysisResult(
+    total_count=detailed.total_count,
+    success_count=detailed.success_count,
+    failed_count=detailed.failed_count,
+    results=[item.result for item in detailed.results],
+    failures=detailed.failures,
+  )
 
 
 def log_semantic_analysis_result(

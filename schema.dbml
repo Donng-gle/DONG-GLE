@@ -74,7 +74,25 @@ Table place_semantic_vector {
   qdrant_point_id          text        [not null, note: 'Qdrant place_semantic_vectors 컬렉션의 벡터 검색용 point id']
   analyzed_at              timestamptz [not null, default: `now()`]
 
-  Note: '장소별 VLM(GPT Vision) semantic 분석 raw score. 장소당 최신 분석 결과 1행만 유지. place_emotion_tag(방문 로그 누적)와는 별개 신호. 데이터 파트 배치 스크립트(data/pipeline/semantic_vector_sync.py)로만 적재됨, 백엔드는 읽기 전용'
+  Note: '장소별 VLM(GPT Vision) semantic 분석 raw score. 장소당 최신 분석 결과 1행만 유지. place_image_semantic_vector(이미지별 원본)를 평균 낸 장소 단위 집계값 — 백엔드/코스추천/Qdrant는 이 집계 테이블만 읽음. place_emotion_tag(방문 로그 누적)와는 별개 신호. 데이터 파트 배치 스크립트(data/pipeline/semantic_vector_sync.py)로만 적재됨, 백엔드는 읽기 전용'
+}
+
+Table place_image_semantic_vector {
+  place_id           bigint      [not null, ref: > place.id]
+  image_url          text        [not null]
+  detail_scores      json        [not null, note: '35개 세부 태그 점수 (이 이미지 1장 기준), JSONB']
+  major_scores       json        [not null, note: '7개 대분류 태그 점수 (이 이미지 1장 기준), JSONB']
+  summary            text
+  model_name         text        [not null]
+  prompt_version     text        [not null]
+  tag_schema_version text        [not null]
+  analyzed_at        timestamptz [not null, default: `now()`]
+
+  Note: '장소 이미지별 VLM(GPT Vision) semantic 분석 raw score. place_semantic_vector(장소 단위 집계)의 원본 데이터. 재분석 시 (place_id, image_url) 기준 최신 버전만 유지. Qdrant는 이 테이블을 참조하지 않음. 데이터 파트 배치 스크립트로만 적재됨, 백엔드는 읽지 않음'
+
+  indexes {
+    (place_id, image_url) [pk]
+  }
 }
 
 Table place_emotion_tag {
