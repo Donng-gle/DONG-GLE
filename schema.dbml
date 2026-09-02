@@ -74,21 +74,11 @@ Table place_semantic_vector {
   qdrant_point_id          text        [not null, note: 'Qdrant place_semantic_vectors 컬렉션의 벡터 검색용 point id']
   analyzed_at              timestamptz [not null, default: `now()`]
 
-  Note: '장소별 VLM(GPT Vision) semantic 분석 raw score. 장소당 최신 분석 결과 1행만 유지. place_emotion_tag(방문 로그 누적)와는 별개 신호. 데이터 파트 배치 스크립트(data/pipeline/semantic_vector_sync.py)로만 적재됨, 백엔드는 읽기 전용'
+  Note: '장소별 VLM(GPT Vision) semantic 분석 raw score. 장소당 최신 분석 결과 1행만 유지. log_emotion_tag(방문 로그 누적, 조회 시점에 직접 집계)와는 별개 신호. 데이터 파트 배치 스크립트(data/pipeline/semantic_vector_sync.py)로만 적재됨, 백엔드는 읽기 전용'
 }
 
-Table place_emotion_tag {
-  id       bigint      [pk, increment]
-  place_id bigint      [not null, ref: > place.id]
-  tag      varchar(50) [not null]
-  count    int         [not null, default: 1, note: '1 이상, 상위 태그 선정에 사용']
-
-  Note: '방문 로그 누적 전용 (장소 공식 사진 기반 정적 분석은 place_semantic_vector 참고). 초기 시드값 없음 — 실제 방문 기록이 쌓이며 채워짐'
-
-  indexes {
-    (place_id, tag) [unique]
-  }
-}
+// place_emotion_tag 테이블은 2026-09-02 제거됨 — 장소별 방문 로그 누적 감성 태그는 이제 저장된
+// 카운터 없이 log_emotion_tag를 조회 시점에 직접 집계함 (decision-log 참고)
 
 Table user {
   id                bigint       [pk, increment]
@@ -193,6 +183,8 @@ Table log_emotion_tag {
   id           bigint      [pk, increment]
   visit_log_id bigint      [not null, ref: > visit_log.id]
   tag          varchar(50) [not null]
+
+  Note: '방문 기록 사진 AI 분석으로 자동 부여. 장소의 상위 태그(place.top_tags)는 이 테이블을 조회 시점에 직접 집계해서 계산함(별도 카운터 테이블 없음, 2026-09-02 결정)'
 
   indexes {
     (visit_log_id, tag) [unique]

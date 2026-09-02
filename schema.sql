@@ -63,7 +63,8 @@ CREATE INDEX idx_place_hours_place ON place_hours (place_id);
 
 -- 장소별 VLM(GPT Vision) semantic 분석 raw score (장소 공식 사진 기반, 정적 기준선)
 -- 장소당 최신 분석 결과 1행만 유지. model_name/prompt_version/tag_schema_version이 바뀌면 재분석 대상.
--- place_emotion_tag(아래, 방문 로그 누적)와는 별개 신호 — 하나가 다른 하나를 대체하지 않음 (decision-log 2026-08-21 참고)
+-- log_emotion_tag(방문 로그 누적, 조회 시점에 직접 집계함 — 2026-09-02 결정)와는 별개 신호,
+-- 하나가 다른 하나를 대체하지 않음 (decision-log 2026-08-21 참고)
 -- 데이터 파트 배치 스크립트(data/pipeline/semantic_vector_sync.py)로만 적재됨, 백엔드는 읽기 전용
 CREATE TABLE place_semantic_vector (
     place_id                 BIGINT      PRIMARY KEY REFERENCES place (id) ON DELETE CASCADE,
@@ -84,18 +85,10 @@ CREATE INDEX idx_place_semantic_vector_prompt_version ON place_semantic_vector (
 CREATE INDEX idx_place_semantic_vector_analyzed_at ON place_semantic_vector (analyzed_at DESC);
 
 
--- 감성 태그 (방문 로그 누적 전용. 장소 공식 사진 기반 정적 분석은 위 place_semantic_vector 참고)
--- 사용자가 방문 기록에 사진을 올려 AI가 분석하면 여기 count가 늘고, 기록을 지우면 줄어드는 실시간 집계 테이블.
--- 초기 시드값은 없음 — 실제 방문 기록이 쌓이며 채워지는 게 정상 (decision-log 2026-08-21 참고)
-CREATE TABLE place_emotion_tag (
-    id       BIGSERIAL PRIMARY KEY,
-    place_id BIGINT      NOT NULL REFERENCES place (id) ON DELETE CASCADE,
-    tag      VARCHAR(50) NOT NULL,
-    count    INT         NOT NULL DEFAULT 1 CHECK (count >= 1),  -- 해당 태그가 이 장소에 붙은 횟수, 상위 태그 선정에 사용
-    UNIQUE (place_id, tag)
-);
-
-CREATE INDEX idx_place_emotion_tag_place ON place_emotion_tag (place_id);
+-- (place_emotion_tag 테이블은 2026-09-02 제거됨 — 장소별 방문 로그 누적 감성 태그는 이제 저장된
+-- 카운터 없이 log_emotion_tag를 조회 시점에 직접 집계함. AI가 log_emotion_tag에 직접 배치로
+-- 적재하기 시작하면서 별도 카운터(count)를 누가 갱신할지 애매해졌던 문제를 이 방식으로 없앰.
+-- LogEmotionTagRepository.countTagsByPlaceId, decision-log 2026-09-02 참고)
 
 
 -- 사용자

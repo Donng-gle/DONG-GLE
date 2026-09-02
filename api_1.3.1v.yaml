@@ -1035,8 +1035,8 @@ components:
           items:
             type: string
           description: |
-            AI 이미지 분석으로 자동 부여된 감성 태그.
-            이 태그는 place_emotion_tag에도 누적되어 장소 분위기 데이터를 보강하며,
+            AI 이미지 분석으로 자동 부여된 감성 태그(비동기 배치, 작성 직후엔 빈 배열일 수 있음).
+            장소의 상위 태그(GET /places/:placeId의 top_tags)에도 조회 시점에 직접 집계되어 반영되며,
             user_preference 점수에도 반영됨.
 
     VisitLogUpdateRequest:
@@ -2160,15 +2160,16 @@ paths:
         사진은 먼저 POST /uploads/presigned-url로 S3에 직접 업로드한 뒤,
         반환된 file_url을 photo_url에 담아 요청해야 한다.
 
-        서버는 업로드된 사진 URL을 기반으로 AI 이미지 분석을 수행하여 감성 태그를 자동 부여하며,
-        다음 세 가지 처리를 연쇄적으로 수행한다.
-          1. log_emotion_tag 생성 (이 기록에 부여된 태그 저장)
-          2. place_emotion_tag count 업데이트 (장소의 분위기 태그 누적)
-          3. place.visit_log_count +1 (방문 로그 수 증가 → 숨은 장소 판단 기준값)
+        이 API 자체는 이 엔드포인트 호출 시점에 다음 두 가지만 동기로 처리한다.
+          1. 여행 기록 생성 (사진 URL, 한줄 리뷰 저장)
+          2. place.visit_log_count +1 (방문 로그 수 증가 → 숨은 장소 판단 기준값)
 
-        ⚠️ 2026-08-30 기준: 1·2번(AI 감성 태그 자동 부여)은 아직 미연동 상태다 (decision-log 참고 —
-        호출할 AI 서비스 자체가 아직 없음). 3번(visit_log_count 증가)과 기록 생성/저장은 정상 동작하며,
-        응답의 tags는 AI 연동 전까지 항상 빈 배열이다.
+        업로드된 사진의 AI 감성 태그 자동 분석은 이 API와 별개로, AI 서버가 사진을 비동기(배치)로
+        분석해서 log_emotion_tag에 직접 적재하는 방식으로 동작한다(2026-08-31 결정) — 즉 이 응답의
+        tags는 방문 기록 작성 직후에는 아직 빈 배열일 수 있고, AI 분석이 끝나면 이후 GET 조회 시점에
+        자동으로 채워진다(별도 API 재호출 불필요). 장소의 상위 태그(GET /places/:placeId의 top_tags)도
+        저장된 카운터 없이 log_emotion_tag를 조회 시점에 직접 집계해서 계산하므로, AI가 태그를
+        적재하는 즉시 반영된다(2026-09-02 결정, decision-log 참고).
 
         응답으로 VisitLogDetail 전체를 반환하므로, 클라이언트가 별도의 GET /logs/:logId 호출 없이
         작성 직후 화면을 바로 렌더링할 수 있다.
@@ -2712,8 +2713,9 @@ paths:
       summary: 여행 기록 삭제
       description: |
         여행 기록을 삭제한다.
-        삭제 시 place.visit_log_count를 -1 처리하고,
-        해당 기록의 log_emotion_tag에 연결된 place_emotion_tag count도 함께 차감된다.
+        삭제 시 place.visit_log_count를 -1 처리한다. 이 기록에 달려있던 log_emotion_tag 행도
+        DB FK(ON DELETE CASCADE)로 함께 삭제되며, 장소의 상위 태그는 조회 시점에 log_emotion_tag를
+        직접 집계하므로(저장된 카운터 없음, 2026-09-02 결정) 별도 차감 처리 없이 자동으로 반영된다.
       parameters:
         - name: logId
           in: path
