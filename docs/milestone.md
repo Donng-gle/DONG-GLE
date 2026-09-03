@@ -1,7 +1,7 @@
 # 마일스톤
 
 > 공모전 제출 마감: 2026년 9월 20일
-> 최근 수정: 2026-09-03 · 설만수 (코스 상세/수정·유사 사용자 탐색 피드 디자인 반영, log_emotion_tag.score DB 드리프트 수정, 좌측 드로어 UX 개선)
+> 최근 수정: 2026-09-03 · 설만수 (코스 상세/수정·유사 사용자 탐색 피드 디자인 반영, log_emotion_tag.score DB 드리프트 수정, 좌측 드로어 UX 개선, 게스트 모드 구현)
 
 ---
 
@@ -197,7 +197,7 @@
 - [x] `CourseDetailScreen`/`CourseEditScreen` 자체 디자인 반영 (2026-09-03, decision-log 참고) — 전용 시안 없어서 `CourseResultScreen`/`CourseManualBuilderScreen` 언어 재사용, `feat/course-detail-edit-screen` → `client` 병합 완료
 - [x] 유사 사용자 탐색 피드(Figma `316:4122`/`507:10963`) 반영 (2026-09-03, decision-log 참고) — 카드에 작성자 정보가 필요해서 백엔드 `SimilarLogItemResponse`에 `nickname`/`profile_image_url` 추가(`feat/explore-nickname` → `server`), 프론트는 `feat/explore-feed` → `client` 병합 완료. **부수 발견**: 이 작업 중 실제 Supabase `log_emotion_tag`에 문서/엔티티에 없던 `score` 컬럼(NOT NULL)이 이미 있던 걸 발견해서 같이 수정함 — 데이터/AI 파트가 왜 라이브 DB에 직접 추가했는지 원인 확인 필요 (decision-log 참고)
 - [~] 좌측 드로어 — 전용 시안은 여전히 없음(Figma 79개 프레임 전수 확인해도 없음). 슬라이드 애니메이션/아바타/섹션 구분 등 UX 기본기는 개선 완료(2026-09-03, decision-log 참고), 항목 배치는 계속 임시
-- [ ] 게스트 모드(비로그인 이용) 실제 구현
+- [x] 게스트 모드(비로그인 이용) 실제 구현 (2026-09-03, decision-log 참고) — `App.tsx`/`HomeScreen.tsx`/`LoginScreen.tsx`, 인증 필요 기능은 진입 차단 후 로그인 유도. **남은 것**: 로그인 화면의 게스트 진입이 버튼이 아니라 텍스트 링크뿐이라 디자인팀(전성빈) 확인 필요, `PlaceDetailScreen` 찜 버튼은 아직 사전 차단 없이 실패 얼럿으로만 처리
 
 **디자인 (전성빈)**
 - [ ] 주요 화면(온보딩 스와이프, 장소 탐색, 코스 추천) 시안 계속 진행
