@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { Modal, Pressable, Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { UserProfile, authApi } from '../api/auth';
 import { tokenStorage } from '../auth/tokenStorage';
+import { FloatingNav } from '../components/FloatingNav';
 import { colors } from '../theme/colors';
 import { fonts } from '../theme/fonts';
 import { JournalTab } from './home/JournalTab';
@@ -14,12 +14,11 @@ import { CourseFlowScreen } from './CourseFlowScreen';
 import { CourseManualBuilderScreen } from './CourseManualBuilderScreen';
 import { EventsScreen } from './EventsScreen';
 import { ExploreScreen } from './ExploreScreen';
-import { LikesScreen } from './LikesScreen';
-import { MyCoursesScreen } from './MyCoursesScreen';
 import { MyLogsScreen } from './MyLogsScreen';
 import { NotificationSettingsScreen } from './NotificationSettingsScreen';
 import { PlaceListScreen } from './PlaceListScreen';
 import { ProfileScreen } from './ProfileScreen';
+import { ScrapbookScreen } from './ScrapbookScreen';
 import { TagsScreen } from './TagsScreen';
 
 interface Props {
@@ -32,8 +31,7 @@ type Tab = 'journal' | 'recommended' | 'street';
 type Overlay =
   | 'course-flow'
   | 'course-manual'
-  | 'my-courses'
-  | 'likes'
+  | 'scrapbook'
   | 'places'
   | 'my-logs'
   | 'events'
@@ -49,12 +47,12 @@ const TABS: { key: Tab; label: string }[] = [
 ];
 
 // 드로어에서 여는 화면들 — 디자인 시안이 아직 없어서 항목 배치는 임시(전체 메뉴 목록 성격),
-// 실제 서랍(드로어) UI 스펙 나오면 교체 필요
+// 실제 서랍(드로어) UI 스펙 나오면 교체 필요.
+// '내 코스'/'찜한 장소'는 Figma 노드 485:10903/488:11855("스크랩북")가 탭 하나로 묶여있어 항목도 통합함
 const DRAWER_ITEMS: { key: Overlay; label: string }[] = [
   { key: 'course-flow', label: 'AI로 코스 만들기' },
   { key: 'course-manual', label: '직접 코스 만들기' },
-  { key: 'my-courses', label: '내 코스' },
-  { key: 'likes', label: '찜한 장소' },
+  { key: 'scrapbook', label: '스크랩북' },
   { key: 'my-logs', label: '방문 기록' },
   { key: 'events', label: '행사·축제' },
   { key: 'explore', label: '비슷한 취향 탐색' },
@@ -95,10 +93,8 @@ export function HomeScreen({ profile: initialProfile, onLogout }: Props) {
       return <CourseFlowScreen onExit={closeOverlay} />;
     case 'course-manual':
       return <CourseManualBuilderScreen onSaved={closeOverlay} onExit={closeOverlay} />;
-    case 'my-courses':
-      return <MyCoursesScreen onExit={closeOverlay} />;
-    case 'likes':
-      return <LikesScreen onExit={closeOverlay} />;
+    case 'scrapbook':
+      return <ScrapbookScreen onExit={closeOverlay} />;
     case 'places':
       return <PlaceListScreen onExit={closeOverlay} />;
     case 'my-logs':
@@ -153,23 +149,7 @@ export function HomeScreen({ profile: initialProfile, onLogout }: Props) {
         {tab === 'street' && <StreetTab />}
       </View>
 
-      <View style={[styles.floatingNav, { bottom: Math.max(20, insets.bottom + 12) }]}>
-        <TouchableOpacity style={styles.floatingNavSideButton} hitSlop={6}>
-          <Text style={styles.emojiIcon}>🏠</Text>
-        </TouchableOpacity>
-        <View style={styles.floatingNavCenterSpacer} />
-        <TouchableOpacity style={styles.floatingNavSideButton} onPress={handleShare} hitSlop={6}>
-          <Text style={styles.emojiIcon}>📤</Text>
-        </TouchableOpacity>
-        <LinearGradient
-          colors={['#ffe500', '#f79030']}
-          style={styles.floatingNavCenter}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        >
-          <Text style={styles.emojiIcon}>🏠</Text>
-        </LinearGradient>
-      </View>
+      <FloatingNav onHome={() => setTab('journal')} onShare={handleShare} />
 
       <Modal visible={drawerOpen} transparent animationType="fade" onRequestClose={() => setDrawerOpen(false)}>
         <Pressable style={styles.drawerBackdrop} onPress={() => setDrawerOpen(false)}>
@@ -260,31 +240,6 @@ const styles = StyleSheet.create({
   tabLabelActive: { fontFamily: fonts.semiBold, color: colors.black },
   tabUnderline: { height: 2, backgroundColor: colors.black, marginTop: 6, borderRadius: 1 },
   tabContent: { flex: 1 },
-  floatingNav: {
-    position: 'absolute',
-    alignSelf: 'center',
-    width: 209,
-    height: 52,
-    borderRadius: 100,
-    backgroundColor: 'rgba(17,17,17,0.7)',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 24,
-  },
-  floatingNavSideButton: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
-  floatingNavCenterSpacer: { width: 52 },
-  floatingNavCenter: {
-    position: 'absolute',
-    top: -14,
-    left: '50%',
-    marginLeft: -26,
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   drawerBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', flexDirection: 'row' },
   drawerPanel: {
     width: '78%',
