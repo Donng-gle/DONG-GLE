@@ -59,7 +59,7 @@ class VisitLogApiIntegrationTest {
 
     private fun log(user: User, place: Place, oneLine: String = "좋았어요", tags: List<String> = listOf("relaxing")): VisitLog {
         val saved = visitLogRepository.save(VisitLog(user = user, place = place, oneLine = oneLine))
-        tags.forEach { saved.emotionTags.add(LogEmotionTag(visitLog = saved, tag = it)) }
+        tags.forEach { saved.emotionTags.add(LogEmotionTag(visitLog = saved, tag = it, score = 0.8)) }
         return visitLogRepository.save(saved)
     }
 

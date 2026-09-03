@@ -180,11 +180,12 @@ Table onboarding_swipe_log {
 }
 
 Table log_emotion_tag {
-  id           bigint      [pk, increment]
-  visit_log_id bigint      [not null, ref: > visit_log.id]
-  tag          varchar(50) [not null]
+  id           bigint           [pk, increment]
+  visit_log_id bigint           [not null, ref: > visit_log.id]
+  tag          varchar(50)      [not null]
+  score        double precision [not null, note: 'AI 확신도(0.0~1.0). 실제 Supabase엔 이미 있었는데 문서 반영이 안 돼 있던 걸 뒤늦게 맞춤(2026-09-03)']
 
-  Note: '방문 기록 사진 AI 분석으로 자동 부여. 장소의 상위 태그(place.top_tags)는 이 테이블을 조회 시점에 직접 집계해서 계산함(별도 카운터 테이블 없음, 2026-09-02 결정)'
+  Note: '방문 기록 사진 AI 분석으로 자동 부여. 장소의 상위 태그(place.top_tags)는 이 테이블을 SUM(score) 기준으로 조회 시점에 직접 집계해서 계산함(별도 카운터 테이블 없음, 2026-09-02 결정 / score 가중치는 2026-09-03 추가)'
 
   indexes {
     (visit_log_id, tag) [unique]

@@ -162,10 +162,13 @@ CREATE INDEX idx_visit_log_visited ON visit_log (visited_at);
 
 
 -- 로그 감성 태그 (AI 분석)
+-- score: AI가 이 태그를 얼마나 확신했는지(0.0~1.0). 실제 Supabase엔 이미 있었는데 이 문서/백엔드
+-- 엔티티에 반영이 안 돼 있던 걸 뒤늦게 맞춤 (2026-09-03 발견, decision-log 참고)
 CREATE TABLE log_emotion_tag (
-    id           BIGSERIAL   PRIMARY KEY,
-    visit_log_id BIGINT      NOT NULL REFERENCES visit_log (id) ON DELETE CASCADE,
-    tag          VARCHAR(50) NOT NULL,
+    id           BIGSERIAL        PRIMARY KEY,
+    visit_log_id BIGINT           NOT NULL REFERENCES visit_log (id) ON DELETE CASCADE,
+    tag          VARCHAR(50)      NOT NULL,
+    score        DOUBLE PRECISION NOT NULL,
     UNIQUE (visit_log_id, tag)
 );
 
