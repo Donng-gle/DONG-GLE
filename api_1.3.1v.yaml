@@ -1114,6 +1114,11 @@ components:
           type: array
           items:
             type: string
+        nickname:
+          type: string
+        profile_image_url:
+          type: string
+          nullable: true
 
     PresignedUrlRequest:
       type: object
