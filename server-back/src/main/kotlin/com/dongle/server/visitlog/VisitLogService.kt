@@ -86,7 +86,12 @@ class VisitLogService(
     @Transactional
     fun update(userId: Long, logId: Long, request: VisitLogUpdateRequest): VisitLogDetailResponse {
         val log = findOwnedLog(userId, logId)
-        request.oneLine?.let { log.oneLine = it }
+        // 빈 문자열은 "리뷰 지움"으로 취급해 null로 저장. 필드 자체가 없는 요청(과거엔 프론트가
+        // 빈 값을 아예 생략해서 보냈음)과 "지움"을 구분할 방법이 nullable 필드만으론 없어서,
+        // 프론트가 항상 trim된 값을 보내도록 맞추고(빈 문자열 포함) 여기서 blank를 null로 정규화하는
+        // 쪽으로 계약을 명확히 함 — 안 그러면 리뷰를 지워도 예전 값이 그대로 남는 버그가 있었음
+        // (2026-09-04 발견/수정, decision-log 참고)
+        request.oneLine?.let { log.oneLine = it.ifBlank { null } }
         request.visitedAt?.let { log.visitedAt = it }
         return log.toDetailResponse()
     }

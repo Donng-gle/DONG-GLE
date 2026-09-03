@@ -1041,7 +1041,9 @@ components:
 
     VisitLogUpdateRequest:
       type: object
-      description: 사진은 수정 불가. 한줄 리뷰와 방문 날짜만 수정 가능.
+      description: |
+        사진은 수정 불가. 한줄 리뷰와 방문 날짜만 수정 가능.
+        one_line을 빈 문자열("")로 보내면 리뷰가 삭제됨(null로 저장). 필드 자체를 생략하면 기존 값 유지.
       properties:
         one_line:
           type: string
