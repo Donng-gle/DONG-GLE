@@ -21,11 +21,12 @@ const HERO_IMAGE_URL = 'https://tong.visitkorea.or.kr/cms/resource_photo/85/4062
 
 interface Props {
   onLoginSuccess: (profile: UserProfile) => void;
+  onGuestContinue: () => void;
 }
 
 type Step = 'intro' | 'login';
 
-export function LoginScreen({ onLoginSuccess }: Props) {
+export function LoginScreen({ onLoginSuccess, onGuestContinue }: Props) {
   // 실제 Figma 플로우: 히어로 사진 + "계속하기"(intro) → 탭하면 로그인 옵션 바텀시트(login)가
   // 같은 사진 위로 올라오는 2단계 구성 (2026-08-31 확인, decision-log 참고)
   const [step, setStep] = useState<Step>('intro');
@@ -92,10 +93,11 @@ export function LoginScreen({ onLoginSuccess }: Props) {
     }
   }
 
-  // 게스트 모드: 이번 단계는 UI만 반영 — App.tsx 네비게이션 구조가 아직 비로그인 상태를
-  // 지원하지 않음, 실제 게스트 진입 구현은 별도 작업으로 확정됨 (2026-08-31 결정, decision-log 참고)
+  // 게스트 모드 실제 진입 구현 완료 (2026-09-03, decision-log 참고).
+  // 이 텍스트 링크는 디자인상 버튼이 아니라 그냥 텍스트로만 되어 있음 — 디자인팀(전성빈)에
+  // 확인해서 버튼 형태로 바꿀지 논의 예정, 지금은 있는 그대로 둠
   function handleGuestPress() {
-    Alert.alert('준비 중', '비로그인 이용은 아직 준비 중이에요. 곧 만나요!');
+    onGuestContinue();
   }
 
   return (
