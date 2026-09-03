@@ -616,3 +616,32 @@
 - **디자인과 실제 구현이 갈린 지점**: 코스 카드의 장소 썸네일 3장 스트립+"N+" 배지 — `CourseListItem`이 코스 썸네일 1장만 주고 코스 내 개별 장소 썸네일 목록을 안 줘서 "장소 N곳" 텍스트로 대체. 코스 카드 우상단 좋아요 버튼 — 스키마에 "코스 찜" 개념 자체가 없음(`PLACE_LIKE`만 존재, `COURSE_LIKE` 없음)이라 생략. 반복되는 원칙(8/31 HomeScreen, 9/1 코스 만들기 플로우 결정과 동일 — 없는 데이터는 지어내지 않음)
 - **드로어 메뉴 정리**: 기존 "내 코스"/"찜한 장소" 두 항목을 "스크랩북" 하나로 통합(둘 다 같은 화면의 다른 탭일 뿐이라 항목을 나눌 이유가 없어짐)
 - **영향**: `client-front/src/screens/{MyCoursesScreen,LikesScreen}.tsx` 삭제, `ScrapbookScreen.tsx` 신규, `src/components/FloatingNav.tsx` 신규, `HomeScreen.tsx`/`ProfileScreen.tsx` 수정. `npx tsc --noEmit` 통과 확인(Metro/실기기 세션 없는 상태에서 작업). `feat/my-courses-screen` → `client` 병합·push 완료. **`client` → `dev` 통합은 여전히 미완료**(8/31부터 계속 대기 중인 결정, 이번 작업도 그 위에 얹힘). **다음 후보**: `CourseDetailScreen`/`CourseEditScreen` 자체 디자인 반영, `316:4122`/`507:10963`(유사 사용자 탐색 피드) 반영, `437:4426`/`316:4607` 보류 건 재논의
+
+---
+
+## 2026-09-03 | 코스 상세/수정 화면 디자인 적용 — 전용 시안 없어서 기존 화면 언어 재사용
+
+- **결정**: `CourseDetailScreen`/`CourseEditScreen`(기능은 있으나 `Button`/기본 스타일뿐이던 상태)에 디자인 적용. 전용 Figma 시안이 없어서(9/3 앞선 결정으로 `437:4426` 배제) 새로 만들지 않고 이미 확립된 화면의 언어를 그대로 재사용: `CourseDetailScreen`은 `CourseResultScreen`의 번호 핀 지도+거리/시간 리스트 구조를, `CourseEditScreen`은 `CourseManualBuilderScreen`의 헤더/입력창/버튼 스타일을 그대로 가져옴(둘 다 같은 "장소 순서 편집" 성격)
+- **이유**: 시안 없는 화면은 앱 톤을 임의로 새로 짜기보다 이미 확정된 동일 성격 화면의 패턴을 재사용하는 쪽이 일관성 있음(8/31, 9/1 결정과 동일 원칙)
+- **부수 정리**: 코드에 `#d33`로 하드코딩돼 있던 삭제 버튼 색을 `colors.danger` 토큰으로 승격(Figma에 파괴적 액션 시안 자체가 없어서 기존 값 그대로 토큰화만 함)
+- **영향**: `client-front/src/screens/{CourseDetailScreen,CourseEditScreen}.tsx` 재작성, `src/theme/colors.ts`에 `danger` 추가. `npx tsc --noEmit` 통과. `feat/course-detail-edit-screen` → `client` 병합·push 완료
+
+---
+
+## 2026-09-03 | `log_emotion_tag.score` 컬럼 드리프트 발견·수정 — 실제 Supabase와 schema.sql/엔티티가 어긋나 있었음
+
+- **배경**: 유사 사용자 탐색 피드 화면 작업 중 `ExploreApiIntegrationTest`가 제출한 변경과 무관한 지점(`LogEmotionTag` insert)에서 계속 실패. 원인 추적 결과 **실제 Supabase `log_emotion_tag` 테이블에 `score DOUBLE PRECISION NOT NULL` 컬럼이 이미 존재**하는데, `schema.sql`/`schema.dbml`/`LogEmotionTag.kt` 엔티티 어디에도 반영이 안 돼 있었음(`psql`로 라이브 DB `\d log_emotion_tag` 직접 확인). 테이블은 비어있어(0행) 데이터 유실 위험은 없었음. 추정: 8/30 "AI가 log_emotion_tag에 직접 배치 적재" 결정 이후, AI/데이터 파트가 태그별 확신도를 같이 적재하려고 컬럼을 라이브 DB에 직접 추가하면서 스키마 문서·백엔드에 공유가 안 된 것으로 보임 — **데이터 파트(이수연)/AI 파트(김지광)에게 실제 의도 확인 필요**
+- **영향 범위**: `ExploreApiIntegrationTest` 3개 전부, `VisitLogApiIntegrationTest` 11개 중 5개(둘 다 `LogEmotionTag`를 insert하는 테스트) 실패 중이었음 — 내 작업과 무관하게 `server` 브랜치가 이미 이 상태였음(변경 stash 후 재현해서 확인)
+- **결정**: `LogEmotionTag` 엔티티에 `score: Double`(non-null) 추가해서 실제 DB와 맞춤. 이왕 추가하는 김에 `LogEmotionTagRepository.countTagsByPlaceId`의 정렬 기준을 `COUNT(let)`(단순 등장 횟수)에서 `SUM(let.score)`(확신도 합산)로 바꿈 — 태그가 여러 번 등장하면 합산값도 자연히 커지니 빈도는 그대로 반영되면서, 애매하게 붙은 태그보다 확신도 높은 태그가 상위 태그로 우선하도록 개선. `PlaceService.resolveTags`/`EventService` 등 호출부는 정렬된 태그 목록의 `.tag`만 쓰고 있어서 이 변경만으로 호출부 수정 없이 반영됨
+- **적용**: `schema.sql`/`schema.dbml`에 `score` 컬럼 반영, `ExploreApiIntegrationTest`/`VisitLogApiIntegrationTest`의 `LogEmotionTag` 생성 헬퍼에 `score = 0.8` 추가. **라이브 Supabase DB 자체는 이미 컬럼이 있었으므로 별도 마이그레이션 불필요**(문서·엔티티만 실제에 맞춤)
+- **영향**: `server-back` 4개 파일 수정(`LogEmotionTag.kt`, `LogEmotionTagRepository.kt`, 테스트 2개), `schema.sql`/`schema.dbml`/`api_1.3.1v.yaml` 갱신. `./gradlew test` 전체 통과 확인(이전엔 실패 상태였음). `feat/explore-nickname` → `server` 병합·push 완료(worktree `/tmp/dongle-server-explore`에서 작업 후 정리)
+
+---
+
+## 2026-09-03 | 유사 취향 탐색 피드 화면 디자인 적용 + `SimilarLogItem`에 작성자 정보 추가
+
+- **결정**: Figma 노드 `316:4122`("유저 리스트")/`507:10963`("취향 비슷 사용자 프로필") 반영해서 `ExploreScreen` 재작성. 카드에 작성자 아바타+닉네임이 있는데 `SimilarLogItemResponse`엔 없어서(VisitLog에 user 관계는 있지만 노출 안 함) **백엔드에 `nickname`/`profile_image_url` 필드 추가**(User 엔티티에 이미 있던 필드 그대로 노출, 새 데이터 아님)
+- **디자인과 실제 구현이 갈린 지점**: 사진 여러 장+점 인디케이터+사진 우상단 좋아요 버튼 — `SimilarLogItem`은 사진이 `photo_url` 1장뿐이고 "방문 기록 좋아요" 개념 자체가 스키마에 없어서(`PLACE_LIKE`만 존재) 사진 1장만 버튼 없이 표시. 카드의 별점(예: ★★★★ 4.0) — 같은 Figma 문서 안에서도 카드마다 있다 없다 해서(507:10963엔 없음, 316:4122 두 번째 카드에만 있음) 확정된 요소로 보기 어렵고 대응 데이터도 없어서 생략
+- **"선택" 버튼**: 카드 우상단 버튼의 의도가 불명확했는데, 카드에 있는 유일한 실제 액션 가능 데이터가 `place_id`라 "이 장소 상세로 이동"으로 해석해서 구현(`PlaceDetailScreen`으로 이동)
+- **페이징**: `316:4122` 하단에 "◀◀ ◀ 1/20 ▶ ▶▶" 형태의 실제 페이징 컨트롤이 있어서, `FlatList`의 `onViewableItemsChanged`로 현재 보이는 카드 인덱스를 추적하고 버튼으로 `scrollToIndex` 이동하는 방식으로 구현(서버 페이지네이션이 아니라 이미 받아온 전체 목록 안에서의 스크롤 위치 이동)
+- **영향**: `server-back/src/main/kotlin/com/dongle/server/explore/{ExploreService.kt,dto/SimilarLogItemResponse.kt}`, `api_1.3.1v.yaml`, `ExploreApiIntegrationTest.kt` 수정(`feat/explore-nickname` → `server`, 위 항목과 같은 브랜치). `client-front/src/{api/explore.ts,screens/ExploreScreen.tsx}` 수정, `npx tsc --noEmit` 통과, `feat/explore-feed` → `client` 병합·push 완료. **`server`/`client` → `dev` 통합은 둘 다 여전히 미완료** — 지금 이 nickname 필드는 `client`에서 타입만 맞춰뒀을 뿐, `dev`/`main` 배포본엔 아직 없어서 실제 응답엔 없는 상태(두 브랜치 다 dev 통합 대기 중이라 당장 불일치는 없음, 통합 시점에 같이 맞아떨어짐)
