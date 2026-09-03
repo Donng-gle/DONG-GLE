@@ -3,7 +3,7 @@ import { ActivityIndicator, Alert, Button, StyleSheet, Text, TextInput, View } f
 import { UserProfile } from '../api/auth';
 import { UserPreferenceTag, userApi } from '../api/user';
 import { tokenStorage } from '../auth/tokenStorage';
-import { LikesScreen } from './LikesScreen';
+import { ScrapbookScreen } from './ScrapbookScreen';
 
 interface Props {
   profile: UserProfile;
@@ -62,7 +62,7 @@ export function ProfileScreen({ profile, onProfileUpdated, onWithdrawn, onExit }
   }
 
   if (subScreen === 'likes') {
-    return <LikesScreen onExit={() => setSubScreen('none')} />;
+    return <ScrapbookScreen initialTab="place" onExit={() => setSubScreen('none')} />;
   }
 
   return (
