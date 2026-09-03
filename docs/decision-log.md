@@ -645,3 +645,11 @@
 - **"선택" 버튼**: 카드 우상단 버튼의 의도가 불명확했는데, 카드에 있는 유일한 실제 액션 가능 데이터가 `place_id`라 "이 장소 상세로 이동"으로 해석해서 구현(`PlaceDetailScreen`으로 이동)
 - **페이징**: `316:4122` 하단에 "◀◀ ◀ 1/20 ▶ ▶▶" 형태의 실제 페이징 컨트롤이 있어서, `FlatList`의 `onViewableItemsChanged`로 현재 보이는 카드 인덱스를 추적하고 버튼으로 `scrollToIndex` 이동하는 방식으로 구현(서버 페이지네이션이 아니라 이미 받아온 전체 목록 안에서의 스크롤 위치 이동)
 - **영향**: `server-back/src/main/kotlin/com/dongle/server/explore/{ExploreService.kt,dto/SimilarLogItemResponse.kt}`, `api_1.3.1v.yaml`, `ExploreApiIntegrationTest.kt` 수정(`feat/explore-nickname` → `server`, 위 항목과 같은 브랜치). `client-front/src/{api/explore.ts,screens/ExploreScreen.tsx}` 수정, `npx tsc --noEmit` 통과, `feat/explore-feed` → `client` 병합·push 완료. **`server`/`client` → `dev` 통합은 둘 다 여전히 미완료** — 지금 이 nickname 필드는 `client`에서 타입만 맞춰뒀을 뿐, `dev`/`main` 배포본엔 아직 없어서 실제 응답엔 없는 상태(두 브랜치 다 dev 통합 대기 중이라 당장 불일치는 없음, 통합 시점에 같이 맞아떨어짐)
+
+---
+
+## 2026-09-03 | 좌측 드로어 UX 개선 — 전용 시안 없이 기본기만 보강
+
+- **결정**: Figma 79개 프레임을 전수 확인해도(9/3 앞선 세션에서 이미 확인) 드로어 전용 시안은 끝내 없어서, 디자인을 새로 짜지 않고 **디자인과 무관한 UX 기본기만** 개선: ① `Modal`이 그냥 `fade`뿐이던 걸 실제 좌측에서 슬라이드 인/아웃하는 애니메이션으로(`Animated.Value` + `translateX` 보간), ② 인사말 옆에 `UserProfile.profile_image_url` 아바타 추가(이미 있는 필드, 새 데이터 아님), ③ 항목 8개를 그냥 나열하던 걸 "코스/탐색/설정" 3개 섹션으로 구분
+- **이유**: 시안이 없다고 방치하기보다, 시안과 무관하게 명백히 필요한 부분(슬라이드 애니메이션 없는 서랍은 기본적인 모바일 UX 관례에도 안 맞음, 항목 8개 나열은 훑어보기 어려움)은 먼저 개선. 항목 구성 자체(어떤 메뉴를 넣을지, 순서)는 여전히 임시라는 점은 유지 — 실제 서랍 시안 나오면 항목 배치는 다시 손볼 것
+- **영향**: `client-front/src/screens/HomeScreen.tsx` 수정(같은 애니메이션 로직을 다른 화면에서 또 써야 하는 상황이 생기면 그때 공용 컴포넌트로 분리 검토). `npx tsc --noEmit` 통과. `feat/drawer-improvements` → `client` 병합·push 완료
