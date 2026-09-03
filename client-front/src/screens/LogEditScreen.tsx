@@ -17,7 +17,10 @@ export function LogEditScreen({ log, onSaved, onDeleted, onCancel }: Props) {
   async function handleSave() {
     setSaving(true);
     try {
-      await visitLogApi.update(log.id, { one_line: oneLine.trim() || undefined });
+      // trim()이 빈 문자열이어도 그대로 보냄(undefined로 바꾸지 않음) — 필드를 아예 생략하면
+      // 서버가 "안 건드림"으로 해석해서 리뷰를 지웠는데도 예전 값이 그대로 남는 문제가 있었음
+      // (2026-09-04 발견/수정, decision-log 참고)
+      await visitLogApi.update(log.id, { one_line: oneLine.trim() });
       onSaved();
     } catch (e) {
       Alert.alert('수정에 실패했어요', e instanceof Error ? e.message : '알 수 없는 오류');

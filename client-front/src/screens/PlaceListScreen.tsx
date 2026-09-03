@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PlaceCategory, PlaceListItem, placeApi } from '../api/place';
@@ -15,6 +15,7 @@ interface Props {
 }
 
 const CATEGORIES: PlaceCategory[] = ['관광지', '식당', '카페', '액티비티', '문화공간', '축제행사'];
+const PAGE_SIZE = 20;
 
 // Figma 노드 362:3724("검색창") 색/형태 반영 — 자동완성 추천어 목록은 대응 데이터가 없어서
 // (인기 검색어 API 없음) 제외, 기존 카테고리+검색 통합 화면 구조는 유지
@@ -23,19 +24,41 @@ export function PlaceListScreen({ onExit, onSelectPlace }: Props) {
   const [category, setCategory] = useState<PlaceCategory | null>(null);
   const [query, setQuery] = useState('');
   const [places, setPlaces] = useState<PlaceListItem[] | null>(null);
+  const [page, setPage] = useState(1);
+  const [hasNext, setHasNext] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [selectedId, setSelectedId] = useState<number | null>(null);
 
   useEffect(() => {
-    load();
+    load(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [category]);
 
-  async function load() {
-    setPlaces(null);
-    const response = query.trim()
-      ? await placeApi.search(query.trim())
-      : await placeApi.list({ category: category ?? undefined });
-    setPlaces(response.places);
+  // 관광지만 107건이라 기본 페이지(20건)로는 카테고리 하나도 다 못 보여줌 — 스크롤 끝에서
+  // 다음 페이지를 이어붙이는 방식으로 전체를 다 볼 수 있게 함 (2026-09-04 수정, decision-log 참고)
+  async function load(pageToLoad: number) {
+    if (pageToLoad === 1) {
+      setPlaces(null);
+    } else {
+      setLoadingMore(true);
+    }
+    try {
+      const response = query.trim()
+        ? await placeApi.search(query.trim(), pageToLoad, PAGE_SIZE)
+        : await placeApi.list({ category: category ?? undefined, page: pageToLoad, size: PAGE_SIZE });
+      setPlaces((prev) => (pageToLoad === 1 ? response.places : [...(prev ?? []), ...response.places]));
+      setPage(pageToLoad);
+      setHasNext(response.meta.has_next);
+    } catch (e) {
+      Alert.alert('장소를 불러오지 못했어요', e instanceof Error ? e.message : '알 수 없는 오류');
+      if (pageToLoad === 1) setPlaces([]);
+    } finally {
+      setLoadingMore(false);
+    }
+  }
+
+  function loadMore() {
+    if (!loadingMore && hasNext) load(page + 1);
   }
 
   if (!onSelectPlace && selectedId != null) {
@@ -59,14 +82,14 @@ export function PlaceListScreen({ onExit, onSelectPlace }: Props) {
             onChangeText={setQuery}
             placeholder={onSelectPlace ? '장소 검색' : '안동'}
             placeholderTextColor={colors.gray500}
-            onSubmitEditing={load}
+            onSubmitEditing={() => load(1)}
             returnKeyType="search"
           />
           {query.length > 0 && (
             <TouchableOpacity
               onPress={() => {
                 setQuery('');
-                load();
+                load(1);
               }}
               hitSlop={8}
             >
@@ -104,6 +127,9 @@ export function PlaceListScreen({ onExit, onSelectPlace }: Props) {
           keyExtractor={(item) => String(item.id)}
           contentContainerStyle={styles.listContent}
           ListEmptyComponent={<Text style={styles.emptyText}>결과가 없어요</Text>}
+          onEndReached={loadMore}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={loadingMore ? <ActivityIndicator color={colors.black} style={styles.footerLoading} /> : null}
           renderItem={({ item }) => (
             <PlaceListItemRow place={item} onPress={() => (onSelectPlace ? onSelectPlace(item) : setSelectedId(item.id))} />
           )}
@@ -138,6 +164,7 @@ const styles = StyleSheet.create({
   categoryChipText: { fontFamily: fonts.medium, fontSize: 13, letterSpacing: -0.3, color: colors.gray700 },
   categoryChipTextSelected: { color: colors.white },
   loading: { marginTop: 40 },
+  footerLoading: { marginVertical: 16 },
   listContent: { paddingHorizontal: 20, paddingBottom: 24 },
   emptyText: { fontFamily: fonts.regular, fontSize: 14, color: colors.gray500, textAlign: 'center', marginTop: 40 },
 });
