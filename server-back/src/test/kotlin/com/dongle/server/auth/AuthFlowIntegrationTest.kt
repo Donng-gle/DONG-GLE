@@ -17,6 +17,7 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers.header
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import org.springframework.transaction.annotation.Transactional
+import tools.jackson.databind.ObjectMapper
 import java.time.LocalDateTime
 
 // 카카오/구글 OAuth 앱 자격증명이 없어 실제 소셜 로그인은 검증 불가.
@@ -37,6 +38,9 @@ class AuthFlowIntegrationTest {
 
     @Autowired
     lateinit var jwtTokenProvider: JwtTokenProvider
+
+    @Autowired
+    lateinit var objectMapper: ObjectMapper
 
     @Test
     fun `유효한 액세스 토큰으로 내 프로필을 조회할 수 있다`() {
@@ -84,6 +88,51 @@ class AuthFlowIntegrationTest {
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.access_token").exists())
+            .andExpect(jsonPath("$.refresh_token").exists())
+            .andExpect(jsonPath("$.refresh_token").value(org.hamcrest.Matchers.not(refreshToken)))
+    }
+
+    // 리프레시 토큰 회전(2026-09-04 도입, decision-log 참고) — 한 번 쓴 리프레시 토큰은 즉시 폐기되어
+    // 재사용이 안 되고, 응답으로 받은 새 리프레시 토큰만 유효해야 함
+    @Test
+    fun `리프레시 토큰은 한 번 쓰면 재사용할 수 없고 새로 받은 토큰만 유효하다`() {
+        val user = userRepository.save(
+            User(
+                userId = "test_user_rotation",
+                nickname = "테스트유저-회전",
+                oauthProvider = OAuthProvider.google,
+                oauthId = "google-id-rotation",
+            )
+        )
+        val originalRefreshToken = jwtTokenProvider.generateRefreshToken(user.id)
+        refreshTokenRepository.save(
+            RefreshToken(user = user, token = originalRefreshToken, expiresAt = LocalDateTime.now().plusDays(30))
+        )
+
+        val firstResponse = mockMvc.perform(
+            post("/auth/refresh")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"refresh_token":"$originalRefreshToken"}""")
+        )
+            .andExpect(status().isOk)
+            .andReturn()
+        val newRefreshToken = objectMapper.readTree(firstResponse.response.contentAsString)["refresh_token"].asText()
+
+        // 원래 토큰 재사용 시도 → 이미 폐기되어 실패해야 함
+        mockMvc.perform(
+            post("/auth/refresh")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"refresh_token":"$originalRefreshToken"}""")
+        )
+            .andExpect(status().isUnauthorized)
+
+        // 새로 받은 토큰은 정상 동작해야 함
+        mockMvc.perform(
+            post("/auth/refresh")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"refresh_token":"$newRefreshToken"}""")
+        )
+            .andExpect(status().isOk)
     }
 
     @Test
