@@ -178,6 +178,17 @@ class VisitLogApiIntegrationTest {
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.one_line").value("수정후"))
+
+        // 빈 문자열로 보내면 리뷰가 실제로 지워져야 함(2026-09-04 수정) — 이전엔 필드를 생략해서 보내던
+        // 프론트 로직 때문에 지워도 예전 값이 그대로 남는 버그가 있었음, decision-log 참고
+        mockMvc.perform(
+            patch("/logs/${savedLog.id}")
+                .header("Authorization", "Bearer $token")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"one_line":""}""")
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.one_line").doesNotExist())
     }
 
     @Test
