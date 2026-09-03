@@ -22,8 +22,9 @@ import { ScrapbookScreen } from './ScrapbookScreen';
 import { TagsScreen } from './TagsScreen';
 
 interface Props {
-  profile: UserProfile;
-  onLogout: () => void;
+  profile: UserProfile | null; // null = 게스트 모드
+  onLogout: () => void; // 로그인 사용자가 실제로 로그아웃(토큰 정리 포함)할 때
+  onRequireLogin: () => void; // 게스트가 로그인이 필요한 기능을 눌렀을 때 로그인 화면으로 돌아감(토큰이 없어 API 호출 없이 바로 전환)
 }
 
 type Tab = 'journal' | 'recommended' | 'street';
@@ -54,29 +55,31 @@ const TABS: { key: Tab; label: string }[] = [
 // 시안은 없음) 항목 배치는 임시, 실제 서랍(드로어) UI 스펙 나오면 교체 필요.
 // '내 코스'/'찜한 장소'는 Figma 노드 485:10903/488:11855("스크랩북")가 탭 하나로 묶여있어 항목도 통합함.
 // 섹션 구분은 항목이 8개로 늘어나 그냥 나열하면 훑어보기 어려워서(2026-09-03) 임의로 묶은 것 —
-// 디자인 확정 전까지의 임시 구조라는 점은 동일
-const DRAWER_SECTIONS: { title: string; items: { key: Overlay; label: string }[] }[] = [
+// 디자인 확정 전까지의 임시 구조라는 점은 동일.
+// authRequired: 게스트가 누르면 여는 대신 onRequireLogin으로 로그인 화면으로 보냄(백엔드가 인증 필요한
+// 엔드포인트라 게스트로 열어봤자 401만 남, SSOT "비인증 허용" 목록에 없는 것 전부 여기 해당)
+const DRAWER_SECTIONS: { title: string; items: { key: Overlay; label: string; authRequired?: boolean }[] }[] = [
   {
     title: '코스',
     items: [
-      { key: 'course-flow', label: 'AI로 코스 만들기' },
-      { key: 'course-manual', label: '직접 코스 만들기' },
-      { key: 'scrapbook', label: '스크랩북' },
+      { key: 'course-flow', label: 'AI로 코스 만들기', authRequired: true },
+      { key: 'course-manual', label: '직접 코스 만들기', authRequired: true },
+      { key: 'scrapbook', label: '스크랩북', authRequired: true },
     ],
   },
   {
     title: '탐색',
     items: [
-      { key: 'my-logs', label: '방문 기록' },
+      { key: 'my-logs', label: '방문 기록', authRequired: true },
       { key: 'events', label: '행사·축제' },
-      { key: 'explore', label: '비슷한 취향 탐색' },
+      { key: 'explore', label: '비슷한 취향 탐색', authRequired: true },
     ],
   },
   {
     title: '설정',
     items: [
       { key: 'tags', label: '감성 태그 안내' },
-      { key: 'notifications', label: '알림 설정' },
+      { key: 'notifications', label: '알림 설정', authRequired: true },
     ],
   },
 ];
@@ -87,9 +90,15 @@ const DRAWER_SECTIONS: { title: string; items: { key: Overlay; label: string }[]
 // 좌측 드로어: Figma 79개 프레임 전수 확인해도 전용 시안이 없어서(2026-09-03 확인) 항목 구성은
 // 여전히 임시. 다만 UX 기본기(슬라이드 인/아웃 애니메이션, 프로필 아바타, 항목 섹션 구분)는
 // 디자인 확정과 무관하게 개선함 (decision-log 참고)
-export function HomeScreen({ profile: initialProfile, onLogout }: Props) {
+//
+// 게스트 모드(2026-09-03 구현, decision-log 참고): profile이 null이면 비로그인 상태.
+// SSOT상 비인증 허용 API(장소 탐색/행사·축제/감성 태그)만 그대로 쓸 수 있고, 인증 필요한
+// 기능(코스/스크랩북/방문기록/비슷한 취향 탐색/알림설정/프로필)은 눌러도 열지 않고 onRequireLogin으로
+// 로그인 화면으로 돌려보냄 — 401을 그냥 겪게 하는 대신 미리 막음
+export function HomeScreen({ profile: initialProfile, onLogout, onRequireLogin }: Props) {
   const insets = useSafeAreaInsets();
-  const [tab, setTab] = useState<Tab>('journal');
+  // 게스트는 안 볼 수 있는 탭(나의 일지/취향 맞춤 코스)이 아니라 바로 쓸 수 있는 '안동 거리'로 시작
+  const [tab, setTab] = useState<Tab>(initialProfile ? 'journal' : 'street');
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [overlay, setOverlay] = useState<Overlay | null>(null);
   const [profile, setProfile] = useState(initialProfile);
@@ -127,6 +136,20 @@ export function HomeScreen({ profile: initialProfile, onLogout }: Props) {
   }
   const closeOverlay = () => setOverlay(null);
 
+  // 게스트가 인증 필요한 드로어 항목/아이콘을 눌렀을 때 공용으로 씀
+  function requireLogin() {
+    setDrawerVisible(false);
+    onRequireLogin();
+  }
+
+  function handleDrawerItemPress(item: { key: Overlay; authRequired?: boolean }) {
+    if (item.authRequired && !profile) {
+      requireLogin();
+      return;
+    }
+    openOverlay(item.key);
+  }
+
   function handleShare() {
     Share.share({ message: '안동 여행, 동글과 함께 떠나보세요 🌿' }).catch(() => {});
   }
@@ -151,9 +174,11 @@ export function HomeScreen({ profile: initialProfile, onLogout }: Props) {
     case 'notifications':
       return <NotificationSettingsScreen onExit={closeOverlay} />;
     case 'profile':
-      return (
+      // openOverlay('profile')은 profile이 있을 때만 호출되지만(헤더 아이콘 핸들러 참고)
+      // profile 상태 자체는 null일 수 있는 타입이라 방어적으로 한 번 더 확인
+      return profile ? (
         <ProfileScreen profile={profile} onProfileUpdated={setProfile} onWithdrawn={onLogout} onExit={closeOverlay} />
-      );
+      ) : null;
   }
 
   return (
@@ -171,7 +196,11 @@ export function HomeScreen({ profile: initialProfile, onLogout }: Props) {
           <TouchableOpacity onPress={() => openOverlay('places')} hitSlop={8} style={styles.iconButton}>
             <Text style={styles.emojiIcon}>🔍</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => openOverlay('profile')} hitSlop={8} style={styles.iconButton}>
+          <TouchableOpacity
+            onPress={() => (profile ? openOverlay('profile') : requireLogin())}
+            hitSlop={8}
+            style={styles.iconButton}
+          >
             <ProfileIcon />
           </TouchableOpacity>
         </View>
@@ -187,8 +216,18 @@ export function HomeScreen({ profile: initialProfile, onLogout }: Props) {
       </View>
 
       <View style={styles.tabContent}>
-        {tab === 'journal' && <JournalTab onOpenLogs={() => openOverlay('my-logs')} />}
-        {tab === 'recommended' && <RecommendedTab />}
+        {tab === 'journal' &&
+          (profile ? (
+            <JournalTab onOpenLogs={() => openOverlay('my-logs')} />
+          ) : (
+            <GuestPrompt message="로그인하면 나만의 여행 기록을 지도에 남길 수 있어요" onLogin={requireLogin} />
+          ))}
+        {tab === 'recommended' &&
+          (profile ? (
+            <RecommendedTab />
+          ) : (
+            <GuestPrompt message="로그인하면 내 취향과 비슷한 다른 사람의 여행 기록을 볼 수 있어요" onLogin={requireLogin} />
+          ))}
         {tab === 'street' && <StreetTab />}
       </View>
 
@@ -212,43 +251,72 @@ export function HomeScreen({ profile: initialProfile, onLogout }: Props) {
               },
             ]}
           >
-            <View style={styles.drawerProfileRow}>
-              {profile.profile_image_url ? (
-                <Image source={{ uri: profile.profile_image_url }} style={styles.drawerAvatar} resizeMode="cover" />
-              ) : (
-                <View style={[styles.drawerAvatar, styles.drawerAvatarPlaceholder]} />
-              )}
-              <View>
-                <Text style={styles.drawerGreeting}>{profile.nickname}님</Text>
-                <Text style={styles.drawerMeta}>
-                  {profile.oauth_provider} 로그인 · 온보딩 {profile.has_onboarded ? '완료' : '미완료'}
-                </Text>
+            {profile ? (
+              <View style={styles.drawerProfileRow}>
+                {profile.profile_image_url ? (
+                  <Image source={{ uri: profile.profile_image_url }} style={styles.drawerAvatar} resizeMode="cover" />
+                ) : (
+                  <View style={[styles.drawerAvatar, styles.drawerAvatarPlaceholder]} />
+                )}
+                <View>
+                  <Text style={styles.drawerGreeting}>{profile.nickname}님</Text>
+                  <Text style={styles.drawerMeta}>
+                    {profile.oauth_provider} 로그인 · 온보딩 {profile.has_onboarded ? '완료' : '미완료'}
+                  </Text>
+                </View>
               </View>
-            </View>
+            ) : (
+              <View>
+                <Text style={styles.drawerGreeting}>게스트로 둘러보는 중</Text>
+                <Text style={styles.drawerMeta}>로그인하면 찜, 코스 저장, 방문 기록을 모두 이용할 수 있어요</Text>
+              </View>
+            )}
             <View style={styles.drawerDivider} />
             {DRAWER_SECTIONS.map((section) => (
               <View key={section.title} style={styles.drawerSection}>
                 <Text style={styles.drawerSectionTitle}>{section.title}</Text>
-                {section.items.map((item) => (
-                  <TouchableOpacity key={item.key} style={styles.drawerItem} onPress={() => openOverlay(item.key)}>
-                    <Text style={styles.drawerItemText}>{item.label}</Text>
-                  </TouchableOpacity>
-                ))}
+                {section.items.map((item) => {
+                  const locked = item.authRequired && !profile;
+                  return (
+                    <TouchableOpacity key={item.key} style={styles.drawerItem} onPress={() => handleDrawerItemPress(item)}>
+                      <Text style={[styles.drawerItemText, locked && styles.drawerItemTextLocked]}>{item.label}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
             ))}
             <View style={styles.drawerDivider} />
-            <TouchableOpacity
-              style={styles.drawerItem}
-              onPress={() => {
-                setDrawerVisible(false);
-                handleLogout();
-              }}
-            >
-              <Text style={[styles.drawerItemText, styles.drawerLogoutText]}>로그아웃</Text>
-            </TouchableOpacity>
+            {profile ? (
+              <TouchableOpacity
+                style={styles.drawerItem}
+                onPress={() => {
+                  setDrawerVisible(false);
+                  handleLogout();
+                }}
+              >
+                <Text style={[styles.drawerItemText, styles.drawerLogoutText]}>로그아웃</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity style={styles.drawerItem} onPress={requireLogin}>
+                <Text style={styles.drawerItemText}>로그인하기</Text>
+              </TouchableOpacity>
+            )}
           </Animated.View>
         </View>
       </Modal>
+    </View>
+  );
+}
+
+// 게스트가 인증 필요한 탭(나의 일지/취향 맞춤 코스)을 눌렀을 때 대신 보여줄 화면.
+// 실제 API 호출 없이 안내 문구 + 로그인 버튼만 — 401을 그냥 삼키는 대신 왜 안 보이는지 설명함
+function GuestPrompt({ message, onLogin }: { message: string; onLogin: () => void }) {
+  return (
+    <View style={styles.guestPrompt}>
+      <Text style={styles.guestPromptText}>{message}</Text>
+      <TouchableOpacity style={styles.guestPromptButton} onPress={onLogin}>
+        <Text style={styles.guestPromptButtonText}>로그인하기</Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -334,5 +402,10 @@ const styles = StyleSheet.create({
   drawerSectionTitle: { fontFamily: fonts.medium, fontSize: 11, letterSpacing: 0.4, color: colors.gray400, marginBottom: 4 },
   drawerItem: { paddingVertical: 12 },
   drawerItemText: { fontFamily: fonts.medium, fontSize: 15, letterSpacing: -0.4, color: colors.black },
+  drawerItemTextLocked: { color: colors.gray400 },
   drawerLogoutText: { color: colors.gray500 },
+  guestPrompt: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40 },
+  guestPromptText: { fontFamily: fonts.regular, fontSize: 14, color: colors.gray700, textAlign: 'center', lineHeight: 20, marginBottom: 16 },
+  guestPromptButton: { height: 44, paddingHorizontal: 24, borderRadius: 8, backgroundColor: colors.black, alignItems: 'center', justifyContent: 'center' },
+  guestPromptButtonText: { fontFamily: fonts.semiBold, fontSize: 14, color: colors.white },
 });

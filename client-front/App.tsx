@@ -13,6 +13,7 @@ import { OnboardingScreen } from './src/screens/OnboardingScreen';
 export default function App() {
   const [checkingSession, setCheckingSession] = useState(true);
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [isGuest, setIsGuest] = useState(false);
   // Figma 디자인 전체가 Pretendard 기준이라 앱 진입점에서 한 번만 로드 (2026-08-31 결정, decision-log 참고)
   const [fontsLoaded] = useFonts({
     'Pretendard-Regular': require('./assets/fonts/Pretendard-Regular.ttf'),
@@ -63,12 +64,15 @@ export default function App() {
       <View style={styles.container}>
         {profile ? (
           profile.has_onboarded ? (
-            <HomeScreen profile={profile} onLogout={() => setProfile(null)} />
+            <HomeScreen profile={profile} onLogout={() => setProfile(null)} onRequireLogin={() => setProfile(null)} />
           ) : (
             <OnboardingScreen onComplete={() => setProfile({ ...profile, has_onboarded: true })} />
           )
+        ) : isGuest ? (
+          // 게스트는 토큰 자체가 없어서 onLogout(profile을 null로만)이 곧 로그인 화면 복귀와 같음
+          <HomeScreen profile={null} onLogout={() => setIsGuest(false)} onRequireLogin={() => setIsGuest(false)} />
         ) : (
-          <LoginScreen onLoginSuccess={setProfile} />
+          <LoginScreen onLoginSuccess={setProfile} onGuestContinue={() => setIsGuest(true)} />
         )}
         <StatusBar style="auto" />
       </View>
