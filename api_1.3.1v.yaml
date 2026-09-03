@@ -157,6 +157,11 @@ components:
         access_token:
           type: string
           description: 새로 발급된 JWT 액세스 토큰
+        refresh_token:
+          type: string
+          description: |
+            새로 발급된 JWT 리프레시 토큰(회전, 2026-09-04 도입). 기존 리프레시 토큰은 이 요청으로
+            즉시 폐기되므로, 클라이언트는 저장된 리프레시 토큰을 반드시 이 값으로 교체해야 함
 
     UserProfile:
       type: object

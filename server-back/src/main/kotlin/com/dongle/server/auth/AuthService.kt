@@ -30,6 +30,9 @@ class AuthService(
     fun loginWithGoogle(idToken: String): OAuthLoginResponse =
         login(OAuthProvider.google, googleOAuthClient.getUserInfo(idToken))
 
+    // 리프레시 토큰 회전(2026-09-04 도입) — 갱신 때마다 새 리프레시 토큰을 발급하고 기존 것은 바로
+    // 폐기함. 예전엔 액세스 토큰만 새로 내주고 리프레시 토큰은 원래 만료 시각까지 계속 재사용됐는데,
+    // 토큰이 유출되면 자연 만료 전까지 계속 유효한 문제가 있었음 (decision-log 참고)
     fun refresh(refreshToken: String): RefreshResponse {
         if (!jwtTokenProvider.validate(refreshToken)) throw InvalidRefreshTokenException()
 
@@ -37,7 +40,19 @@ class AuthService(
             ?: throw InvalidRefreshTokenException()
         if (stored.expiresAt.isBefore(LocalDateTime.now())) throw InvalidRefreshTokenException()
 
-        return RefreshResponse(jwtTokenProvider.generateAccessToken(stored.user.id))
+        val newAccessToken = jwtTokenProvider.generateAccessToken(stored.user.id)
+        val newRefreshToken = jwtTokenProvider.generateRefreshToken(stored.user.id)
+
+        refreshTokenRepository.delete(stored)
+        refreshTokenRepository.save(
+            RefreshToken(
+                user = stored.user,
+                token = newRefreshToken,
+                expiresAt = LocalDateTime.now().plusSeconds(jwtProperties.refreshTokenExpirySeconds),
+            )
+        )
+
+        return RefreshResponse(accessToken = newAccessToken, refreshToken = newRefreshToken)
     }
 
     fun logout(userId: Long) {
