@@ -1,7 +1,7 @@
 # 마일스톤
 
 > 공모전 제출 마감: 2026년 9월 20일
-> 최근 수정: 2026-09-03 · 설만수 (스크랩북 화면 디자인 반영, Figma 프레임 전수 확인 결과 반영)
+> 최근 수정: 2026-09-03 · 설만수 (코스 상세/수정·유사 사용자 탐색 피드 디자인 반영, log_emotion_tag.score DB 드리프트 수정)
 
 ---
 
@@ -194,8 +194,8 @@
 **프론트 (설만수)**
 - [x] 온보딩 API `dev` 머지되는 대로 온보딩 스와이프 화면 구현 착수 — `client` 브랜치에서 로그인/온보딩/홈/장소상세·목록/코스만들기 플로우까지 디자인 반영 완료 (`client` → `dev` 통합은 아직 미완료, 계속 대기 중)
 - [x] 스크랩북(내 코스+찜한 장소 통합) 화면 디자인 반영 (2026-09-03, decision-log 참고) — `MyCoursesScreen`/`LikesScreen`을 `ScrapbookScreen`으로 통합, `feat/my-courses-screen` → `client` 병합 완료
-- [ ] `CourseDetailScreen`/`CourseEditScreen` 자체 디자인 반영 — 스크랩북에서 진입은 되지만 내부는 여전히 기본 스타일
-- [ ] 유사 사용자 탐색 피드(Figma `316:4122`/`507:10963`) 반영
+- [x] `CourseDetailScreen`/`CourseEditScreen` 자체 디자인 반영 (2026-09-03, decision-log 참고) — 전용 시안 없어서 `CourseResultScreen`/`CourseManualBuilderScreen` 언어 재사용, `feat/course-detail-edit-screen` → `client` 병합 완료
+- [x] 유사 사용자 탐색 피드(Figma `316:4122`/`507:10963`) 반영 (2026-09-03, decision-log 참고) — 카드에 작성자 정보가 필요해서 백엔드 `SimilarLogItemResponse`에 `nickname`/`profile_image_url` 추가(`feat/explore-nickname` → `server`), 프론트는 `feat/explore-feed` → `client` 병합 완료. **부수 발견**: 이 작업 중 실제 Supabase `log_emotion_tag`에 문서/엔티티에 없던 `score` 컬럼(NOT NULL)이 이미 있던 걸 발견해서 같이 수정함 — 데이터/AI 파트가 왜 라이브 DB에 직접 추가했는지 원인 확인 필요 (decision-log 참고)
 - [ ] 좌측 드로어 실제 시안 — 여전히 임시 목록 형태
 - [ ] 게스트 모드(비로그인 이용) 실제 구현
 
