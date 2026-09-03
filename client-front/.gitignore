@@ -39,4 +39,14 @@ yarn-error.*
 
 # generated native folders
 /ios
-/android
+# android/ 전체가 아니라 디버그 키스토어만 예외 — 디렉토리 자체를 /android로 통째로 무시하면
+# git이 안을 아예 안 훑어서 아래 negate 패턴이 안 먹음(디렉토리 단위 무시 vs 파일 단위 무시 차이),
+# 그래서 */ 패턴으로 한 단계씩 열어줘야 함
+/android/*
+!/android/app/
+/android/app/*
+!/android/app/debug.keystore
+# ...키스토어를 예외로 두는 이유: expo prebuild가 android/ 전체를 밀고 새로 만들 때마다 디버그
+# 키스토어도 새로 생성되면서 SHA-1이 랜덤하게 바뀌어 구글/카카오 OAuth 콘솔에 등록해둔 값과
+# 어긋나버림(2026-08-31 실제 발생, decision-log 참고). 이 파일(비밀번호 "android"/"android"로
+# 공개된 디버그 전용 키, 릴리즈 서명과 무관)만 커밋해서 prebuild 후에도 SHA-1이 고정되도록 함

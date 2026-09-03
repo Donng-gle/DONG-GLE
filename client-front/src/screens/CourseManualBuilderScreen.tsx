@@ -1,9 +1,14 @@
 import { useState } from 'react';
-import { Alert, Button, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CourseManualRequest, courseApi } from '../api/course';
 import { PlaceListItem } from '../api/place';
 import { SwipeTransport } from '../api/swipe';
+import { CalendarPicker } from '../components/CalendarPicker';
 import { CourseBuilderPlaceList } from '../components/CourseBuilderPlaceList';
+import { colors } from '../theme/colors';
+import { fonts } from '../theme/fonts';
 import { PlaceListScreen } from './PlaceListScreen';
 
 interface Props {
@@ -21,13 +26,21 @@ const TRANSPORT_OPTIONS: { value: SwipeTransport; label: string }[] = [
   { value: 'public', label: '대중교통' },
 ];
 
+function formatDateLabel(dateStr: string) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const weekday = ['일', '월', '화', '수', '목', '금', '토'][new Date(y, m - 1, d).getDay()];
+  return `${y}년 ${m}월 ${d}일 (${weekday})`;
+}
+
 // decision-log 2026-07-17: 코스 생성 진입점 2가지(AI 코스 / 직접 코스) 중 직접 코스 쪽.
 // POST /courses/manual — course_optimizer를 거치지 않고 사용자가 장소·순서를 직접 정해서 저장
 export function CourseManualBuilderScreen({ onSaved, onExit }: Props) {
+  const insets = useSafeAreaInsets();
   const [step, setStep] = useState<Step>('form');
   const [title, setTitle] = useState('');
   const [travelDate, setTravelDate] = useState(TODAY);
   const [transport, setTransport] = useState<SwipeTransport>('walk');
+  const [showCalendar, setShowCalendar] = useState(false);
   const [places, setPlaces] = useState<PlaceListItem[]>([]);
   const [saving, setSaving] = useState(false);
 
@@ -90,79 +103,113 @@ export function CourseManualBuilderScreen({ onSaved, onExit }: Props) {
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>직접 코스 만들기</Text>
+    <View style={styles.container}>
+      <StatusBar style="dark" />
 
-      <Text style={styles.label}>코스 제목</Text>
-      <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="안동 하루 코스" />
-
-      <Text style={styles.label}>여행 날짜 (YYYY-MM-DD)</Text>
-      <TextInput style={styles.input} value={travelDate} onChangeText={setTravelDate} autoCapitalize="none" />
-
-      <Text style={styles.label}>이동 수단</Text>
-      <View style={styles.transportRow}>
-        {TRANSPORT_OPTIONS.map((option) => (
-          <TouchableOpacity
-            key={option.value}
-            style={[styles.transportOption, transport === option.value && styles.transportOptionSelected]}
-            onPress={() => setTransport(option.value)}
-          >
-            <Text
-              style={[styles.transportOptionText, transport === option.value && styles.transportOptionTextSelected]}
-            >
-              {option.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+        <TouchableOpacity onPress={onExit} hitSlop={8} style={styles.backButton}>
+          <Text style={styles.backIcon}>←</Text>
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>직접 코스 만들기</Text>
+        <View style={styles.backButton} />
       </View>
 
-      <View style={styles.placesSection}>
-        <Text style={styles.label}>장소 ({places.length}곳)</Text>
-        <CourseBuilderPlaceList
-          items={places.map((p) => ({ placeId: p.id, name: p.name }))}
-          onMoveUp={moveUp}
-          onMoveDown={moveDown}
-          onRemove={remove}
+      <ScrollView contentContainerStyle={styles.content}>
+        <Text style={styles.label}>코스 제목</Text>
+        <TextInput
+          style={styles.input}
+          value={title}
+          onChangeText={setTitle}
+          placeholder="안동 하루 코스"
+          placeholderTextColor={colors.gray500}
         />
-        <Button title="장소 추가" onPress={() => setStep('picking')} />
+
+        <Text style={[styles.label, styles.labelSpaced]}>여행 날짜</Text>
+        <TouchableOpacity style={styles.fieldButton} onPress={() => setShowCalendar(true)}>
+          <Text style={styles.fieldButtonText}>{formatDateLabel(travelDate)}</Text>
+        </TouchableOpacity>
+
+        <Text style={[styles.label, styles.labelSpaced]}>이동 수단</Text>
+        <View style={styles.transportRow}>
+          {TRANSPORT_OPTIONS.map((option) => (
+            <TouchableOpacity
+              key={option.value}
+              style={[styles.transportOption, transport === option.value && styles.transportOptionSelected]}
+              onPress={() => setTransport(option.value)}
+            >
+              <Text
+                style={[styles.transportOptionText, transport === option.value && styles.transportOptionTextSelected]}
+              >
+                {option.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        <View style={styles.placesSection}>
+          <Text style={[styles.label, styles.labelSpaced]}>장소 ({places.length}곳)</Text>
+          <CourseBuilderPlaceList
+            items={places.map((p) => ({ placeId: p.id, name: p.name }))}
+            onMoveUp={moveUp}
+            onMoveDown={moveDown}
+            onRemove={remove}
+          />
+          <TouchableOpacity style={styles.addPlaceButton} onPress={() => setStep('picking')}>
+            <Text style={styles.addPlaceButtonText}>장소 추가</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+
+      <View style={[styles.actions, { paddingBottom: Math.max(20, insets.bottom + 16) }]}>
+        <TouchableOpacity style={styles.primaryButton} onPress={handleSave} disabled={saving}>
+          {saving ? <ActivityIndicator color={colors.white} /> : <Text style={styles.primaryButtonText}>코스 저장</Text>}
+        </TouchableOpacity>
       </View>
 
-      <View style={styles.actions}>
-        <Button title={saving ? '저장 중...' : '코스 저장'} onPress={handleSave} disabled={saving} />
-        <View style={styles.gap} />
-        <Button title="취소" onPress={onExit} disabled={saving} />
-      </View>
-    </ScrollView>
+      <CalendarPicker
+        visible={showCalendar}
+        value={travelDate}
+        minDate={TODAY}
+        onClose={() => setShowCalendar(false)}
+        onConfirm={(date) => {
+          setTravelDate(date);
+          setShowCalendar(false);
+        }}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
-  content: { padding: 20, paddingTop: 32, paddingBottom: 40 },
-  title: { fontSize: 22, fontWeight: '700', marginBottom: 24 },
-  label: { fontSize: 13, color: '#666', marginBottom: 8 },
+  container: { flex: 1, backgroundColor: colors.white },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingBottom: 8 },
+  backButton: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
+  backIcon: { fontSize: 20, color: colors.black },
+  headerTitle: { fontFamily: fonts.semiBold, fontSize: 17, letterSpacing: -0.4, color: colors.black },
+  content: { paddingHorizontal: 20, paddingBottom: 24 },
+  label: { fontFamily: fonts.medium, fontSize: 14, letterSpacing: -0.35, color: colors.black, marginBottom: 8 },
+  labelSpaced: { marginTop: 24 },
   input: {
-    borderWidth: 1,
-    borderColor: '#ddd',
+    height: 52,
     borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 16,
+    fontFamily: fonts.regular,
     fontSize: 15,
-    marginBottom: 20,
+    color: colors.black,
   },
-  transportRow: { flexDirection: 'row', gap: 8, marginBottom: 24 },
-  transportOption: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    alignItems: 'center',
-  },
-  transportOptionSelected: { backgroundColor: '#ff5a5f', borderColor: '#ff5a5f' },
-  transportOptionText: { fontSize: 14, color: '#222' },
-  transportOptionTextSelected: { color: '#fff', fontWeight: '700' },
-  placesSection: { marginBottom: 24 },
-  actions: { marginTop: 8 },
-  gap: { height: 12 },
+  fieldButton: { height: 52, borderRadius: 8, borderWidth: 1, borderColor: colors.border, justifyContent: 'center', paddingHorizontal: 16 },
+  fieldButtonText: { fontFamily: fonts.regular, fontSize: 15, color: colors.black },
+  transportRow: { flexDirection: 'row', gap: 8 },
+  transportOption: { flex: 1, paddingVertical: 14, borderRadius: 8, borderWidth: 1, borderColor: colors.border, alignItems: 'center' },
+  transportOptionSelected: { backgroundColor: colors.black, borderColor: colors.black },
+  transportOptionText: { fontFamily: fonts.medium, fontSize: 14, color: colors.gray700 },
+  transportOptionTextSelected: { color: colors.white },
+  placesSection: { marginBottom: 8 },
+  addPlaceButton: { height: 44, borderRadius: 8, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center', marginTop: 8 },
+  addPlaceButtonText: { fontFamily: fonts.medium, fontSize: 14, color: colors.black },
+  actions: { paddingHorizontal: 20, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.divider },
+  primaryButton: { height: 52, borderRadius: 8, backgroundColor: colors.black, alignItems: 'center', justifyContent: 'center' },
+  primaryButtonText: { fontFamily: fonts.bold, fontSize: 16, letterSpacing: -0.24, color: colors.white },
 });

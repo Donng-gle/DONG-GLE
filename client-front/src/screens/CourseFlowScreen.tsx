@@ -1,7 +1,12 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Button, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SwipeCandidate, SwipedResultItem, SwipeTransport, swipeApi } from '../api/swipe';
 import { swipeSessionStorage } from '../storage/swipeSessionStorage';
+import { CalendarPicker } from '../components/CalendarPicker';
+import { colors } from '../theme/colors';
+import { fonts } from '../theme/fonts';
 import { CourseSwipeScreen } from './CourseSwipeScreen';
 import { CourseResultScreen } from './CourseResultScreen';
 
@@ -29,12 +34,19 @@ const TRANSPORT_OPTIONS: { value: SwipeTransport; label: string }[] = [
   { value: 'public', label: '대중교통' },
 ];
 
-// 코스 만들기 전체 흐름의 오케스트레이터: 조건 입력(setup) → 스와이프(swiping) → 코스 생성/저장(result).
-// 디자인 시안이 아직 없어서 화면 구성은 최소한으로만 잡고, API 요청/응답 연결 자체를 먼저 완성했다.
+function formatDateLabel(dateStr: string) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const weekday = ['일', '월', '화', '수', '목', '금', '토'][new Date(y, m - 1, d).getDay()];
+  return `${y}년 ${m}월 ${d}일 (${weekday})`;
+}
+
+// 코스 만들기 전체 흐름의 오케스트레이터: 조건 입력(setup) → 스와이프(swiping) → 코스 생성/저장(result)
 export function CourseFlowScreen({ onExit }: Props) {
+  const insets = useSafeAreaInsets();
   const [step, setStep] = useState<Step>({ name: 'setup' });
   const [travelDate, setTravelDate] = useState(TODAY);
   const [transport, setTransport] = useState<SwipeTransport>('walk');
+  const [showCalendar, setShowCalendar] = useState(false);
   const [loading, setLoading] = useState(false);
   const [checkingResume, setCheckingResume] = useState(true);
 
@@ -121,7 +133,7 @@ export function CourseFlowScreen({ onExit }: Props) {
   if (checkingResume) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" />
+        <ActivityIndicator size="large" color={colors.black} />
       </View>
     );
   }
@@ -154,69 +166,96 @@ export function CourseFlowScreen({ onExit }: Props) {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>코스 만들기</Text>
+      <StatusBar style="dark" />
 
-      <Text style={styles.label}>여행 날짜 (YYYY-MM-DD)</Text>
-      <TextInput
-        style={styles.input}
-        value={travelDate}
-        onChangeText={setTravelDate}
-        placeholder="2026-09-01"
-        autoCapitalize="none"
-      />
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+        <TouchableOpacity onPress={onExit} hitSlop={8} style={styles.backButton}>
+          <Text style={styles.backIcon}>←</Text>
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>AI로 코스 만들기</Text>
+        <View style={styles.backButton} />
+      </View>
 
-      <Text style={styles.label}>이동 수단</Text>
-      <View style={styles.transportRow}>
-        {TRANSPORT_OPTIONS.map((option) => (
-          <TouchableOpacity
-            key={option.value}
-            style={[styles.transportOption, transport === option.value && styles.transportOptionSelected]}
-            onPress={() => setTransport(option.value)}
-          >
-            <Text
-              style={[styles.transportOptionText, transport === option.value && styles.transportOptionTextSelected]}
+      <View style={styles.content}>
+        <Text style={styles.label}>여행 날짜</Text>
+        <TouchableOpacity style={styles.fieldButton} onPress={() => setShowCalendar(true)}>
+          <Text style={styles.fieldButtonText}>{formatDateLabel(travelDate)}</Text>
+        </TouchableOpacity>
+
+        <Text style={[styles.label, styles.labelSpaced]}>이동 수단</Text>
+        <View style={styles.transportRow}>
+          {TRANSPORT_OPTIONS.map((option) => (
+            <TouchableOpacity
+              key={option.value}
+              style={[styles.transportOption, transport === option.value && styles.transportOptionSelected]}
+              onPress={() => setTransport(option.value)}
             >
-              {option.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
+              <Text
+                style={[styles.transportOptionText, transport === option.value && styles.transportOptionTextSelected]}
+              >
+                {option.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
       </View>
 
-      <View style={styles.actions}>
-        <Button title={loading ? '불러오는 중...' : '추천 장소 보기'} onPress={startSwipe} disabled={loading} />
-        <View style={styles.gap} />
-        <Button title="취소" onPress={onExit} disabled={loading} />
+      <View style={[styles.actions, { paddingBottom: Math.max(20, insets.bottom + 16) }]}>
+        <TouchableOpacity style={styles.primaryButton} onPress={startSwipe} disabled={loading}>
+          {loading ? (
+            <ActivityIndicator color={colors.white} />
+          ) : (
+            <Text style={styles.primaryButtonText}>추천 장소 보기</Text>
+          )}
+        </TouchableOpacity>
       </View>
+
+      <CalendarPicker
+        visible={showCalendar}
+        value={travelDate}
+        minDate={TODAY}
+        onClose={() => setShowCalendar(false)}
+        onConfirm={(date) => {
+          setTravelDate(date);
+          setShowCalendar(false);
+        }}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff', padding: 20, paddingTop: 32 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' },
-  title: { fontSize: 22, fontWeight: '700', marginBottom: 24 },
-  label: { fontSize: 13, color: '#666', marginBottom: 8 },
-  input: {
-    borderWidth: 1,
-    borderColor: '#ddd',
+  container: { flex: 1, backgroundColor: colors.white },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.white },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingBottom: 8 },
+  backButton: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
+  backIcon: { fontSize: 20, color: colors.black },
+  headerTitle: { fontFamily: fonts.semiBold, fontSize: 17, letterSpacing: -0.4, color: colors.black },
+  content: { flex: 1, paddingHorizontal: 20, paddingTop: 12 },
+  label: { fontFamily: fonts.medium, fontSize: 14, letterSpacing: -0.35, color: colors.black, marginBottom: 8 },
+  labelSpaced: { marginTop: 28 },
+  fieldButton: {
+    height: 52,
     borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 15,
-    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: colors.border,
+    justifyContent: 'center',
+    paddingHorizontal: 16,
   },
-  transportRow: { flexDirection: 'row', gap: 8, marginBottom: 32 },
+  fieldButtonText: { fontFamily: fonts.regular, fontSize: 15, color: colors.black },
+  transportRow: { flexDirection: 'row', gap: 8 },
   transportOption: {
     flex: 1,
-    paddingVertical: 12,
+    paddingVertical: 14,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: colors.border,
     alignItems: 'center',
   },
-  transportOptionSelected: { backgroundColor: '#ff5a5f', borderColor: '#ff5a5f' },
-  transportOptionText: { fontSize: 14, color: '#222' },
-  transportOptionTextSelected: { color: '#fff', fontWeight: '700' },
-  actions: { marginTop: 'auto' },
-  gap: { height: 12 },
+  transportOptionSelected: { backgroundColor: colors.black, borderColor: colors.black },
+  transportOptionText: { fontFamily: fonts.medium, fontSize: 14, color: colors.gray700 },
+  transportOptionTextSelected: { color: colors.white },
+  actions: { paddingHorizontal: 20 },
+  primaryButton: { height: 52, borderRadius: 8, backgroundColor: colors.black, alignItems: 'center', justifyContent: 'center' },
+  primaryButtonText: { fontFamily: fonts.bold, fontSize: 16, letterSpacing: -0.24, color: colors.white },
 });

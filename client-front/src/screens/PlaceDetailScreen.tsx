@@ -1,7 +1,12 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Button, Image, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
+import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PlaceDetail, placeApi } from '../api/place';
 import { PlaceLogsResponse, visitLogApi } from '../api/visitLog';
+import { colors } from '../theme/colors';
+import { fonts } from '../theme/fonts';
 import { VisitLogCreateScreen } from './VisitLogCreateScreen';
 
 interface Props {
@@ -20,11 +25,16 @@ function formatHours(hours: PlaceDetail['hours']) {
   });
 }
 
+// Figma 노드 358:5134("관광지 상세 페이지") 반영. 별점/작성자 프로필/좋아요·댓글 수/"가는 방법"은
+// 대응하는 백엔드 데이터가 없어서 생략(place_like엔 개수가 아니라 내 찜 여부만 있음, visit_log엔
+// 별점·작성자 노출 필드가 없음) — 없는 데이터를 지어내지 않기 위한 선택 (2026-09-01 결정, decision-log 참고)
 export function PlaceDetailScreen({ placeId, onExit }: Props) {
+  const insets = useSafeAreaInsets();
   const [place, setPlace] = useState<PlaceDetail | null>(null);
   const [logs, setLogs] = useState<PlaceLogsResponse | null>(null);
   const [likeBusy, setLikeBusy] = useState(false);
   const [showCreateLog, setShowCreateLog] = useState(false);
+  const [activePhoto, setActivePhoto] = useState(0);
 
   useEffect(() => {
     load();
@@ -75,85 +85,203 @@ export function PlaceDetailScreen({ placeId, onExit }: Props) {
   if (!place) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" />
+        <StatusBar style="dark" />
+        <ActivityIndicator size="large" color={colors.black} />
       </View>
     );
   }
 
+  const photos = [place.main_image_url, ...place.images.map((i) => i.img_url)].filter(
+    (url): url is string => url != null,
+  );
+  const hoursLines = formatHours(place.hours);
+  const chips = [...place.top_tags, place.category];
+
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {place.main_image_url ? (
-        <Image source={{ uri: place.main_image_url }} style={styles.image} resizeMode="cover" />
-      ) : (
-        <View style={[styles.image, styles.imagePlaceholder]} />
-      )}
+    <View style={styles.container}>
+      <StatusBar style="dark" />
 
-      <Text style={styles.name}>{place.name}</Text>
-      <Text style={styles.category}>
-        {place.category}
-        {place.addr1 ? ` · ${place.addr1}` : ''}
-      </Text>
-      {place.top_tags.length > 0 && <Text style={styles.tags}>{place.top_tags.join(' · ')}</Text>}
-      {place.tel && <Text style={styles.meta}>☎ {place.tel}</Text>}
-      <Text style={styles.meta}>방문 기록 {place.visit_log_count}건</Text>
+      <View style={[styles.header, { paddingTop: insets.top }]}>
+        <TouchableOpacity onPress={onExit} hitSlop={8} style={styles.backButton}>
+          <Text style={styles.backIcon}>←</Text>
+        </TouchableOpacity>
+        <Text style={styles.headerTitle} numberOfLines={1}>
+          {place.name}
+        </Text>
+        <View style={styles.backButton} />
+      </View>
 
-      {place.overview && <Text style={styles.overview}>{place.overview}</Text>}
+      <ScrollView contentContainerStyle={styles.content}>
+        {photos.length > 0 ? (
+          <View>
+            <ScrollView
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              onMomentumScrollEnd={(e) => setActivePhoto(Math.round(e.nativeEvent.contentOffset.x / 320))}
+            >
+              {photos.map((url, idx) => (
+                <Image key={idx} source={{ uri: url }} style={styles.heroImage} resizeMode="cover" />
+              ))}
+            </ScrollView>
+            {photos.length > 1 && (
+              <View style={styles.dotRow}>
+                {photos.map((_, idx) => (
+                  <View key={idx} style={[styles.dot, idx === activePhoto && styles.dotActive]} />
+                ))}
+              </View>
+            )}
+          </View>
+        ) : (
+          <View style={[styles.heroImage, styles.heroImagePlaceholder]} />
+        )}
 
-      {place.hours.length > 0 && (
+        <View style={styles.titleRow}>
+          <Text style={styles.placeName}>{place.name}</Text>
+          <TouchableOpacity onPress={toggleLike} disabled={likeBusy} hitSlop={8} style={styles.likeButton}>
+            <Text style={styles.likeIcon}>{place.is_liked ? '♥' : '♡'}</Text>
+          </TouchableOpacity>
+        </View>
+
+        {chips.length > 0 && (
+          <View style={styles.chipRow}>
+            {chips.map((chip) => (
+              <View key={chip} style={styles.chip}>
+                <Text style={styles.chipText}>{chip}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {place.overview && <Text style={styles.overview}>{place.overview}</Text>}
+
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>영업시간</Text>
-          {formatHours(place.hours).map((line, idx) => (
-            <Text key={idx} style={styles.hoursLine}>
-              {line}
-            </Text>
+          <Text style={styles.sectionTitle}>기본정보</Text>
+
+          {place.lat != null && place.lng != null && (
+            <MapView
+              provider={PROVIDER_GOOGLE}
+              style={styles.previewMap}
+              scrollEnabled={false}
+              zoomEnabled={false}
+              pointerEvents="none"
+              initialRegion={{
+                latitude: place.lat,
+                longitude: place.lng,
+                latitudeDelta: 0.01,
+                longitudeDelta: 0.01,
+              }}
+            >
+              <Marker coordinate={{ latitude: place.lat, longitude: place.lng }} />
+            </MapView>
+          )}
+
+          <View style={styles.infoList}>
+            {place.addr1 && <InfoRow label="주소" value={[place.addr1, place.addr2].filter(Boolean).join(' ')} />}
+            {place.tel && <InfoRow label="전화번호" value={place.tel} />}
+            {place.homepage && <InfoRow label="홈페이지" value={place.homepage} />}
+            {hoursLines.length > 0 && <InfoRow label="영업 시간" value={hoursLines.join('\n')} />}
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <View style={styles.reviewHeaderRow}>
+            <Text style={styles.sectionTitle}>리뷰 {logs ? logs.meta.total : ''}</Text>
+            <TouchableOpacity onPress={() => setShowCreateLog(true)}>
+              <Text style={styles.reviewWriteLink}>기록 남기기 +</Text>
+            </TouchableOpacity>
+          </View>
+
+          {logs && logs.logs.length === 0 && <Text style={styles.emptyText}>아직 방문 기록이 없어요</Text>}
+
+          {logs?.logs.map((log) => (
+            <View key={log.id} style={styles.reviewCard}>
+              {log.photo_url && <Image source={{ uri: log.photo_url }} style={styles.reviewPhoto} resizeMode="cover" />}
+              {log.one_line && <Text style={styles.reviewText}>{log.one_line}</Text>}
+              <View style={styles.reviewFooterRow}>
+                {log.tags.length > 0 && <Text style={styles.reviewTags}>{log.tags.join(' · ')}</Text>}
+                <Text style={styles.reviewDate}>{log.visited_at.slice(0, 10)}</Text>
+              </View>
+            </View>
           ))}
         </View>
-      )}
+      </ScrollView>
+    </View>
+  );
+}
 
-      <View style={styles.actions}>
-        <Button
-          title={likeBusy ? '처리 중...' : place.is_liked ? '찜 해제' : '찜하기'}
-          onPress={toggleLike}
-          disabled={likeBusy}
-        />
-        <View style={styles.gap} />
-        <Button title="방문 기록 남기기" onPress={() => setShowCreateLog(true)} />
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>방문 기록 {logs ? `(${logs.meta.total})` : ''}</Text>
-        {logs && logs.logs.length === 0 && <Text style={styles.emptyText}>아직 방문 기록이 없어요.</Text>}
-        {logs?.logs.map((log) => (
-          <View key={log.id} style={styles.logRow}>
-            <Text style={styles.logOneLine}>{log.one_line ?? '(한줄리뷰 없음)'}</Text>
-            <Text style={styles.logMeta}>{log.visited_at.slice(0, 10)}</Text>
-          </View>
-        ))}
-      </View>
-
-      <Button title="닫기" onPress={onExit} />
-    </ScrollView>
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.infoRow}>
+      <Text style={styles.infoLabel}>{label}</Text>
+      <Text style={styles.infoValue}>{value}</Text>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
-  content: { padding: 20, paddingTop: 32, paddingBottom: 40 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' },
-  image: { width: '100%', height: 200, borderRadius: 12 },
-  imagePlaceholder: { backgroundColor: '#eee' },
-  name: { fontSize: 22, fontWeight: '700', marginTop: 16 },
-  category: { fontSize: 13, color: '#666', marginTop: 4 },
-  tags: { fontSize: 13, color: '#ff5a5f', marginTop: 4 },
-  meta: { fontSize: 13, color: '#999', marginTop: 4 },
-  overview: { fontSize: 14, color: '#333', marginTop: 16, lineHeight: 20 },
-  section: { marginTop: 24 },
-  sectionTitle: { fontSize: 15, fontWeight: '700', marginBottom: 8 },
-  hoursLine: { fontSize: 13, color: '#666', marginBottom: 2 },
-  actions: { flexDirection: 'row', marginTop: 24, gap: 12 },
-  gap: { width: 12 },
-  emptyText: { fontSize: 13, color: '#999' },
-  logRow: { paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#f1f1f1' },
-  logOneLine: { fontSize: 14 },
-  logMeta: { fontSize: 12, color: '#999', marginTop: 2 },
+  container: { flex: 1, backgroundColor: colors.white },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.white },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingBottom: 8,
+    backgroundColor: colors.white,
+  },
+  backButton: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
+  backIcon: { fontSize: 20, color: colors.black },
+  headerTitle: { flex: 1, fontFamily: fonts.semiBold, fontSize: 17, letterSpacing: -0.4, color: colors.black, textAlign: 'center' },
+  content: { paddingBottom: 40 },
+  heroImage: { width: 360, height: 234, borderRadius: 20 },
+  heroImagePlaceholder: { width: '100%', backgroundColor: colors.border, marginHorizontal: 20 },
+  dotRow: { flexDirection: 'row', justifyContent: 'center', gap: 6, marginTop: -24, marginBottom: 8 },
+  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.5)' },
+  dotActive: { backgroundColor: colors.white },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    marginTop: 16,
+  },
+  placeName: { flex: 1, fontFamily: fonts.semiBold, fontSize: 20, letterSpacing: -0.5, color: colors.black },
+  likeButton: { paddingLeft: 12 },
+  likeIcon: { fontSize: 24, color: colors.black },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 20, marginTop: 16 },
+  chip: {
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 100,
+    backgroundColor: colors.backgroundMuted,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  chipText: { fontFamily: fonts.regular, fontSize: 12, letterSpacing: -0.3, color: colors.black },
+  overview: {
+    fontFamily: fonts.regular,
+    fontSize: 14,
+    lineHeight: 19.6,
+    letterSpacing: -0.35,
+    color: colors.black,
+    paddingHorizontal: 20,
+    marginTop: 20,
+  },
+  section: { marginTop: 32, paddingHorizontal: 20 },
+  sectionTitle: { fontFamily: fonts.semiBold, fontSize: 20, letterSpacing: -0.5, color: colors.black, marginBottom: 16 },
+  previewMap: { width: '100%', height: 160, borderRadius: 8, marginBottom: 16 },
+  infoList: { gap: 12 },
+  infoRow: { flexDirection: 'row' },
+  infoLabel: { width: 64, fontFamily: fonts.medium, fontSize: 12, letterSpacing: -0.3, color: colors.black },
+  infoValue: { flex: 1, fontFamily: fonts.regular, fontSize: 12, letterSpacing: -0.3, lineHeight: 17, color: colors.gray500 },
+  reviewHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
+  reviewWriteLink: { fontFamily: fonts.medium, fontSize: 13, letterSpacing: -0.3, color: colors.gray700, marginBottom: 16 },
+  emptyText: { fontFamily: fonts.regular, fontSize: 14, color: colors.gray500 },
+  reviewCard: { paddingVertical: 16, borderTopWidth: 1, borderTopColor: colors.divider },
+  reviewPhoto: { width: '100%', height: 180, borderRadius: 12, marginBottom: 12 },
+  reviewText: { fontFamily: fonts.regular, fontSize: 15, lineHeight: 21, color: colors.black },
+  reviewFooterRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
+  reviewTags: { fontFamily: fonts.regular, fontSize: 12, color: colors.gray500 },
+  reviewDate: { fontFamily: fonts.regular, fontSize: 12, color: colors.gray500 },
 });
