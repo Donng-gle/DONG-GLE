@@ -63,6 +63,16 @@ export function OnboardingScreen({ onComplete }: Props) {
     try {
       const next = await onboardingApi.getNext();
       if (!next) {
+        // getNext()가 null인 이유는 두 가지: (1) 자연 수렴/25장 도달(둘 다 totalSeen >= 15가 보장됨)
+        // (2) 온보딩 카드 자체가 바닥남(totalSeen < 15여도 발생 가능 — 카드 데이터 부족, milestone.md
+        // 참고). (2)인데도 그냥 조용히 완료 처리하면 사용자는 왜 일찍 끝났는지 모른 채 부정확한 취향
+        // 벡터로 넘어가게 됨 — 최소한 무슨 일이 있었는지는 알려줌 (2026-09-04 발견/수정, decision-log 참고)
+        if (totalSeen < MIN_SWIPES_TO_FINISH) {
+          Alert.alert(
+            '보여드릴 사진이 더 없어요',
+            `아직 ${MIN_SWIPES_TO_FINISH}장을 채우지 못했지만(${totalSeen}장 진행) 준비된 사진을 모두 확인했어요. 지금까지의 선택으로 취향을 분석할게요.`,
+          );
+        }
         await finishOnboarding();
         return;
       }

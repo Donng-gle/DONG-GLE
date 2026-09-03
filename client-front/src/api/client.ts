@@ -23,6 +23,9 @@ export function registerSessionExpiredListener(listener: SessionExpiredListener 
 
 interface RefreshResponse {
   access_token: string;
+  // 리프레시 토큰 회전(2026-09-04 도입, decision-log 참고) — 서버가 갱신할 때마다 기존 리프레시
+  // 토큰을 폐기하고 새로 발급하므로, 저장된 토큰을 반드시 이 값으로 교체해야 함
+  refresh_token: string;
 }
 
 // 여러 요청이 동시에 401을 받아도 갱신 호출은 한 번만 나가도록 in-flight promise를 공유.
@@ -44,7 +47,7 @@ async function refreshAccessToken(): Promise<string | null> {
         if (!response.ok) return null;
 
         const data = (await response.json()) as RefreshResponse;
-        await tokenStorage.setAccessToken(data.access_token);
+        await tokenStorage.save(data.access_token, data.refresh_token);
         return data.access_token;
       } catch {
         return null;
