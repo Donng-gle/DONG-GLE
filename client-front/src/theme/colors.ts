@@ -9,4 +9,6 @@ export const colors = {
   divider: '#dddddd',
   white: '#ffffff',
   backgroundMuted: '#f7f7fb',
+  // Figma엔 삭제/탈퇴류 파괴적 액션 시안이 없어서 코드에서 쓰던 임시값(#d33)을 토큰화만 함
+  danger: '#d33',
 } as const;
