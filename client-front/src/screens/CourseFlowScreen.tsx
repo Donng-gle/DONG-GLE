@@ -75,9 +75,14 @@ export function CourseFlowScreen({ onExit }: Props) {
         return;
       }
 
-      Alert.alert('진행 중이던 스와이프가 있어요', '이어서 진행할까요?', [
+      // 스와이프 결과 제출(POST /swipe/sessions/:id/results)은 마지막 카드까지 다 넘긴 뒤 한 번에만
+      // 일어나는 구조라, 이 시점엔 하나도 제출된 게 없다(swiped_results는 항상 빈 배열). 그래서
+      // "이어서 진행할까요?"처럼 스와이프 진행 상황이 남아있는 것처럼 물어보면 사실과 다름 — 실제로는
+      // 같은 조건(날짜·이동수단)의 후보 목록을 다시 쓸지, 새 조건으로 다시 뽑을지의 선택일 뿐이라 그에
+      // 맞게 문구를 고침 (2026-09-04 발견/수정, decision-log 참고)
+      Alert.alert('만들다 만 코스가 있어요', '같은 조건(날짜·이동수단)으로 이어서 만들까요?', [
         {
-          text: '새로 시작',
+          text: '새 조건으로 시작',
           style: 'destructive',
           onPress: async () => {
             await swipeSessionStorage.clear();
@@ -85,7 +90,7 @@ export function CourseFlowScreen({ onExit }: Props) {
           },
         },
         {
-          text: '이어하기',
+          text: '이어서 만들기',
           onPress: () => {
             setStep({
               name: 'swiping',

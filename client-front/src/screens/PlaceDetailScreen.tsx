@@ -57,12 +57,21 @@ export function PlaceDetailScreen({ placeId, onExit }: Props) {
 
   async function toggleLike() {
     if (!place || likeBusy) return;
+
+    // is_liked가 null이면 비인증 조회(PlaceDetail.is_liked, api/place.ts 참고) — 게스트라는 뜻.
+    // 예전엔 이 경우에도 그냥 API를 호출해서 401을 받은 뒤에야 실패 얼럿을 띄웠는데, 결과가 뻔한
+    // 요청이라 처음부터 안내만 하고 호출 자체를 생략함 (2026-09-04 발견/수정, decision-log 참고)
+    if (place.is_liked === null) {
+      Alert.alert('로그인이 필요해요', '찜하려면 먼저 로그인해주세요.');
+      return;
+    }
+
     setLikeBusy(true);
     try {
       const result = place.is_liked ? await placeApi.unlike(place.id) : await placeApi.like(place.id);
       setPlace({ ...place, is_liked: result.is_liked });
     } catch (e) {
-      Alert.alert('찜 처리에 실패했어요', e instanceof Error ? e.message : '로그인이 필요할 수 있어요.');
+      Alert.alert('찜 처리에 실패했어요', e instanceof Error ? e.message : '알 수 없는 오류');
     } finally {
       setLikeBusy(false);
     }
