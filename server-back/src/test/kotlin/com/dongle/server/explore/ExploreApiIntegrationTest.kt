@@ -65,7 +65,7 @@ class ExploreApiIntegrationTest {
 
     private fun publicLog(user: User, place: Place, oneLine: String, tag: String): VisitLog {
         val saved = visitLogRepository.save(VisitLog(user = user, place = place, oneLine = oneLine, isPublic = true))
-        saved.emotionTags.add(LogEmotionTag(visitLog = saved, tag = tag))
+        saved.emotionTags.add(LogEmotionTag(visitLog = saved, tag = tag, score = 0.8))
         return visitLogRepository.save(saved)
     }
 
@@ -89,6 +89,7 @@ class ExploreApiIntegrationTest {
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.logs[?(@.one_line == '테스트전용탐색리뷰-유사')]").exists())
             .andExpect(jsonPath("$.logs[?(@.one_line == '테스트전용탐색리뷰-비유사')]").doesNotExist())
+            .andExpect(jsonPath("$.logs[0].nickname").value("테스터"))
     }
 
     @Test

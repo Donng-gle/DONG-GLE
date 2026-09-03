@@ -68,4 +68,6 @@ private fun VisitLog.toSimilarLogItemResponse() = SimilarLogItemResponse(
     photoUrl = photoUrl,
     oneLine = oneLine,
     tags = emotionTags.map { it.tag },
+    nickname = user.nickname,
+    profileImageUrl = user.profileImageUrl,
 )
