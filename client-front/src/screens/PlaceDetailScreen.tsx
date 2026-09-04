@@ -106,8 +106,11 @@ export function PlaceDetailScreen({ placeId, onExit }: Props) {
     );
   }
 
-  const photos = [place.main_image_url, ...place.images.map((i) => i.img_url)].filter(
-    (url): url is string => url != null,
+  // images 배열 첫 장이 main_image_url과 같은 사진으로 오는 경우(백엔드가 대표사진을 갤러리에도
+  // 포함시켜 내려줄 수 있음, 목업 데이터에서 실제로 이렇게 겹치는 걸 확인함, 2026-09-05)를 대비해
+  // 중복 URL은 걸러냄 — 안 그러면 스와이프해도 같은 사진이 반복돼 "안 넘어가는 것처럼" 보임
+  const photos = Array.from(
+    new Set([place.main_image_url, ...place.images.map((i) => i.img_url)].filter((url): url is string => url != null)),
   );
   const hoursLines = formatHours(place.hours);
   const chips = [...place.top_tags, place.category];
