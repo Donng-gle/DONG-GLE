@@ -1,6 +1,7 @@
 package expo.modules.andongglobeview
 
 import android.content.Context
+import android.graphics.Canvas
 import android.view.Gravity
 import android.view.View
 import android.view.ViewOutlineProvider
@@ -29,10 +30,10 @@ class AndongGlobeView(context: Context, appContext: AppContext) : ExpoView(conte
 
   init {
     // 자식(imageView)이 rotationY + cameraDistance로 3D 회전할 때 이 부모(AndongGlobeView) 경계
-    // 밖으로 그려지는 문제가 있었음 — clipChildren(기본 true지만 Fabric 커스텀 뷰라 명시 필요했을 수
-    // 있어 명시적으로 재선언)만으로는 GPU 합성되는 3D 회전 하드웨어 레이어를 못 잘라서, outline 기반
-    // 클리핑(clipToOutline + ViewOutlineProvider.BOUNDS)을 추가로 걸어서 강제로 박스 안에 가둠
-    // (2026-09-04, decision-log 참고)
+    // 밖으로 그려지는 문제가 있었음 — clipChildren=true, outline 기반 클리핑(clipToOutline +
+    // ViewOutlineProvider.BOUNDS) 둘 다 시도했지만 하드웨어 레이어로 GPU 합성되는 3D 회전 자식은
+    // 안 잘림(실기기로 확인, 2026-09-04). dispatchDraw에서 canvas.clipRect를 직접 걸어서 강제로
+    // 박스 안에 가두는 방식으로 최종 해결 — 아래 dispatchDraw 오버라이드 참고
     clipChildren = true
     outlineProvider = ViewOutlineProvider.BOUNDS
     clipToOutline = true
@@ -44,6 +45,15 @@ class AndongGlobeView(context: Context, appContext: AppContext) : ExpoView(conte
     // 기본 카메라 거리(호출 안 하면 안드로이드가 8인치로 잡음)는 원근 왜곡이 거의 없어서
     // "평평한 종이" 느낌이 남 — JS에서 cameraDistanceInches prop으로 명시적으로 좁혀서 곡면 느낌을 냄
     setCameraDistanceInches(8f)
+  }
+
+  // clipChildren/clipToOutline로는 rotationY + 하드웨어 레이어 조합의 자식을 못 잘라서(실기기 확인),
+  // 캔버스에 직접 클립 사각형을 걸어서 확실하게 이 뷰의 경계 밖으로 못 나가게 강제
+  override fun dispatchDraw(canvas: Canvas) {
+    canvas.save()
+    canvas.clipRect(0, 0, width, height)
+    super.dispatchDraw(canvas)
+    canvas.restore()
   }
 
   fun setRotationYDeg(deg: Float) {
