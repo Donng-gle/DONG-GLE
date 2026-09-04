@@ -17,7 +17,9 @@ import expo.modules.kotlin.views.ExpoView
 // 훨씬 좋음.
 class AndongGlobeView(context: Context, appContext: AppContext) : ExpoView(context, appContext) {
   private val imageView = ImageView(context).apply {
-    scaleType = ImageView.ScaleType.CENTER_INSIDE
+    // RN의 resizeMode="contain"과 동일한 동작 — CENTER_INSIDE는 축소만 하고 확대는 안 해서
+    // 원본이 작은 이미지(360x360)가 큰 컨테이너 안에서 작게 남는 문제가 있었음
+    scaleType = ImageView.ScaleType.FIT_CENTER
     setImageResource(R.drawable.andong_globe_map)
     // 안드로이드 3D 뷰 회전은 소프트웨어 레이어에서는 이상하게(깨져) 그려질 수 있어서
     // 하드웨어 레이어를 명시적으로 강제 — CSS rotateY보다 매끈한 안티에일리어싱의 핵심
