@@ -10,6 +10,7 @@ data class VisitLogMapItemResponse(
     val lng: Double?,
     val photoUrl: String?,
     val oneLine: String?,
+    val rating: Int?,
     val visitedAt: LocalDateTime,
     val tags: List<String>,
 )

@@ -8,6 +8,7 @@ data class SimilarLogItemResponse(
     val lng: Double?,
     val photoUrl: String?,
     val oneLine: String?,
+    val rating: Int?,
     val tags: List<String>,
     // Figma "취향 비슷 사용자 프로필"(507:10963) 카드에 작성자 닉네임+아바타가 있어서 추가 (2026-09-03, decision-log 참고)
     val nickname: String,

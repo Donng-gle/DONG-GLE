@@ -40,6 +40,7 @@ class VisitLogService(
                 place = place,
                 photoUrl = request.photoUrl,
                 oneLine = request.oneLine,
+                rating = request.rating,
                 visitedAt = request.visitedAt ?: LocalDateTime.now(),
             )
         )
@@ -92,6 +93,7 @@ class VisitLogService(
         // 쪽으로 계약을 명확히 함 — 안 그러면 리뷰를 지워도 예전 값이 그대로 남는 버그가 있었음
         // (2026-09-04 발견/수정, decision-log 참고)
         request.oneLine?.let { log.oneLine = it.ifBlank { null } }
+        request.rating?.let { log.rating = it }
         request.visitedAt?.let { log.visitedAt = it }
         return log.toDetailResponse()
     }
@@ -120,6 +122,7 @@ private fun VisitLog.toSummaryResponse() = VisitLogSummaryResponse(
     id = id,
     photoUrl = photoUrl,
     oneLine = oneLine,
+    rating = rating,
     visitedAt = visitedAt,
     tags = emotionTags.map { it.tag },
 )
@@ -130,6 +133,7 @@ private fun VisitLog.toDetailResponse() = VisitLogDetailResponse(
     placeName = place.name,
     photoUrl = photoUrl,
     oneLine = oneLine,
+    rating = rating,
     visitedAt = visitedAt,
     tags = emotionTags.map { it.tag },
 )
@@ -142,6 +146,7 @@ private fun VisitLog.toMapItemResponse() = VisitLogMapItemResponse(
     lng = place.lng,
     photoUrl = photoUrl,
     oneLine = oneLine,
+    rating = rating,
     visitedAt = visitedAt,
     tags = emotionTags.map { it.tag },
 )

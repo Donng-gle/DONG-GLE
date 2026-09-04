@@ -569,6 +569,12 @@ components:
         one_line:
           type: string
           nullable: true
+        rating:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 5
+          description: 별점(1~5), 선택 입력이라 없을 수 있음
         visited_at:
           type: string
           format: date-time
@@ -642,6 +648,11 @@ components:
         visit_log_count:
           type: integer
           description: 이 장소에 기록된 총 방문 로그 수. 숨은 장소 여부 판단 기준값으로도 활용됨.
+        avg_rating:
+          type: number
+          format: double
+          nullable: true
+          description: 방문 기록에 남긴 별점(1~5, 선택 입력)의 평균. 아무도 별점을 안 남겼으면 null.
         recent_logs:
           type: array
           description: |
@@ -1032,6 +1043,12 @@ components:
         one_line:
           type: string
           nullable: true
+        rating:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 5
+          description: 별점(1~5), 선택 입력이라 없을 수 있음
         visited_at:
           type: string
           format: date-time
@@ -1047,13 +1064,20 @@ components:
     VisitLogUpdateRequest:
       type: object
       description: |
-        사진은 수정 불가. 한줄 리뷰와 방문 날짜만 수정 가능.
+        사진은 수정 불가. 한줄 리뷰·별점·방문 날짜만 수정 가능.
         one_line을 빈 문자열("")로 보내면 리뷰가 삭제됨(null로 저장). 필드 자체를 생략하면 기존 값 유지.
+        rating은 one_line과 달리 빈 값으로 지우는 기능이 없음 — 값을 보내면 갱신, 생략하면 기존 값 유지.
       properties:
         one_line:
           type: string
           nullable: true
           maxLength: 100
+        rating:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 5
+          description: 별점(1~5)
         visited_at:
           type: string
           format: date-time
@@ -1083,6 +1107,12 @@ components:
         one_line:
           type: string
           nullable: true
+        rating:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 5
+          description: 별점(1~5), 선택 입력이라 없을 수 있음
         visited_at:
           type: string
           format: date-time
@@ -1117,6 +1147,12 @@ components:
         one_line:
           type: string
           nullable: true
+        rating:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 5
+          description: 별점(1~5), 선택 입력이라 없을 수 있음
         tags:
           type: array
           items:
@@ -2208,6 +2244,12 @@ paths:
                   nullable: true
                   maxLength: 100
                   description: 한줄 리뷰
+                rating:
+                  type: integer
+                  nullable: true
+                  minimum: 1
+                  maximum: 5
+                  description: 별점(1~5), 선택 입력
                 visited_at:
                   type: string
                   format: date-time

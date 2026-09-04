@@ -136,6 +136,7 @@ Table visit_log {
   place_id   bigint       [not null, ref: > place.id]
   photo_url  text
   one_line   varchar(100)
+  rating     smallint     [note: '별점(1~5), 선택 입력. 2026-09-05 추가, decision-log 참고']
   is_public  boolean      [not null, default: true, note: '유사 사용자 탐색(GET /explore/similar-logs)에서 공개 기록만 노출']
   visited_at timestamp    [not null, default: `now()`]
 }

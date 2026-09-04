@@ -36,6 +36,11 @@ class VisitLog(
     @Column(name = "one_line")
     var oneLine: String? = null,
 
+    // 1~5, 선택 입력. DB CHECK(rating BETWEEN 1 AND 5)로도 강제하지만 요청 단계에서
+    // @Min/@Max로 먼저 막아서 더 친절한 400 에러를 줌(VisitLogCreateRequest/VisitLogUpdateRequest 참고)
+    @Column(name = "rating")
+    var rating: Int? = null,
+
     @Column(name = "is_public", nullable = false)
     var isPublic: Boolean = true,
 
