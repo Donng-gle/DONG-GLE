@@ -22,6 +22,13 @@ const WEEKDAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
 // 어긋나서 다음 이미지 앞부분이 계속 붙어 보이는 문제가 있었음 (2026-09-05, decision-log 참고)
 const HERO_IMAGE_WIDTH = Dimensions.get('window').width;
 
+// Figma 리뷰 카드는 "2026년 6월 여행"처럼 일자 없이 연/월만 보여줌 — 실제 visited_at(정확한 날짜)을
+// 그 표기 그대로 가공한 것뿐, 없는 데이터를 지어낸 건 아님
+function formatVisitMonth(visitedAt: string) {
+  const d = new Date(visitedAt);
+  return `${d.getFullYear()}년 ${d.getMonth() + 1}월 여행`;
+}
+
 function formatHours(hours: PlaceDetail['hours']) {
   return hours.map((h) => {
     const open = `${WEEKDAY_LABELS[h.open_day]} ${h.open_time.slice(0, 5)}`;
@@ -31,9 +38,14 @@ function formatHours(hours: PlaceDetail['hours']) {
   });
 }
 
-// Figma 노드 358:5134("관광지 상세 페이지") 반영. 별점/작성자 프로필/좋아요·댓글 수/"가는 방법"은
-// 대응하는 백엔드 데이터가 없어서 생략(place_like엔 개수가 아니라 내 찜 여부만 있음, visit_log엔
-// 별점·작성자 노출 필드가 없음) — 없는 데이터를 지어내지 않기 위한 선택 (2026-09-01 결정, decision-log 참고)
+// Figma 노드 354:1345/458:2474/358:5134("관광지 상세 페이지", 셋 다 동일 화면) 반영. 별점/작성자
+// 프로필/좋아요·댓글 수/"가는 방법"은 대응하는 백엔드 데이터가 없어서 생략(place_like엔 개수가
+// 아니라 내 찜 여부만 있음, visit_log엔 별점·작성자 노출 필드가 없음) — 없는 데이터를 지어내지
+// 않기 위한 선택 (2026-09-01 결정, decision-log 참고). 2026-09-05 재검토: 헤더 타이틀 제거(원본은
+// 사진 아래 title row에서만 이름을 보여줌), 하트 옆 좋아요 수 자리에 실존 필드인
+// visit_log_count를 넣음, 리뷰 사진을 텍스트 위 큰 히어로 이미지 대신 텍스트 아래 작은
+// 썸네일로 옮기고 날짜를 "OOOO년 O월 여행" 표기로 맞춤 — 전부 실제 있는 데이터를 원본 배치에
+// 맞게 재배치한 것뿐, 새 데이터를 지어내진 않음
 export function PlaceDetailScreen({ placeId, onExit }: Props) {
   const insets = useSafeAreaInsets();
   const [place, setPlace] = useState<PlaceDetail | null>(null);
@@ -119,14 +131,14 @@ export function PlaceDetailScreen({ placeId, onExit }: Props) {
     <View style={styles.container}>
       <StatusBar style="dark" />
 
+      {/* Figma엔 헤더에 이름이 없음(사진 아래 title row에서 크게 한 번만 보여줌) — 뒤로가기 버튼만
+          두는 게 오히려 원본과 더 가까움. 검색/프로필 아이콘도 있긴 한데 이 화면은 여러 곳(안동 거리
+          탭, 검색 화면, 스크랩북 등)에서 열려서 어디로 보낼지 애매해 장식용 버튼을 억지로 만드는
+          대신 뺐음(2026-09-05 결정, decision-log 참고) */}
       <View style={[styles.header, { paddingTop: insets.top }]}>
         <TouchableOpacity onPress={onExit} hitSlop={8} style={styles.backButton}>
           <Text style={styles.backIcon}>←</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle} numberOfLines={1}>
-          {place.name}
-        </Text>
-        <View style={styles.backButton} />
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
@@ -158,8 +170,11 @@ export function PlaceDetailScreen({ placeId, onExit }: Props) {
 
         <View style={styles.titleRow}>
           <Text style={styles.placeName}>{place.name}</Text>
+          {/* Figma는 하트 밑에 좋아요 수(587)를 보여주는데 place_like엔 개수 API가 없음 — 대신
+              실제로 있는 방문 기록 수(visit_log_count)를 같은 자리에 넣음(가짜 숫자 아님) */}
           <TouchableOpacity onPress={toggleLike} disabled={likeBusy} hitSlop={8} style={styles.likeButton}>
             <Text style={styles.likeIcon}>{place.is_liked ? '♥' : '♡'}</Text>
+            <Text style={styles.likeCount}>{place.visit_log_count}</Text>
           </TouchableOpacity>
         </View>
 
@@ -214,13 +229,18 @@ export function PlaceDetailScreen({ placeId, onExit }: Props) {
 
           {logs && logs.logs.length === 0 && <Text style={styles.emptyText}>아직 방문 기록이 없어요</Text>}
 
+          {/* Figma는 작성자 아바타+이름+별점+좋아요/댓글 수까지 보여주는데, 장소별 방문기록 목록
+              (PlaceLogsResponse.VisitLogSummary)엔 작성자 정보 자체가 없고 별점/좋아요/댓글 개수도
+              없음(explore.similarLogs만 작성자를 내려줌, api/visitLog.ts 참고) — 실제로 있는 필드
+              (사진 1장·한줄리뷰·태그·방문월)만으로 재구성. 사진도 원본은 히어로 크기였는데 Figma
+              쪽은 리뷰 텍스트 아래 작은 썸네일이라 그 순서/크기로 맞춤 */}
           {logs?.logs.map((log) => (
             <View key={log.id} style={styles.reviewCard}>
-              {log.photo_url && <Image source={{ uri: log.photo_url }} style={styles.reviewPhoto} resizeMode="cover" />}
               {log.one_line && <Text style={styles.reviewText}>{log.one_line}</Text>}
+              {log.photo_url && <Image source={{ uri: log.photo_url }} style={styles.reviewThumb} resizeMode="cover" />}
               <View style={styles.reviewFooterRow}>
                 {log.tags.length > 0 && <Text style={styles.reviewTags}>{log.tags.join(' · ')}</Text>}
-                <Text style={styles.reviewDate}>{log.visited_at.slice(0, 10)}</Text>
+                <Text style={styles.reviewDate}>{formatVisitMonth(log.visited_at)}</Text>
               </View>
             </View>
           ))}
@@ -245,14 +265,12 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: 12,
     paddingBottom: 8,
     backgroundColor: colors.white,
   },
   backButton: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
   backIcon: { fontSize: 20, color: colors.black },
-  headerTitle: { flex: 1, fontFamily: fonts.semiBold, fontSize: 17, letterSpacing: -0.4, color: colors.black, textAlign: 'center' },
   content: { paddingBottom: 40 },
   heroImage: { width: HERO_IMAGE_WIDTH, height: 234, borderRadius: 20 },
   heroImagePlaceholder: { width: '100%', backgroundColor: colors.border, marginHorizontal: 20 },
@@ -267,8 +285,9 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   placeName: { flex: 1, fontFamily: fonts.semiBold, fontSize: 20, letterSpacing: -0.5, color: colors.black },
-  likeButton: { paddingLeft: 12 },
+  likeButton: { alignItems: 'center', paddingLeft: 12 },
   likeIcon: { fontSize: 24, color: colors.black },
+  likeCount: { fontFamily: fonts.regular, fontSize: 11, color: colors.gray500, marginTop: 2 },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 20, marginTop: 16 },
   chip: {
     paddingHorizontal: 12,
@@ -299,7 +318,9 @@ const styles = StyleSheet.create({
   reviewWriteLink: { fontFamily: fonts.medium, fontSize: 13, letterSpacing: -0.3, color: colors.gray700, marginBottom: 16 },
   emptyText: { fontFamily: fonts.regular, fontSize: 14, color: colors.gray500 },
   reviewCard: { paddingVertical: 16, borderTopWidth: 1, borderTopColor: colors.divider },
-  reviewPhoto: { width: '100%', height: 180, borderRadius: 12, marginBottom: 12 },
+  // Figma는 텍스트 아래 작은 사진 썸네일들이 옴(리뷰당 여러 장) — VisitLogSummary는 사진 1장뿐이라
+  // 그 1장을 같은 자리·같은 크기감으로 배치
+  reviewThumb: { width: 96, height: 96, borderRadius: 12, marginTop: 12 },
   reviewText: { fontFamily: fonts.regular, fontSize: 15, lineHeight: 21, color: colors.black },
   reviewFooterRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
   reviewTags: { fontFamily: fonts.regular, fontSize: 12, color: colors.gray500 },
