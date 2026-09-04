@@ -23,9 +23,9 @@ interface Props {
 // 드래그 1px당 회전각(도). 0.5로 뒀더니 살짝만 밀어도 옆면까지 확 돌아가버려서 훨씬 둔감하게 낮춤
 const DEGREES_PER_PIXEL = 0.12;
 
-// 카메라 거리(dp) — 작을수록 원근 왜곡이 강해져서(카메라가 가까워짐) 평평한 종이가 아니라 곡면(구)
-// 처럼 보임. 네이티브 View.rotationY 도입 후 다시 튜닝 필요 — 일단 RN perspective 때 감으로 시작
-const CAMERA_DISTANCE_DP = 12;
+// 카메라 거리(인치) — 안드로이드 기본값은 8인치(거의 정사영, 평평해 보임). 작을수록 원근 왜곡이
+// 강해져서 곡면(구)처럼 보임. 4로 시작 — 실기기로 확인하며 튜닝
+const CAMERA_DISTANCE_INCHES = 4;
 
 export function AndongGlobe({ size }: Props) {
   const [rotationDeg, setRotationDeg] = useState(0);
@@ -55,7 +55,7 @@ export function AndongGlobe({ size }: Props) {
         <AndongGlobeView
           style={{ width: size, height: size }}
           rotationDeg={rotationDeg}
-          cameraDistanceDp={CAMERA_DISTANCE_DP}
+          cameraDistanceInches={CAMERA_DISTANCE_INCHES}
         />
       </View>
       {/* Figma 지도 밑 그림자(506:11131) 반영 — 정확한 블러 값은 Figma 연결이 끊겨서 못 가져왔고
