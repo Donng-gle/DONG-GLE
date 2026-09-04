@@ -23,9 +23,11 @@ interface Props {
 // 드래그 1px당 회전각(도). 0.5로 뒀더니 살짝만 밀어도 옆면까지 확 돌아가버려서 훨씬 둔감하게 낮춤
 const DEGREES_PER_PIXEL = 0.12;
 
-// 카메라 거리(인치) — 안드로이드 기본값은 8인치(거의 정사영, 평평해 보임). 작을수록 원근 왜곡이
-// 강해져서 곡면(구)처럼 보임. 4로 시작 — 실기기로 확인하며 튜닝
-const CAMERA_DISTANCE_INCHES = 4;
+// 카메라 거리(인치) — 안드로이드 기본값은 8인치. 컨테이너(size)가 화면 전체 너비라 실제 물리
+// 크기가 꽤 커서(반지름 1인치 이상) 4인치처럼 작은 값은 회전 중 화면을 뒤덮을 만큼 극단적으로
+// 확대돼버림(2026-09-04 실기기 확인 — 클리핑 버그인 줄 알았는데 실은 컨테이너가 커서 그런 거였음).
+// 큰 컨테이너에 맞춰 훨씬 크게 시작해서 다시 튜닝
+const CAMERA_DISTANCE_INCHES = 20;
 
 export function AndongGlobe({ size }: Props) {
   const [rotationDeg, setRotationDeg] = useState(0);
