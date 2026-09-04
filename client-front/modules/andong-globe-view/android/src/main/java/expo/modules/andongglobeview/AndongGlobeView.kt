@@ -31,20 +31,23 @@ class AndongGlobeView(context: Context, appContext: AppContext) : ExpoView(conte
       gravity = Gravity.CENTER
     }
     addView(imageView, params)
-    // 기본 카메라 거리(뷰 크기와 무관하게 안드로이드가 잡아주는 값)는 원근 왜곡이 거의 없어서
-    // "평평한 종이" 느낌이 남 — JS에서 cameraDistance prop으로 명시적으로 좁혀서 곡면 느낌을 냄
-    setCameraDistanceDp(12f)
+    // 기본 카메라 거리(호출 안 하면 안드로이드가 8인치로 잡음)는 원근 왜곡이 거의 없어서
+    // "평평한 종이" 느낌이 남 — JS에서 cameraDistanceInches prop으로 명시적으로 좁혀서 곡면 느낌을 냄
+    setCameraDistanceInches(8f)
   }
 
   fun setRotationYDeg(deg: Float) {
     imageView.rotationY = deg
   }
 
-  // Android의 View.cameraDistance는 "8 * density" 단위를 내부적으로 쓰는 raw 픽셀 값이라 감이 안 옴 —
-  // dp로 받아서 density를 곱해준 뒤 8을 곱해 넘김(공식 문서 기준 변환). 값이 작을수록 카메라가
-  // 가까워져서(=원근 왜곡이 강해져서) 곡면처럼 보이고, 값이 크면 거의 정사영이 되어 평평해 보임.
-  fun setCameraDistanceDp(distanceDp: Float) {
-    val density = resources.displayMetrics.density
-    imageView.cameraDistance = distanceDp * density * 8f
+  // Android View.cameraDistance는 "raw 픽셀" 값을 받아서 내부적으로 densityDpi로 나눠 "인치" 단위
+  // 카메라 Z 위치로 씀 (View.java: camera.setLocation(0, 0, -distance/dpi), 기본값 8인치).
+  // 처음에 dp*density*8로 잘못 계산해서(8을 중복으로 곱함) 카메라가 너무 가까워져 회전만 해도
+  // 화면을 뒤덮을 만큼 극단적으로 왜곡되는 버그가 있었음 — inches 단위를 직접 받아서 dpi만 곱하도록
+  // 수정 (2026-09-04). 값이 작을수록(카메라가 가까워질수록) 원근 왜곡이 강해져서 곡면처럼 보이고,
+  // 크면(기본 8인치) 거의 정사영이 되어 평평해 보임 — 실기기로 튜닝 필요
+  fun setCameraDistanceInches(distanceInches: Float) {
+    val dpi = resources.displayMetrics.densityDpi
+    imageView.cameraDistance = distanceInches * dpi
   }
 }

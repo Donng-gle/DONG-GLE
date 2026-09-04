@@ -12,9 +12,9 @@ class AndongGlobeViewModule : Module() {
       Prop("rotationDeg") { view: AndongGlobeView, value: Float ->
         view.setRotationYDeg(value)
       }
-      // 카메라 거리(dp) — 작을수록 원근 왜곡이 강해져서 곡면처럼 보임. 튜닝용으로 JS에서 조절 가능
-      Prop("cameraDistanceDp") { view: AndongGlobeView, value: Float ->
-        view.setCameraDistanceDp(value)
+      // 카메라 거리(인치) — 작을수록(기본 8) 원근 왜곡이 강해져서 곡면처럼 보임. 튜닝용으로 JS에서 조절 가능
+      Prop("cameraDistanceInches") { view: AndongGlobeView, value: Float ->
+        view.setCameraDistanceInches(value)
       }
     }
   }
