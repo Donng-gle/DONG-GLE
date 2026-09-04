@@ -53,7 +53,7 @@ export function AndongGlobe({ size }: Props) {
     <View style={[styles.container, { width: size, height: size * 1.08 }]}>
       <View style={[styles.imageWrap, { width: size, height: size }]} {...panResponder.panHandlers}>
         <AndongGlobeView
-          style={{ width: size, height: size }}
+          style={{ width: size, height: size, overflow: 'hidden' }}
           rotationDeg={rotationDeg}
           cameraDistanceInches={CAMERA_DISTANCE_INCHES}
         />
@@ -67,7 +67,7 @@ export function AndongGlobe({ size }: Props) {
 
 const styles = StyleSheet.create({
   container: { alignItems: 'center' },
-  imageWrap: { alignItems: 'center', justifyContent: 'center' },
+  imageWrap: { alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   shadow: {
     marginTop: -8,
     borderRadius: 100,
