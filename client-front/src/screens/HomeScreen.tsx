@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { UserProfile, authApi } from '../api/auth';
 import { tokenStorage } from '../auth/tokenStorage';
+import { AppHeader } from '../components/AppHeader';
 import { FloatingNav } from '../components/FloatingNav';
 import { colors } from '../theme/colors';
 import { fonts } from '../theme/fonts';
@@ -25,6 +26,8 @@ interface Props {
   profile: UserProfile | null; // null = 게스트 모드
   onLogout: () => void; // 로그인 사용자가 실제로 로그아웃(토큰 정리 포함)할 때
   onRequireLogin: () => void; // 게스트가 로그인이 필요한 기능을 눌렀을 때 로그인 화면으로 돌아감(토큰이 없어 API 호출 없이 바로 전환)
+  // 마이페이지 "취향 재검사" — App.tsx가 profile.has_onboarded를 false로 내려서 OnboardingScreen을 다시 태움
+  onRetakeOnboarding: () => void;
 }
 
 type Tab = 'journal' | 'recommended' | 'street';
@@ -95,7 +98,7 @@ const DRAWER_SECTIONS: { title: string; items: { key: Overlay; label: string; au
 // SSOT상 비인증 허용 API(장소 탐색/행사·축제/감성 태그)만 그대로 쓸 수 있고, 인증 필요한
 // 기능(코스/스크랩북/방문기록/비슷한 취향 탐색/알림설정/프로필)은 눌러도 열지 않고 onRequireLogin으로
 // 로그인 화면으로 돌려보냄 — 401을 그냥 겪게 하는 대신 미리 막음
-export function HomeScreen({ profile: initialProfile, onLogout, onRequireLogin }: Props) {
+export function HomeScreen({ profile: initialProfile, onLogout, onRequireLogin, onRetakeOnboarding }: Props) {
   const insets = useSafeAreaInsets();
   // 게스트는 안 볼 수 있는 탭(나의 일지/취향 맞춤 코스)이 아니라 바로 쓸 수 있는 '안동 거리'로 시작
   const [tab, setTab] = useState<Tab>(initialProfile ? 'journal' : 'street');
@@ -177,7 +180,13 @@ export function HomeScreen({ profile: initialProfile, onLogout, onRequireLogin }
       // openOverlay('profile')은 profile이 있을 때만 호출되지만(헤더 아이콘 핸들러 참고)
       // profile 상태 자체는 null일 수 있는 타입이라 방어적으로 한 번 더 확인
       return profile ? (
-        <ProfileScreen profile={profile} onProfileUpdated={setProfile} onWithdrawn={onLogout} onExit={closeOverlay} />
+        <ProfileScreen
+          profile={profile}
+          onProfileUpdated={setProfile}
+          onWithdrawn={onLogout}
+          onExit={closeOverlay}
+          onRetakeOnboarding={onRetakeOnboarding}
+        />
       ) : null;
   }
 
@@ -185,26 +194,11 @@ export function HomeScreen({ profile: initialProfile, onLogout, onRequireLogin }
     <View style={styles.container}>
       <StatusBar style="dark" />
 
-      <View style={[styles.header, { paddingTop: insets.top + 13 }]}>
-        <View style={styles.headerLeft}>
-          <TouchableOpacity onPress={openDrawer} hitSlop={8} style={styles.iconButton}>
-            <HamburgerIcon />
-          </TouchableOpacity>
-          <Text style={styles.logo}>Dong_Gle</Text>
-        </View>
-        <View style={styles.headerRight}>
-          <TouchableOpacity onPress={() => openOverlay('places')} hitSlop={8} style={styles.iconButton}>
-            <Text style={styles.emojiIcon}>🔍</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => (profile ? openOverlay('profile') : requireLogin())}
-            hitSlop={8}
-            style={styles.iconButton}
-          >
-            <ProfileIcon />
-          </TouchableOpacity>
-        </View>
-      </View>
+      <AppHeader
+        onMenuPress={openDrawer}
+        onSearchPress={() => openOverlay('places')}
+        onProfilePress={() => (profile ? openOverlay('profile') : requireLogin())}
+      />
 
       <View style={styles.tabRow}>
         {TABS.map((t) => (
@@ -321,59 +315,8 @@ function GuestPrompt({ message, onLogin }: { message: string; onLogin: () => voi
   );
 }
 
-function HamburgerIcon() {
-  return (
-    <View style={hamburgerStyles.stack}>
-      <View style={hamburgerStyles.bar} />
-      <View style={hamburgerStyles.bar} />
-      <View style={hamburgerStyles.bar} />
-    </View>
-  );
-}
-
-const hamburgerStyles = StyleSheet.create({
-  stack: { width: 20, height: 14, justifyContent: 'space-between' },
-  bar: { height: 2, borderRadius: 1, backgroundColor: colors.black },
-});
-
-// Figma 아이콘 벡터(Ellipse+Rectangle) 그대로 단순 도형으로 재현 — 별도 아이콘 에셋 없이 구현
-function ProfileIcon() {
-  return (
-    <View style={profileIconStyles.container}>
-      <View style={profileIconStyles.head} />
-      <View style={profileIconStyles.shoulders} />
-    </View>
-  );
-}
-
-const profileIconStyles = StyleSheet.create({
-  container: { width: 20, height: 20, alignItems: 'center' },
-  head: { width: 7, height: 7, borderRadius: 3.5, borderWidth: 1.3, borderColor: colors.black, marginBottom: 2 },
-  shoulders: {
-    width: 18,
-    height: 8,
-    borderTopLeftRadius: 9,
-    borderTopRightRadius: 9,
-    borderWidth: 1.3,
-    borderColor: colors.black,
-    borderBottomWidth: 0,
-  },
-});
-
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.backgroundMuted },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingBottom: 13,
-  },
-  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  iconButton: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
-  emojiIcon: { fontSize: 18 },
-  logo: { fontFamily: fonts.logo, fontSize: 24, color: colors.black },
   tabRow: { flexDirection: 'row', paddingHorizontal: 20, gap: 20 },
   tabItem: { paddingVertical: 8 },
   tabLabel: { fontFamily: fonts.regular, fontSize: 16, letterSpacing: -0.4, color: colors.gray700 },

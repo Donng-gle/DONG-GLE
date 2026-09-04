@@ -64,13 +64,26 @@ export default function App() {
       <View style={styles.container}>
         {profile ? (
           profile.has_onboarded ? (
-            <HomeScreen profile={profile} onLogout={() => setProfile(null)} onRequireLogin={() => setProfile(null)} />
+            <HomeScreen
+              profile={profile}
+              onLogout={() => setProfile(null)}
+              onRequireLogin={() => setProfile(null)}
+              // 마이페이지 "취향 재검사" — has_onboarded를 false로 내리면 아래 분기가 OnboardingScreen을 다시 태움
+              onRetakeOnboarding={() => setProfile({ ...profile, has_onboarded: false })}
+            />
           ) : (
             <OnboardingScreen onComplete={() => setProfile({ ...profile, has_onboarded: true })} />
           )
         ) : isGuest ? (
-          // 게스트는 토큰 자체가 없어서 onLogout(profile을 null로만)이 곧 로그인 화면 복귀와 같음
-          <HomeScreen profile={null} onLogout={() => setIsGuest(false)} onRequireLogin={() => setIsGuest(false)} />
+          // 게스트는 토큰 자체가 없어서 onLogout(profile을 null로만)이 곧 로그인 화면 복귀와 같음.
+          // ProfileScreen(따라서 취향 재검사)은 게스트가 못 여는 화면이라(HomeScreen이 openOverlay 대신
+          // onRequireLogin으로 돌려보냄) onRetakeOnboarding은 절대 호출 안 되지만 prop은 필수라 no-op으로 채움
+          <HomeScreen
+            profile={null}
+            onLogout={() => setIsGuest(false)}
+            onRequireLogin={() => setIsGuest(false)}
+            onRetakeOnboarding={() => {}}
+          />
         ) : (
           <LoginScreen onLoginSuccess={setProfile} onGuestContinue={() => setIsGuest(true)} />
         )}
