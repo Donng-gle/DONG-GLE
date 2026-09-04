@@ -3,7 +3,6 @@ package expo.modules.andongglobeview
 import android.content.Context
 import android.graphics.Canvas
 import android.view.Gravity
-import android.view.View
 import android.view.ViewOutlineProvider
 import android.widget.FrameLayout
 import android.widget.ImageView
@@ -14,18 +13,19 @@ import expo.modules.kotlin.views.ExpoView
 //
 // RN의 `transform: rotateY`(JS/CSS 트랜스폼 흉내)로 먼저 시도했는데 실기기에서 회전 중 가장자리가
 // 계단식으로 깨지는 문제가 있어서(2026-09-04, decision-log 참고) 안드로이드 View가 기본 제공하는
-// rotationY + cameraDistance(하드웨어 가속 레이어) 방식으로 옮김. View.rotationY는 안드로이드가
-// 직접 3D 변환 행렬을 계산해서 하드웨어 레이어에 그려주기 때문에 CSS 흉내보다 안티에일리어싱 품질이
-// 훨씬 좋음.
+// rotationY + cameraDistance 방식으로 옮김. View.rotationY는 안드로이드가 직접 3D 변환 행렬을
+// 계산해서 그려주기 때문에 CSS 흉내보다 안티에일리어싱 품질이 좋음.
 class AndongGlobeView(context: Context, appContext: AppContext) : ExpoView(context, appContext) {
   private val imageView = ImageView(context).apply {
     // RN의 resizeMode="contain"과 동일한 동작 — CENTER_INSIDE는 축소만 하고 확대는 안 해서
     // 원본이 작은 이미지(360x360)가 큰 컨테이너 안에서 작게 남는 문제가 있었음
     scaleType = ImageView.ScaleType.FIT_CENTER
     setImageResource(R.drawable.andong_globe_map)
-    // 안드로이드 3D 뷰 회전은 소프트웨어 레이어에서는 이상하게(깨져) 그려질 수 있어서
-    // 하드웨어 레이어를 명시적으로 강제 — CSS rotateY보다 매끈한 안티에일리어싱의 핵심
-    setLayerType(View.LAYER_TYPE_HARDWARE, null)
+    // 처음엔 안티에일리어싱을 위해 LAYER_TYPE_HARDWARE를 명시적으로 걸었는데, 이게 별도의 GPU
+    // 합성 레이어를 만들어서 부모의 클리핑(clipChildren/clipToOutline/canvas.clipRect 전부)을
+    // 다 우회해버리는 문제가 있었음(실기기 확인, 2026-09-04) — 안드로이드 앱은 기본적으로 이미
+    // 하드웨어 가속(manifest hardwareAccelerated=true)이라 View.rotationY 자체는 명시적 레이어
+    // 없이도 GPU로 그려져서 안티에일리어싱 품질은 유지되고, 클리핑도 정상 동작함
   }
 
   init {
