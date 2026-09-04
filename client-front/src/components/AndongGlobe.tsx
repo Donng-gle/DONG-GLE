@@ -17,8 +17,10 @@ interface Props {
   size: number; // 정사각형 한 변 길이(px)
 }
 
-// 드래그 1px당 회전각(도) — 화면을 한 번 가로지르면(size px) 대략 반 바퀴 도는 정도로 체감되게 튜닝
-const DEGREES_PER_PIXEL = 0.5;
+// 드래그 1px당 회전각(도). 0.5로 뒀더니 살짝만 밀어도 옆면(90도 근처, 거의 안 보이는 얇은 조각)까지
+// 확 돌아가버려서 훨씬 둔감하게 낮춤 — 화면 폭만큼(size px) 쭉 밀어야 대략 45도 정도 도는 정도
+// (2026-09-04 튜닝, decision-log 참고)
+const DEGREES_PER_PIXEL = 0.12;
 
 export function AndongGlobe({ size }: Props) {
   const rotation = useRef(new Animated.Value(0)).current; // 각도(도), 범위 제한 없음
