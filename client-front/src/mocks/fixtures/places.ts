@@ -196,9 +196,12 @@ export function toPlaceDetail(place: MockPlace, visitLogCount: number): PlaceDet
     homepage: place.homepage,
     event_start_date: null,
     event_end_date: null,
+    // main_image_url과 겹치지 않는 별도 사진들만 — PlaceDetailScreen이 main_image_url을 갤러리
+    // 맨 앞에 따로 붙이므로 여기서 또 넣으면 첫 두 장이 중복돼 스와이프해도 안 바뀌는 것처럼 보임
+    // (2026-09-05 실제로 겹쳐서 발견, decision-log 참고)
     images: [
-      { id: place.id * 10 + 1, img_url: place.main_image_url ?? '', sort_order: 0 },
-      { id: place.id * 10 + 2, img_url: `https://picsum.photos/seed/andong-${place.id}-2/800/600`, sort_order: 1 },
+      { id: place.id * 10 + 1, img_url: `https://picsum.photos/seed/andong-${place.id}-2/800/600`, sort_order: 0 },
+      { id: place.id * 10 + 2, img_url: `https://picsum.photos/seed/andong-${place.id}-3/800/600`, sort_order: 1 },
     ],
     hours: [{ open_day: 0, open_time: '09:00:00', close_day: 6, close_time: '18:00:00' }],
     top_tags: place.tags,
