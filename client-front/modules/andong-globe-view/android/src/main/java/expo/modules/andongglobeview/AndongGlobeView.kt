@@ -3,6 +3,7 @@ package expo.modules.andongglobeview
 import android.content.Context
 import android.view.Gravity
 import android.view.View
+import android.view.ViewOutlineProvider
 import android.widget.FrameLayout
 import android.widget.ImageView
 import expo.modules.kotlin.AppContext
@@ -27,6 +28,15 @@ class AndongGlobeView(context: Context, appContext: AppContext) : ExpoView(conte
   }
 
   init {
+    // 자식(imageView)이 rotationY + cameraDistance로 3D 회전할 때 이 부모(AndongGlobeView) 경계
+    // 밖으로 그려지는 문제가 있었음 — clipChildren(기본 true지만 Fabric 커스텀 뷰라 명시 필요했을 수
+    // 있어 명시적으로 재선언)만으로는 GPU 합성되는 3D 회전 하드웨어 레이어를 못 잘라서, outline 기반
+    // 클리핑(clipToOutline + ViewOutlineProvider.BOUNDS)을 추가로 걸어서 강제로 박스 안에 가둠
+    // (2026-09-04, decision-log 참고)
+    clipChildren = true
+    outlineProvider = ViewOutlineProvider.BOUNDS
+    clipToOutline = true
+
     val params = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT).apply {
       gravity = Gravity.CENTER
     }
