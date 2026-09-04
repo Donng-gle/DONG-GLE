@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Alert, Button, StyleSheet, Text, TextInput, View } from 'react-native';
 import { VisitLogMapItem, visitLogApi } from '../api/visitLog';
+import { StarRating } from '../components/StarRating';
 
 interface Props {
   log: VisitLogMapItem;
@@ -11,16 +12,18 @@ interface Props {
 
 export function LogEditScreen({ log, onSaved, onDeleted, onCancel }: Props) {
   const [oneLine, setOneLine] = useState(log.one_line ?? '');
+  const [rating, setRating] = useState(log.rating ?? 0); // 0 = 아직 안 매김
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   async function handleSave() {
     setSaving(true);
     try {
-      // trim()이 빈 문자열이어도 그대로 보냄(undefined로 바꾸지 않음) — 필드를 아예 생략하면
-      // 서버가 "안 건드림"으로 해석해서 리뷰를 지웠는데도 예전 값이 그대로 남는 문제가 있었음
-      // (2026-09-04 발견/수정, decision-log 참고)
-      await visitLogApi.update(log.id, { one_line: oneLine.trim() });
+      // one_line은 trim()이 빈 문자열이어도 그대로 보냄(undefined로 바꾸지 않음) — 필드를 아예
+      // 생략하면 서버가 "안 건드림"으로 해석해서 리뷰를 지웠는데도 예전 값이 그대로 남는 문제가
+      // 있었음(2026-09-04 발견/수정, decision-log 참고). rating은 반대로 "지우기" 개념이 없어서
+      // (server VisitLogUpdateRequest.kt 참고) 값이 있을 때만(0=미선택 제외) 보냄
+      await visitLogApi.update(log.id, { one_line: oneLine.trim(), rating: rating > 0 ? rating : undefined });
       onSaved();
     } catch (e) {
       Alert.alert('수정에 실패했어요', e instanceof Error ? e.message : '알 수 없는 오류');
@@ -52,7 +55,10 @@ export function LogEditScreen({ log, onSaved, onDeleted, onCancel }: Props) {
       <Text style={styles.title}>{log.place_name}</Text>
       <Text style={styles.meta}>{log.visited_at.slice(0, 10)}</Text>
 
-      <Text style={styles.label}>한줄리뷰</Text>
+      <Text style={styles.label}>별점</Text>
+      <StarRating rating={rating} size={24} onChange={setRating} />
+
+      <Text style={[styles.label, styles.labelSpaced]}>한줄리뷰</Text>
       <TextInput style={styles.input} value={oneLine} onChangeText={setOneLine} maxLength={100} multiline />
 
       <View style={styles.actions}>
@@ -71,6 +77,7 @@ const styles = StyleSheet.create({
   title: { fontSize: 20, fontWeight: '700' },
   meta: { fontSize: 13, color: '#999', marginTop: 4, marginBottom: 24 },
   label: { fontSize: 13, color: '#666', marginBottom: 8 },
+  labelSpaced: { marginTop: 20 },
   input: {
     borderWidth: 1,
     borderColor: '#ddd',

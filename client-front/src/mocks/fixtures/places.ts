@@ -180,7 +180,7 @@ export const MOCK_PLACES: MockPlace[] = [
   },
 ];
 
-export function toPlaceDetail(place: MockPlace, visitLogCount: number): PlaceDetail {
+export function toPlaceDetail(place: MockPlace, visitLogCount: number, avgRating: number | null): PlaceDetail {
   return {
     id: place.id,
     content_id: `mock-${place.id}`,
@@ -206,6 +206,7 @@ export function toPlaceDetail(place: MockPlace, visitLogCount: number): PlaceDet
     hours: [{ open_day: 0, open_time: '09:00:00', close_day: 6, close_time: '18:00:00' }],
     top_tags: place.tags,
     visit_log_count: visitLogCount,
+    avg_rating: avgRating,
     is_liked: place.is_liked,
   };
 }

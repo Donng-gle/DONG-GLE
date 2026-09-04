@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Button, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { VisitLogMapItem, visitLogApi } from '../api/visitLog';
+import { StarRating } from '../components/StarRating';
 import { LogEditScreen } from './LogEditScreen';
 
 interface Props {
@@ -60,6 +61,7 @@ export function MyLogsScreen({ onExit }: Props) {
         renderItem={({ item }) => (
           <TouchableOpacity style={styles.row} onPress={() => setSelected(item)}>
             <Text style={styles.placeName}>{item.place_name}</Text>
+            {item.rating != null && <StarRating rating={item.rating} size={13} />}
             <Text style={styles.oneLine}>{item.one_line ?? '(한줄리뷰 없음)'}</Text>
             <Text style={styles.meta}>{item.visited_at.slice(0, 10)}</Text>
           </TouchableOpacity>

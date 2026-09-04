@@ -49,13 +49,21 @@ function toMapItem(log: MockVisitLog): VisitLogMapItem {
     lng: place.lng,
     photo_url: log.photoUrl,
     one_line: log.oneLine,
+    rating: log.rating,
     visited_at: log.visitedAt,
     tags: log.tags,
   };
 }
 
 function toSummary(log: MockVisitLog): VisitLogSummary {
-  return { id: log.id, photo_url: log.photoUrl, one_line: log.oneLine, visited_at: log.visitedAt, tags: log.tags };
+  return {
+    id: log.id,
+    photo_url: log.photoUrl,
+    one_line: log.oneLine,
+    rating: log.rating,
+    visited_at: log.visitedAt,
+    tags: log.tags,
+  };
 }
 
 function toDetail(log: MockVisitLog): VisitLogDetail {
@@ -66,6 +74,7 @@ function toDetail(log: MockVisitLog): VisitLogDetail {
     place_name: place.name,
     photo_url: log.photoUrl,
     one_line: log.oneLine,
+    rating: log.rating,
     visited_at: log.visitedAt,
     tags: log.tags,
   };
@@ -82,10 +91,19 @@ function toSimilarLogItem(log: MockVisitLog): SimilarLogItem {
     lng: place.lng,
     photo_url: log.photoUrl,
     one_line: log.oneLine,
+    rating: log.rating,
     tags: log.tags,
     nickname: author.nickname,
     profile_image_url: author.profile_image_url,
   };
+}
+
+// 실제 백엔드(VisitLogRepository.findAverageRatingByPlaceId)와 동일하게 별점 없는(null) 기록은
+// 평균 계산에서 제외 — 하나도 없으면 null
+function averageRating(logsForPlace: MockVisitLog[]): number | null {
+  const rated = logsForPlace.map((l) => l.rating).filter((r): r is number => r != null);
+  if (rated.length === 0) return null;
+  return rated.reduce((sum, r) => sum + r, 0) / rated.length;
 }
 
 // path에서 쿼리스트링 뗀 것과 URLSearchParams를 같이 돌려줌
@@ -157,8 +175,12 @@ export function resolveMock<T>(method: string, path: string, body: unknown): Moc
     const id = Number(segments[1]);
     const place = MOCK_PLACES.find((p) => p.id === id);
     if (!place) return NOT_MATCHED;
-    const visitLogCount = visitLogs.filter((l) => l.placeId === id).length;
-    const detail = toPlaceDetail({ ...place, is_liked: likedPlaceIds.has(id) }, visitLogCount);
+    const logsForThisPlace = visitLogs.filter((l) => l.placeId === id);
+    const detail = toPlaceDetail(
+      { ...place, is_liked: likedPlaceIds.has(id) },
+      logsForThisPlace.length,
+      averageRating(logsForThisPlace),
+    );
     return ok(detail as T);
   }
 
@@ -185,7 +207,7 @@ export function resolveMock<T>(method: string, path: string, body: unknown): Moc
     const placeId = Number(segments[1]);
     const place = MOCK_PLACES.find((p) => p.id === placeId);
     if (!place) return NOT_MATCHED;
-    const req = (body ?? {}) as { photo_url?: string; one_line?: string; visited_at?: string };
+    const req = (body ?? {}) as { photo_url?: string; one_line?: string; rating?: number; visited_at?: string };
     const newLog: MockVisitLog = {
       id: nextLogId++,
       placeId,
@@ -193,6 +215,7 @@ export function resolveMock<T>(method: string, path: string, body: unknown): Moc
       authorId: null,
       photoUrl: req.photo_url ?? null,
       oneLine: req.one_line ?? null,
+      rating: req.rating ?? null,
       visitedAt: req.visited_at ?? new Date().toISOString(),
       tags: [],
     };
@@ -233,10 +256,13 @@ export function resolveMock<T>(method: string, path: string, body: unknown): Moc
     if (method === 'GET') return ok(toDetail(visitLogs[idx]) as T);
 
     if (method === 'PATCH') {
-      const req = (body ?? {}) as { one_line?: string; visited_at?: string };
+      // 실제 백엔드와 동일하게: rating은 값이 오면 갱신, 생략하면 유지(one_line처럼 빈 값으로
+      // 지우는 개념이 없음 — server VisitLogUpdateRequest.kt 참고)
+      const req = (body ?? {}) as { one_line?: string; rating?: number; visited_at?: string };
       visitLogs[idx] = {
         ...visitLogs[idx],
         oneLine: req.one_line ?? visitLogs[idx].oneLine,
+        rating: req.rating ?? visitLogs[idx].rating,
         visitedAt: req.visited_at ?? visitLogs[idx].visitedAt,
       };
       return ok(toDetail(visitLogs[idx]) as T);

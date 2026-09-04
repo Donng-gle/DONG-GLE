@@ -6,11 +6,15 @@ export interface VisitLogCreateRequest {
   // 사진 없이 한줄리뷰만으로도 기록 작성이 가능함 (server VisitLogCreateRequest.kt 참고)
   photo_url?: string;
   one_line?: string; // 최대 100자
+  rating?: number; // 1~5, 선택 입력 (2026-09-05 추가, decision-log 참고)
   visited_at?: string; // ISO datetime, 생략 시 서버가 현재 시각 사용 (VisitLogService 참고)
 }
 
 export interface VisitLogUpdateRequest {
   one_line?: string;
+  // one_line과 달리 빈 값으로 "지우기"가 안 됨 — 값을 보내면 갱신, 생략하면 기존 값 유지
+  // (server VisitLogUpdateRequest.kt 참고)
+  rating?: number;
   visited_at?: string;
 }
 
@@ -20,6 +24,7 @@ export interface VisitLogDetail {
   place_name: string;
   photo_url: string | null;
   one_line: string | null;
+  rating: number | null; // 1~5, 선택 입력이라 없을 수 있음
   visited_at: string;
   // AI 감성 태그 자동 부여 미연동 상태라 당분간 항상 빈 배열 (decision-log 2026-08-30 참고)
   tags: string[];
@@ -29,6 +34,7 @@ export interface VisitLogSummary {
   id: number;
   photo_url: string | null;
   one_line: string | null;
+  rating: number | null;
   visited_at: string;
   tags: string[];
 }
@@ -41,6 +47,7 @@ export interface VisitLogMapItem {
   lng: number | null;
   photo_url: string | null;
   one_line: string | null;
+  rating: number | null;
   visited_at: string;
   tags: string[];
 }
