@@ -3,6 +3,7 @@ import { Alert, Button, Image, StyleSheet, Text, TextInput, View } from 'react-n
 import * as ImagePicker from 'expo-image-picker';
 import { uploadApi } from '../api/upload';
 import { visitLogApi } from '../api/visitLog';
+import { StarRating } from '../components/StarRating';
 
 interface Props {
   placeId: number;
@@ -15,6 +16,7 @@ interface Props {
 // 사진을 고르면 presigned URL 발급 → S3 PUT 업로드 → 반환된 file_url을 photo_url로 사용
 export function VisitLogCreateScreen({ placeId, placeName, onDone, onCancel }: Props) {
   const [oneLine, setOneLine] = useState('');
+  const [rating, setRating] = useState(0); // 0 = 선택 안 함(선택 입력이라 0은 "미평가"로 취급, 서버엔 안 보냄)
   const [asset, setAsset] = useState<ImagePicker.ImagePickerAsset | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -56,7 +58,11 @@ export function VisitLogCreateScreen({ placeId, placeName, onDone, onCancel }: P
     setSaving(true);
     try {
       const photoUrl = asset ? await uploadPhoto() : undefined;
-      await visitLogApi.create(placeId, { photo_url: photoUrl, one_line: oneLine.trim() || undefined });
+      await visitLogApi.create(placeId, {
+        photo_url: photoUrl,
+        one_line: oneLine.trim() || undefined,
+        rating: rating > 0 ? rating : undefined,
+      });
       onDone();
     } catch (e) {
       Alert.alert('기록 작성에 실패했어요', e instanceof Error ? e.message : '알 수 없는 오류');
@@ -79,6 +85,9 @@ export function VisitLogCreateScreen({ placeId, placeName, onDone, onCancel }: P
       ) : (
         <Button title="사진 선택" onPress={pickImage} disabled={saving} />
       )}
+
+      <Text style={[styles.label, styles.labelSpaced]}>별점 (선택)</Text>
+      <StarRating rating={rating} size={28} onChange={setRating} />
 
       <Text style={[styles.label, styles.labelSpaced]}>한줄리뷰 (선택, 최대 100자)</Text>
       <TextInput

@@ -3,6 +3,7 @@ import { ActivityIndicator, Alert, FlatList, Image, StyleSheet, Text, TouchableO
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SimilarLogItem, exploreApi } from '../api/explore';
+import { StarRating } from '../components/StarRating';
 import { colors } from '../theme/colors';
 import { fonts } from '../theme/fonts';
 import { PlaceDetailScreen } from './PlaceDetailScreen';
@@ -124,6 +125,7 @@ function SimilarLogCard({ item, onSelectPlace }: { item: SimilarLogItem; onSelec
       </View>
 
       <Text style={styles.placeName}>{item.place_name}</Text>
+      {item.rating != null && <StarRating rating={item.rating} size={13} />}
       {item.one_line && (
         <Text style={styles.oneLine} numberOfLines={2}>
           {item.one_line}
