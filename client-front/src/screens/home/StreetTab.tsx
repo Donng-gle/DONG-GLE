@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, FlatList, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { PlaceCategory, PlaceListItem, PlaceMapPin, placeApi } from '../../api/place';
+import { PlaceListItemRow } from '../../components/PlaceListItemRow';
 import { colors } from '../../theme/colors';
 import { fonts } from '../../theme/fonts';
+import { PlaceDetailScreen } from '../PlaceDetailScreen';
 
 const ANDONG_REGION = { latitude: 36.5684, longitude: 128.7294, latitudeDelta: 0.14, longitudeDelta: 0.14 };
 // placeApi.map()의 bounds 포맷("swLat,swLng,neLat,neLng") — 지도 이동에 따른 재조회는 아직 연동 전이라
@@ -22,6 +24,9 @@ export function StreetTab() {
   const [page, setPage] = useState(1);
   const [hasNext, setHasNext] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  // 카드를 눌러도 상세로 안 넘어가던 문제 수정(2026-09-05) — PlaceListScreen이 이미 쓰던
+  // PlaceListItemRow+PlaceDetailScreen 조합을 그대로 재사용
+  const [selectedId, setSelectedId] = useState<number | null>(null);
 
   useEffect(() => {
     setPins(null);
@@ -60,6 +65,10 @@ export function StreetTab() {
     if (!loadingMore && hasNext) loadPlaces(page + 1);
   }
 
+  if (selectedId != null) {
+    return <PlaceDetailScreen placeId={selectedId} onExit={() => setSelectedId(null)} />;
+  }
+
   return (
     <View style={styles.container}>
       <View style={styles.mapWrap}>
@@ -72,6 +81,7 @@ export function StreetTab() {
                 coordinate={{ latitude: p.lat as number, longitude: p.lng as number }}
                 title={p.name}
                 description={p.category}
+                onPress={() => setSelectedId(p.id)}
               />
             ))}
         </MapView>
@@ -104,20 +114,7 @@ export function StreetTab() {
         onEndReached={loadMorePlaces}
         onEndReachedThreshold={0.5}
         ListFooterComponent={loadingMore ? <ActivityIndicator color={colors.black} style={styles.footerLoading} /> : null}
-        renderItem={({ item }) => (
-          <View style={styles.card}>
-            {item.main_image_url ? (
-              <Image source={{ uri: item.main_image_url }} style={styles.cardImage} resizeMode="cover" />
-            ) : (
-              <View style={[styles.cardImage, styles.cardImagePlaceholder]} />
-            )}
-            <View style={styles.cardInfo}>
-              <Text style={styles.cardName}>{item.name}</Text>
-              <Text style={styles.cardCategory}>{item.category}</Text>
-              {item.addr1 ? <Text style={styles.cardAddr}>{item.addr1}</Text> : null}
-            </View>
-          </View>
-        )}
+        renderItem={({ item }) => <PlaceListItemRow place={item} onPress={() => setSelectedId(item.id)} />}
       />
     </View>
   );
@@ -138,11 +135,4 @@ const styles = StyleSheet.create({
   list: { flex: 1 },
   listContent: { paddingHorizontal: 20, paddingBottom: 12 },
   emptyText: { fontFamily: fonts.regular, fontSize: 14, color: colors.gray500, textAlign: 'center', marginTop: 40 },
-  card: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.divider },
-  cardImage: { width: 64, height: 64, borderRadius: 12, marginRight: 12 },
-  cardImagePlaceholder: { backgroundColor: colors.border },
-  cardInfo: { flex: 1 },
-  cardName: { fontFamily: fonts.medium, fontSize: 15, letterSpacing: -0.4, color: colors.black },
-  cardCategory: { fontFamily: fonts.regular, fontSize: 12, color: colors.gray500, marginTop: 2 },
-  cardAddr: { fontFamily: fonts.regular, fontSize: 12, color: colors.gray500, marginTop: 2 },
 });
