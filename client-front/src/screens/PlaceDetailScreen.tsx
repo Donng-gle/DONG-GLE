@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Dimensions, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -15,6 +15,12 @@ interface Props {
 }
 
 const WEEKDAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
+
+// 히어로 이미지 갤러리 한 장의 너비 — 실기기 화면 너비를 그대로 씀. 원래 360(디자인 시안의 아이폰
+// 기준폭으로 보임)으로 하드코딩돼 있었는데, pagingEnabled는 ScrollView 자체의(=화면) 너비 단위로
+// 스냅하기 때문에 실제 화면 폭이 360과 다르면(대부분의 안드로이드 기기가 그럼) 한 페이지 넘길 때마다
+// 어긋나서 다음 이미지 앞부분이 계속 붙어 보이는 문제가 있었음 (2026-09-05, decision-log 참고)
+const HERO_IMAGE_WIDTH = Dimensions.get('window').width;
 
 function formatHours(hours: PlaceDetail['hours']) {
   return hours.map((h) => {
@@ -127,7 +133,9 @@ export function PlaceDetailScreen({ placeId, onExit }: Props) {
               horizontal
               pagingEnabled
               showsHorizontalScrollIndicator={false}
-              onMomentumScrollEnd={(e) => setActivePhoto(Math.round(e.nativeEvent.contentOffset.x / 320))}
+              onMomentumScrollEnd={(e) =>
+                setActivePhoto(Math.round(e.nativeEvent.contentOffset.x / HERO_IMAGE_WIDTH))
+              }
             >
               {photos.map((url, idx) => (
                 <Image key={idx} source={{ uri: url }} style={styles.heroImage} resizeMode="cover" />
@@ -243,7 +251,7 @@ const styles = StyleSheet.create({
   backIcon: { fontSize: 20, color: colors.black },
   headerTitle: { flex: 1, fontFamily: fonts.semiBold, fontSize: 17, letterSpacing: -0.4, color: colors.black, textAlign: 'center' },
   content: { paddingBottom: 40 },
-  heroImage: { width: 360, height: 234, borderRadius: 20 },
+  heroImage: { width: HERO_IMAGE_WIDTH, height: 234, borderRadius: 20 },
   heroImagePlaceholder: { width: '100%', backgroundColor: colors.border, marginHorizontal: 20 },
   dotRow: { flexDirection: 'row', justifyContent: 'center', gap: 6, marginTop: -24, marginBottom: 8 },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.5)' },
