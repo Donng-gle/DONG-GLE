@@ -51,21 +51,40 @@ export function AndongGlobe({ size }: Props) {
     outputRange: ['-100000deg', '100000deg'],
   });
 
+  // perspective가 size*2(원래 값)처럼 이미지 크기 대비 많이 크면 카메라가 아주 멀리서 보는 셈이라
+  // 거의 정사영(orthographic)에 가까워져서, 이미지 전체가 평평한 종이 한 장처럼 균일하게 기울어지기만
+  // 함. 값을 size 자체보다 작게(카메라를 이미지에 바짝 붙임) 낮추면 원근 왜곡이 훨씬 강해져서 —
+  // 회전축에서 먼 쪽 가장자리는 눈에 띄게 좁아지고 가까운 쪽은 살짝 커 보이는 식으로 — 평면이 아니라
+  // 곡면(구)처럼 보이는 효과가 생김 (2026-09-04 튜닝, decision-log 참고)
+  const perspective = size * 0.55;
+
   return (
-    <View style={[styles.container, { width: size, height: size }]} {...panResponder.panHandlers}>
-      <Animated.Image
-        source={MAP_SOURCE}
-        resizeMode="contain"
-        style={[
-          styles.image,
-          { width: size, height: size, transform: [{ perspective: size * 2 }, { rotateY }] },
-        ]}
-      />
+    <View style={[styles.container, { width: size, height: size * 1.08 }]}>
+      <View style={[styles.imageWrap, { width: size, height: size }]} {...panResponder.panHandlers}>
+        <Animated.Image
+          source={MAP_SOURCE}
+          resizeMode="contain"
+          style={[
+            styles.image,
+            { width: size, height: size, transform: [{ perspective }, { rotateY }] },
+          ]}
+        />
+      </View>
+      {/* Figma 지도 밑 그림자(506:11131) 반영 — 정확한 블러 값은 Figma 연결이 끊겨서 못 가져왔고
+          비슷하게 근사함. 채널 재연결되면 실제 blur/opacity로 다듬을 것 */}
+      <View style={[styles.shadow, { width: size * 0.62, height: size * 0.07 }]} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { alignItems: 'center', justifyContent: 'center' },
+  container: { alignItems: 'center' },
+  imageWrap: { alignItems: 'center', justifyContent: 'center' },
   image: {},
+  shadow: {
+    marginTop: -8,
+    borderRadius: 100,
+    backgroundColor: '#000000',
+    opacity: 0.16,
+  },
 });
