@@ -1,8 +1,15 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Button, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
 import { UserProfile } from '../api/auth';
 import { UserPreferenceTag, userApi } from '../api/user';
 import { tokenStorage } from '../auth/tokenStorage';
+import { AppHeader } from '../components/AppHeader';
+import { FloatingNav } from '../components/FloatingNav';
+import { ProfileIcon } from '../components/icons';
+import { RadarChart } from '../components/RadarChart';
+import { colors } from '../theme/colors';
+import { fonts } from '../theme/fonts';
 import { ScrapbookScreen } from './ScrapbookScreen';
 
 interface Props {
@@ -10,12 +17,25 @@ interface Props {
   onProfileUpdated: (profile: UserProfile) => void;
   onWithdrawn: () => void;
   onExit: () => void;
+  // "취향 재검사" — App.tsx가 profile.has_onboarded를 false로 내려서 OnboardingScreen을 다시 태움
+  onRetakeOnboarding: () => void;
 }
 
 type SubScreen = 'none' | 'likes';
 
-export function ProfileScreen({ profile, onProfileUpdated, onWithdrawn, onExit }: Props) {
+const PROVIDER_LABEL: Record<UserProfile['oauth_provider'], string> = {
+  kakao: '카카오 사용자',
+  google: '구글 사용자',
+};
+
+// Figma "메인 페이지-마이페이지" 프레임 반영 — 프로필 카드 + 취향 레이더 차트(7각형) + 취향 재검사
+// 버튼. 헤더/하단 네비는 다른 "메인 페이지-*" 화면들과 동일한 걸 그대로 씀(AppHeader/FloatingNav
+// 공용 컴포넌트, 2026-09-05에 HomeScreen에서 뽑아냄). 이 화면엔 HomeScreen 같은 드로어/검색
+// 오버레이 상태가 따로 없어서 헤더의 메뉴/검색/프로필 아이콘은 전부 onExit(뒤로 가기)에 연결해둠 —
+// 실제 드로어를 여기서도 열고 싶으면 나중에 상태를 끌어올리거나 Context로 빼야 함
+export function ProfileScreen({ profile, onProfileUpdated, onWithdrawn, onExit, onRetakeOnboarding }: Props) {
   const [nickname, setNickname] = useState(profile.nickname);
+  const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [withdrawing, setWithdrawing] = useState(false);
   const [preferences, setPreferences] = useState<UserPreferenceTag[] | null>(null);
@@ -34,7 +54,7 @@ export function ProfileScreen({ profile, onProfileUpdated, onWithdrawn, onExit }
     try {
       const updated = await userApi.updateProfile({ nickname: nickname.trim() });
       onProfileUpdated(updated);
-      Alert.alert('저장했어요');
+      setEditing(false);
     } catch (e) {
       Alert.alert('저장에 실패했어요', e instanceof Error ? e.message : '알 수 없는 오류');
     } finally {
@@ -61,73 +81,159 @@ export function ProfileScreen({ profile, onProfileUpdated, onWithdrawn, onExit }
     }
   }
 
+  function confirmRetakeOnboarding() {
+    Alert.alert('취향을 다시 분석할까요?', '스와이프를 처음부터 다시 진행해요.', [
+      { text: '취소', style: 'cancel' },
+      { text: '다시 검사', onPress: onRetakeOnboarding },
+    ]);
+  }
+
   if (subScreen === 'likes') {
     return <ScrapbookScreen initialTab="place" onExit={() => setSubScreen('none')} />;
   }
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>내 정보</Text>
+      <StatusBar style="dark" />
+      <AppHeader onMenuPress={onExit} onSearchPress={onExit} onProfilePress={onExit} />
 
-      <Text style={styles.label}>이메일</Text>
-      <Text style={styles.readonlyValue}>({profile.oauth_provider} 계정, 수정 불가)</Text>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <View style={styles.profileCard}>
+          <View style={styles.profileRow}>
+            {profile.profile_image_url ? (
+              <Image source={{ uri: profile.profile_image_url }} style={styles.avatar} />
+            ) : (
+              <View style={[styles.avatar, styles.avatarPlaceholder]}>
+                <ProfileIcon />
+              </View>
+            )}
+            <View style={styles.profileTextCol}>
+              {editing ? (
+                <TextInput
+                  style={styles.nicknameInput}
+                  value={nickname}
+                  onChangeText={setNickname}
+                  maxLength={50}
+                  autoFocus
+                />
+              ) : (
+                <Text style={styles.nickname}>{profile.nickname}</Text>
+              )}
+              <Text style={styles.providerLabel}>{PROVIDER_LABEL[profile.oauth_provider]}</Text>
+            </View>
+          </View>
 
-      <Text style={styles.label}>닉네임</Text>
-      <TextInput style={styles.input} value={nickname} onChangeText={setNickname} maxLength={50} />
-      <Button title={saving ? '저장 중...' : '닉네임 저장'} onPress={handleSave} disabled={saving} />
+          {editing ? (
+            <TouchableOpacity style={styles.editButton} onPress={handleSave} disabled={saving}>
+              <Text style={styles.editButtonText}>{saving ? '저장 중...' : '저장'}</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity style={styles.editButton} onPress={() => setEditing(true)}>
+              <Text style={styles.editButtonText}>프로필 수정</Text>
+            </TouchableOpacity>
+          )}
+        </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>내 취향 프로필</Text>
-        {preferences === null ? (
-          <ActivityIndicator />
-        ) : preferences.length === 0 ? (
-          <Text style={styles.emptyText}>아직 취향 데이터가 없어요. 온보딩을 완료해보세요.</Text>
-        ) : (
-          preferences
-            .sort((a, b) => b.score - a.score)
-            .map((pref) => (
-              <Text key={pref.tag} style={styles.prefRow}>
-                {pref.tag} — {pref.score.toFixed(2)}
-              </Text>
-            ))
-        )}
-      </View>
+        <Text style={styles.sectionTitle}>사용자 취향 그래프</Text>
+        <View style={styles.radarCard}>
+          {preferences === null ? (
+            <ActivityIndicator style={styles.radarLoading} />
+          ) : preferences.length === 0 ? (
+            <Text style={styles.emptyText}>아직 취향 데이터가 없어요. 온보딩을 완료해보세요.</Text>
+          ) : (
+            <RadarChart data={preferences} />
+          )}
+        </View>
 
-      <View style={styles.section}>
-        <Button title="찜한 장소 보기" onPress={() => setSubScreen('likes')} />
-      </View>
+        <TouchableOpacity style={styles.retakeButton} onPress={confirmRetakeOnboarding}>
+          <Text style={styles.retakeButtonText}>취향 재검사</Text>
+        </TouchableOpacity>
 
-      <View style={styles.section}>
-        <Button title="닫기" onPress={onExit} />
-        <View style={styles.gap} />
-        <Button
-          title={withdrawing ? '탈퇴 처리 중...' : '회원 탈퇴'}
-          color="#d33"
-          onPress={confirmWithdraw}
-          disabled={withdrawing}
-        />
-      </View>
+        <View style={styles.menuList}>
+          <TouchableOpacity style={styles.menuItem} onPress={() => setSubScreen('likes')}>
+            <Text style={styles.menuItemText}>찜한 장소 보기</Text>
+          </TouchableOpacity>
+          <View style={styles.menuDivider} />
+          <TouchableOpacity style={styles.menuItem} onPress={confirmWithdraw} disabled={withdrawing}>
+            <Text style={[styles.menuItemText, styles.dangerText]}>
+              {withdrawing ? '탈퇴 처리 중...' : '회원 탈퇴'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+
+      <FloatingNav onHome={onExit} onShare={() => {}} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff', padding: 20, paddingTop: 32 },
-  title: { fontSize: 22, fontWeight: '700', marginBottom: 20 },
-  label: { fontSize: 13, color: '#666', marginTop: 16, marginBottom: 6 },
-  readonlyValue: { fontSize: 14, color: '#999' },
-  input: {
+  container: { flex: 1, backgroundColor: colors.backgroundMuted },
+  scrollContent: { paddingHorizontal: 20, paddingBottom: 120 },
+  profileCard: {
+    backgroundColor: colors.white,
+    borderRadius: 16,
+    padding: 20,
+    marginTop: 16,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+  },
+  profileRow: { flexDirection: 'row', alignItems: 'center', gap: 12, flexShrink: 1 },
+  avatar: { width: 56, height: 56, borderRadius: 28 },
+  avatarPlaceholder: { backgroundColor: colors.backgroundMuted, alignItems: 'center', justifyContent: 'center' },
+  profileTextCol: { gap: 4 },
+  nickname: { fontFamily: fonts.semiBold, fontSize: 18, letterSpacing: -0.5, color: colors.black },
+  providerLabel: { fontFamily: fonts.regular, fontSize: 13, color: colors.gray500 },
+  nicknameInput: {
+    fontFamily: fonts.semiBold,
+    fontSize: 16,
+    color: colors.black,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    paddingVertical: 2,
+    minWidth: 100,
+  },
+  editButton: {
+    height: 32,
+    paddingHorizontal: 14,
+    borderRadius: 100,
     borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 15,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  editButtonText: { fontFamily: fonts.medium, fontSize: 12, color: colors.gray700 },
+  sectionTitle: {
+    fontFamily: fonts.semiBold,
+    fontSize: 16,
+    letterSpacing: -0.4,
+    color: colors.black,
+    marginTop: 28,
     marginBottom: 12,
   },
-  section: { marginTop: 28 },
-  sectionTitle: { fontSize: 15, fontWeight: '700', marginBottom: 8 },
-  prefRow: { fontSize: 14, color: '#333', marginBottom: 4 },
-  emptyText: { fontSize: 13, color: '#999' },
-  gap: { height: 12 },
+  radarCard: {
+    backgroundColor: colors.white,
+    borderRadius: 16,
+    paddingVertical: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 220,
+  },
+  radarLoading: { paddingVertical: 40 },
+  emptyText: { fontFamily: fonts.regular, fontSize: 13, color: colors.gray400, paddingVertical: 40 },
+  retakeButton: {
+    height: 52,
+    borderRadius: 100,
+    backgroundColor: colors.black,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 16,
+  },
+  retakeButtonText: { fontFamily: fonts.semiBold, fontSize: 15, color: colors.white },
+  menuList: { backgroundColor: colors.white, borderRadius: 16, marginTop: 28, overflow: 'hidden' },
+  menuItem: { paddingVertical: 16, paddingHorizontal: 20 },
+  menuItemText: { fontFamily: fonts.medium, fontSize: 15, letterSpacing: -0.4, color: colors.black },
+  dangerText: { color: colors.danger },
+  menuDivider: { height: 1, backgroundColor: colors.divider, marginHorizontal: 20 },
 });

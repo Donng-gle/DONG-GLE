@@ -2,7 +2,8 @@
 // 패턴 매칭하고, 맞으면 { matched: true, data }를, 우리가 아직 안 만든 엔드포인트면
 // { matched: false }를 돌려줌(그러면 client.ts가 원래대로 실제 fetch로 흘려보냄).
 //
-// 지금 커버하는 범위: 장소(place), 방문기록(visitLog, 내 것 + 다른 유저 explore), 코스(course).
+// 지금 커버하는 범위: 장소(place), 방문기록(visitLog, 내 것 + 다른 유저 explore), 코스(course),
+// 마이페이지 취향 그래프(users/me/preferences).
 // 아직 목업 안 된 것: 인증(auth), 온보딩(onboarding), 스와이프(swipe), 이벤트(event), 태그(tag),
 // 업로드(upload) — 필요해지면 이 파일에 핸들러만 추가하면 됨(패턴은 아래 것들과 동일).
 import { PaginationMeta } from '../api/place';
@@ -197,6 +198,21 @@ export function resolveMock<T>(method: string, path: string, body: unknown): Moc
     };
     visitLogs = [newLog, ...visitLogs];
     return ok(toDetail(newLog) as T);
+  }
+
+  // GET /users/me/preferences (마이페이지 취향 레이더 차트) — ssot.md 7개 태그, 0.5가 중립 기준선
+  if (method === 'GET' && pathname === '/users/me/preferences') {
+    return ok({
+      preferences: [
+        { tag: 'relaxing', score: 0.72 },
+        { tag: 'lively', score: 0.35 },
+        { tag: 'romantic', score: 0.58 },
+        { tag: 'local', score: 0.81 },
+        { tag: 'photogenic', score: 0.9 },
+        { tag: 'traditional', score: 0.77 },
+        { tag: 'modern', score: 0.42 },
+      ],
+    } as T);
   }
 
   // GET /users/me/logs (나의 일지)
