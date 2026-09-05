@@ -29,6 +29,8 @@ function toCoursePlaceItem(
 }
 
 // "취향 맞춤 코스" 저장된 코스 목록 목업(courseApi.myCourses)
+// place_thumbnails: 스크랩북 카드 썸네일 스트립용, 방문 순서 기준 최대 3장(server
+// CourseService.SCRAPBOOK_THUMBNAIL_LIMIT와 동일한 규칙, 2026-09-05 추가)
 export const MOCK_COURSE_LIST: CourseListItem[] = [
   {
     id: 5001,
@@ -37,6 +39,10 @@ export const MOCK_COURSE_LIST: CourseListItem[] = [
     source: 'ai',
     place_count: 4,
     thumbnail_url: place(1).main_image_url,
+    // 코스 장소가 4곳(1,2,4,9)인데 3장만 노출 — 나머지 1곳은 "1+" 배지로 확인 가능
+    place_thumbnails: [place(1).main_image_url, place(2).main_image_url, place(4).main_image_url].filter(
+      (url): url is string => url != null,
+    ),
     created_at: '2026-08-15T09:00:00',
   },
   {
@@ -46,6 +52,10 @@ export const MOCK_COURSE_LIST: CourseListItem[] = [
     source: 'user',
     place_count: 3,
     thumbnail_url: place(11).main_image_url,
+    // 코스 장소가 정확히 3곳(11,6,5)이라 "N+" 배지 없이 다 보임
+    place_thumbnails: [place(11).main_image_url, place(6).main_image_url, place(5).main_image_url].filter(
+      (url): url is string => url != null,
+    ),
     created_at: '2026-08-22T20:30:00',
   },
 ];
