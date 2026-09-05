@@ -960,6 +960,13 @@ components:
           type: string
           nullable: true
           description: 코스 대표 썸네일. 첫 번째 장소의 main_image_url 사용.
+        place_thumbnails:
+          type: array
+          items:
+            type: string
+          description: |
+            스크랩북 카드의 썸네일 스트립용. 방문 순서 기준 최대 3장의 main_image_url.
+            place_count가 이 배열 길이보다 크면 그 차이를 "N+" 배지로 표시. (2026-09-05 추가)
         created_at:
           type: string
           format: date-time

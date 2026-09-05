@@ -286,15 +286,22 @@ class CourseService(
     }
 }
 
-private fun Course.toListItemResponse() = CourseListItemResponse(
-    id = id,
-    title = title,
-    travelDate = travelDate,
-    source = source.name,
-    placeCount = places.size,
-    thumbnailUrl = places.minByOrNull { it.visitOrder }?.place?.mainImageUrl,
-    createdAt = createdAt,
-)
+private fun Course.toListItemResponse(): CourseListItemResponse {
+    val sortedByVisitOrder = places.sortedBy { it.visitOrder }
+    return CourseListItemResponse(
+        id = id,
+        title = title,
+        travelDate = travelDate,
+        source = source.name,
+        placeCount = places.size,
+        thumbnailUrl = sortedByVisitOrder.firstOrNull()?.place?.mainImageUrl,
+        placeThumbnails = sortedByVisitOrder.take(SCRAPBOOK_THUMBNAIL_LIMIT).mapNotNull { it.place.mainImageUrl },
+        createdAt = createdAt,
+    )
+}
+
+// Figma "코스 저장" 카드의 썸네일 스트립 장수(3장 + "N+" 배지, 2026-09-05 추가)
+private const val SCRAPBOOK_THUMBNAIL_LIMIT = 3
 
 private fun Course.toDetailResponse(sortedPlaces: List<CoursePlace>, route: RouteResult?) = CourseDetailResponse(
     id = id,
