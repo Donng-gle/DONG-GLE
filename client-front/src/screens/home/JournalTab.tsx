@@ -149,11 +149,12 @@ export function JournalTab(_props: Props) {
   );
 }
 
-// Figma 시안(카드: 사진→굵은 제목→회색 설명→날짜/장소 뱃지)엔 "일기 제목"이 따로 있는데
-// VisitLog엔 title 컬럼이 없어서(스키마 변경 필요, 2026-09-05 사용자 확인) place_name을 제목
-// 자리에, one_line(한줄리뷰)을 그 아래 설명 자리에 대신 씀. 시안엔 뱃지가 3개(날짜/장소/댓글)인데
-// 앱에 댓글 기능이 없어서 우선 날짜/장소 2개만 구현(2026-09-05 사용자 확인) — 장소는 이미
-// 제목에도 쓰여서 중복되지만 사용자가 명시적으로 이 조합을 선택함
+// Figma 시안(확대본, 2026-09-05 사용자 첨부)엔 "일기 제목"이 따로 있는데 VisitLog엔 title
+// 컬럼이 없어서(스키마 변경 필요, 2026-09-05 사용자 확인) place_name을 제목 자리에, one_line
+// (한줄리뷰)을 그 아래 설명 자리에 대신 씀. 시안엔 뱃지가 3개(날짜/장소/날씨)인데 날씨 데이터가
+// DB에 없어서 날짜/장소 2개만 구현(2026-09-05 사용자 확인) — 장소가 제목과 중복되지만 사용자가
+// 그 조합을 선택함. 사진 아래 페이지네이션 점(여러 장 스와이프)도 시안엔 있으나 VisitLog가 사진을
+// 1장만 저장해서(photo_url 단일 필드) 생략(2026-09-05 사용자 확인)
 function JournalLogCard({ log }: { log: VisitLogMapItem }) {
   return (
     <View style={styles.card}>
@@ -162,10 +163,11 @@ function JournalLogCard({ log }: { log: VisitLogMapItem }) {
       <Text style={styles.cardDescription} numberOfLines={2}>
         {log.one_line ?? '(한줄리뷰 없음)'}
       </Text>
+      <View style={styles.cardDivider} />
       <View style={styles.cardBadgeRow}>
         <View style={styles.cardBadge}>
           <Text style={styles.cardBadgeIcon}>📅</Text>
-          <Text style={styles.cardBadgeText}>{formatVisitMonth(log.visited_at)}</Text>
+          <Text style={styles.cardBadgeText}>{formatVisitDay(log.visited_at)}</Text>
         </View>
         <View style={styles.cardBadge}>
           <Text style={styles.cardBadgeIcon}>📍</Text>
@@ -177,10 +179,13 @@ function JournalLogCard({ log }: { log: VisitLogMapItem }) {
   );
 }
 
-// Figma 리뷰 카드 관례("OOOO년 O월 여행")와 동일 — PlaceDetailScreen.formatVisitMonth 참고
-function formatVisitMonth(visitedAt: string) {
+// 시안은 "8월 24일(월)"처럼 정확한 날짜+요일 표기 — 장소 상세 리뷰(PlaceDetailScreen.
+// formatVisitMonth)는 다른 사람 글이라 연/월까지만 보여주지만, 나의 일지는 본인 기록이라
+// 정확한 날짜를 보여줘도 프라이버시 문제 없음(2026-09-05 결정)
+function formatVisitDay(visitedAt: string) {
   const d = new Date(visitedAt);
-  return `${d.getFullYear()}년 ${d.getMonth() + 1}월 여행`;
+  const days = ['일', '월', '화', '수', '목', '금', '토'];
+  return `${d.getMonth() + 1}월 ${d.getDate()}일(${days[d.getDay()]})`;
 }
 
 function clamp(value: number, min: number, max: number) {
@@ -211,11 +216,36 @@ const styles = StyleSheet.create({
   sheetTitle: { fontFamily: fonts.semiBold, fontSize: 16, letterSpacing: -0.4, color: colors.black },
   listContent: { paddingHorizontal: 20, paddingBottom: 100 },
   emptyText: { textAlign: 'center', color: colors.gray400, fontFamily: fonts.regular, fontSize: 13, marginTop: 40 },
-  card: { marginBottom: 24 },
-  cardImage: { width: '100%', height: 180, borderRadius: 12, marginBottom: 10 },
-  cardTitle: { fontFamily: fonts.semiBold, fontSize: 16, letterSpacing: -0.4, color: colors.black, marginBottom: 4 },
-  cardDescription: { fontFamily: fonts.regular, fontSize: 13, lineHeight: 18, color: colors.gray500, marginBottom: 10 },
-  cardBadgeRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
+  // 시안(2026-09-05 확대본)엔 카드 전체가 흰 라운드 카드 하나로 감싸져 있음 — 시트 배경도 흰색이라
+  // 배경색만으론 구분이 안 돼서 얇은 테두리로 경계를 표시(앱 전반에 그림자 쓰는 카드 관례가 없어서
+  // 그림자 대신 테두리 선택, ScrapbookScreen 카드들과 톤 맞춤)
+  card: {
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 20,
+    padding: 12,
+    marginBottom: 20,
+  },
+  cardImage: { width: '100%', height: 180, borderRadius: 14, marginBottom: 12 },
+  cardTitle: {
+    fontFamily: fonts.semiBold,
+    fontSize: 16,
+    letterSpacing: -0.4,
+    color: colors.black,
+    textAlign: 'center',
+    marginBottom: 6,
+  },
+  cardDescription: {
+    fontFamily: fonts.regular,
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.gray500,
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  cardDivider: { height: 1, backgroundColor: colors.divider, marginBottom: 12 },
+  cardBadgeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: 8 },
   cardBadge: {
     flexDirection: 'row',
     alignItems: 'center',
