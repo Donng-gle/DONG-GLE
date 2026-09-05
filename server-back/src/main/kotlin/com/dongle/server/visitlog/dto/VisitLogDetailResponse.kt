@@ -8,6 +8,7 @@ data class VisitLogDetailResponse(
     val placeName: String,
     val photoUrl: String?,
     val oneLine: String?,
+    val rating: Int?,
     val visitedAt: LocalDateTime,
     val tags: List<String>,
 )

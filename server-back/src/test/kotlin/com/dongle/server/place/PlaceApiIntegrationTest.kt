@@ -6,6 +6,8 @@ import com.dongle.server.user.User
 import com.dongle.server.user.UserPreference
 import com.dongle.server.user.UserPreferenceRepository
 import com.dongle.server.user.UserRepository
+import com.dongle.server.visitlog.VisitLog
+import com.dongle.server.visitlog.VisitLogRepository
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -49,6 +51,9 @@ class PlaceApiIntegrationTest {
 
     @Autowired
     lateinit var userPreferenceRepository: UserPreferenceRepository
+
+    @Autowired
+    lateinit var visitLogRepository: VisitLogRepository
 
     private fun place(contentId: String, name: String, lat: Double, lng: Double, visitLogCount: Int = 0) = placeRepository.save(
         Place(
@@ -263,6 +268,33 @@ class PlaceApiIntegrationTest {
         mockMvc.perform(get("/places/${place.id}"))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.hours.length()").value(0))
+    }
+
+    @Test
+    fun `방문 기록 별점의 평균이 장소 상세에 노출된다`() {
+        val place = place("RATING001", "테스트전용별점장소", 36.5, 128.5)
+        val (userId1, _) = userWithToken("rating_user_1", "kakao-rating-1")
+        val (userId2, _) = userWithToken("rating_user_2", "kakao-rating-2")
+        val user1 = userRepository.getReferenceById(userId1)
+        val user2 = userRepository.getReferenceById(userId2)
+
+        // 별점 없이 남긴 기록은 평균 계산에서 제외되어야 함
+        visitLogRepository.save(VisitLog(user = user1, place = place, oneLine = "별점 없음"))
+        visitLogRepository.save(VisitLog(user = user1, place = place, rating = 4))
+        visitLogRepository.save(VisitLog(user = user2, place = place, rating = 2))
+
+        mockMvc.perform(get("/places/${place.id}"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.avg_rating").value(3.0))
+    }
+
+    @Test
+    fun `방문 기록에 별점이 하나도 없으면 avg_rating은 null이다`() {
+        val place = place("RATING002", "테스트전용별점없는장소", 36.5, 128.5)
+
+        mockMvc.perform(get("/places/${place.id}"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.avg_rating").doesNotExist())
     }
 
     @Test

@@ -6,6 +6,7 @@ data class VisitLogSummaryResponse(
     val id: Long,
     val photoUrl: String?,
     val oneLine: String?,
+    val rating: Int?,
     val visitedAt: LocalDateTime,
     val tags: List<String>,
 )

@@ -155,6 +155,48 @@ class CourseApiIntegrationTest {
     }
 
     @Test
+    fun `코스 목록의 장소 썸네일은 방문 순서 기준 최대 3장만 온다`() {
+        val owner = user("course_user_thumb", "kakao-course-thumb")
+        val token = tokenFor(owner)
+        // 일부러 뒤죽박죽 순서로 저장 요청 — 응답은 visit_order 기준으로 정렬돼야 함
+        val places = (1..4).map { place("CRS_THUMB00$it", "테스트전용썸네일장소$it") }
+
+        mockMvc.perform(
+            post("/courses/manual")
+                .header("Authorization", "Bearer $token")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {"title":"테스트전용썸네일코스","places":[
+                      {"place_id":${places[3].id},"visit_order":4},
+                      {"place_id":${places[0].id},"visit_order":1},
+                      {"place_id":${places[2].id},"visit_order":3},
+                      {"place_id":${places[1].id},"visit_order":2}
+                    ]}
+                    """.trimIndent()
+                )
+        ).andExpect(status().isCreated)
+
+        val listResult = mockMvc.perform(get("/users/me/courses").header("Authorization", "Bearer $token"))
+            .andExpect(status().isOk)
+            .andReturn()
+
+        // 필터 경로([?(...)]) 뒤에 추가 필드/인덱스를 이어붙이면 Jayway가 중첩 배열을 돌려줘서 캐스팅이
+        // 꼬임 — courses 전체를 Map 리스트로 받아서 코틀린에서 직접 찾는 쪽이 훨씬 안전함
+        val courses = JsonPath.read<List<Map<String, Any?>>>(listResult.response.contentAsString, "$.courses")
+        val target = courses.first { it["title"] == "테스트전용썸네일코스" }
+        val placeCount = target["place_count"]
+        @Suppress("UNCHECKED_CAST")
+        val thumbnails = target["place_thumbnails"] as List<String>
+
+        assert(placeCount == 4) { "place_count expected 4 but was $placeCount" }
+        assert(thumbnails.size == 3) { "place_thumbnails expected 3 items but was $thumbnails" }
+        assert(thumbnails == listOf("https://example.com/CRS_THUMB001.jpg", "https://example.com/CRS_THUMB002.jpg", "https://example.com/CRS_THUMB003.jpg")) {
+            "place_thumbnails expected in visit order but was $thumbnails"
+        }
+    }
+
+    @Test
     fun `코스를 수정하면 제목과 장소 구성이 바뀐다`() {
         val owner = user("course_user_4", "kakao-course-4")
         val token = tokenFor(owner)

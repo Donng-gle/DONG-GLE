@@ -105,6 +105,62 @@ class VisitLogApiIntegrationTest {
     }
 
     @Test
+    fun `별점을 포함해서 여행 기록을 작성할 수 있다`() {
+        val owner = user("log_user_rating_1", "kakao-log-rating-1")
+        val token = jwtTokenProvider.generateAccessToken(owner.id)
+        val place = place("LOG_RATING001", "테스트전용별점작성장소")
+
+        mockMvc.perform(
+            post("/places/${place.id}/logs")
+                .header("Authorization", "Bearer $token")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"one_line":"테스트전용별점기록","rating":5}""")
+        )
+            .andExpect(status().isCreated)
+            .andExpect(jsonPath("$.rating").value(5))
+    }
+
+    @Test
+    fun `1에서 5를 벗어난 별점으로 기록을 작성하면 400을 반환한다`() {
+        val owner = user("log_user_rating_2", "kakao-log-rating-2")
+        val token = jwtTokenProvider.generateAccessToken(owner.id)
+        val place = place("LOG_RATING002", "테스트전용잘못된별점장소")
+
+        mockMvc.perform(
+            post("/places/${place.id}/logs")
+                .header("Authorization", "Bearer $token")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"one_line":"테스트","rating":6}""")
+        )
+            .andExpect(status().isBadRequest)
+
+        mockMvc.perform(
+            post("/places/${place.id}/logs")
+                .header("Authorization", "Bearer $token")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"one_line":"테스트","rating":0}""")
+        )
+            .andExpect(status().isBadRequest)
+    }
+
+    @Test
+    fun `기록의 별점을 수정할 수 있다`() {
+        val owner = user("log_user_rating_3", "kakao-log-rating-3")
+        val token = jwtTokenProvider.generateAccessToken(owner.id)
+        val place = place("LOG_RATING003", "테스트전용별점수정장소")
+        val savedLog = log(owner, place, oneLine = "별점 수정 테스트")
+
+        mockMvc.perform(
+            patch("/logs/${savedLog.id}")
+                .header("Authorization", "Bearer $token")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"rating":3}""")
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.rating").value(3))
+    }
+
+    @Test
     fun `존재하지 않는 장소에 기록을 작성하면 404를 반환한다`() {
         val owner = user("log_user_create_3", "kakao-log-create-3")
         val token = jwtTokenProvider.generateAccessToken(owner.id)

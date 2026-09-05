@@ -12,6 +12,7 @@ import com.dongle.server.place.dto.PlacesResponse
 import com.dongle.server.user.UserPreferenceRepository
 import com.dongle.server.visitlog.LogEmotionTagRepository
 import com.dongle.server.visitlog.PlaceTagCount
+import com.dongle.server.visitlog.VisitLogRepository
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Sort
@@ -29,6 +30,7 @@ class PlaceService(
     private val placeHoursRepository: PlaceHoursRepository,
     private val userPreferenceRepository: UserPreferenceRepository,
     private val logEmotionTagRepository: LogEmotionTagRepository,
+    private val visitLogRepository: VisitLogRepository,
     private val objectMapper: ObjectMapper,
 ) {
     fun listPlaces(category: PlaceCategory?, travelDate: LocalDate?, page: Int, size: Int, userId: Long?): PlacesResponse {
@@ -61,7 +63,8 @@ class PlaceService(
         val isLiked = userId?.let { placeLikeRepository.existsByUserIdAndPlaceId(it, placeId) }
         val vector = placeSemanticVectorRepository.findById(placeId).orElse(null)
         val hours = placeHoursRepository.findByPlaceIdIn(listOf(placeId))
-        return place.toDetailResponse(isLiked, vector, hours)
+        val avgRating = visitLogRepository.findAverageRatingByPlaceId(placeId)
+        return place.toDetailResponse(isLiked, vector, hours, avgRating)
     }
 
     fun getMapPins(
@@ -218,7 +221,12 @@ class PlaceService(
         isLiked = likedIds.contains(id),
     )
 
-    private fun Place.toDetailResponse(isLiked: Boolean?, vector: PlaceSemanticVector?, hours: List<PlaceHours>) = PlaceDetailResponse(
+    private fun Place.toDetailResponse(
+        isLiked: Boolean?,
+        vector: PlaceSemanticVector?,
+        hours: List<PlaceHours>,
+        avgRating: Double?,
+    ) = PlaceDetailResponse(
         id = id,
         contentId = contentId,
         name = name,
@@ -237,6 +245,7 @@ class PlaceService(
         hours = hours.map { h -> PlaceHoursResponse(h.openDay, h.openTime, h.closeDay, h.closeTime) },
         topTags = resolveTags(vector, MAJOR_TAG_KEYS.size),
         visitLogCount = visitLogCount,
+        avgRating = avgRating,
         isLiked = isLiked,
     )
 
