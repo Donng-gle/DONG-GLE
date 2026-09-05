@@ -308,6 +308,9 @@ export function resolveMock<T>(method: string, path: string, body: unknown): Moc
         source: pathname === '/courses/manual' ? 'user' : 'ai',
         place_count: req.places?.length ?? 0,
         thumbnail_url: MOCK_PLACES[0]?.main_image_url ?? null,
+        place_thumbnails: MOCK_PLACES.slice(0, 3)
+          .map((p) => p.main_image_url)
+          .filter((url): url is string => url != null),
         created_at: new Date().toISOString(),
       },
       ...courseList,

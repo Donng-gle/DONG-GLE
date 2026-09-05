@@ -87,6 +87,9 @@ export interface CourseListItem {
   source: string;
   place_count: number;
   thumbnail_url: string | null;
+  // 스크랩북 카드의 썸네일 스트립용 — 방문 순서 기준 최대 3장. place_count가 이 배열 길이보다
+  // 크면 그 차이를 "N+" 배지로 표시 (2026-09-05 추가, decision-log 참고)
+  place_thumbnails: string[];
   created_at: string;
 }
 

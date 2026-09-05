@@ -4,7 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CourseListItem, courseApi } from '../api/course';
-import { PlaceListItem } from '../api/place';
+import { PlaceListItem, placeApi } from '../api/place';
 import { userApi } from '../api/user';
 import { FloatingNav } from '../components/FloatingNav';
 import { colors } from '../theme/colors';
@@ -25,19 +25,29 @@ interface Props {
   onExit: () => void;
 }
 
+// 카드 안 장소 썸네일 스트립에 최대 몇 장까지 보여줄지 — 서버도 이 개수(3)만큼만 내려줌
+// (CourseService.SCRAPBOOK_THUMBNAIL_LIMIT 참고), 나머지는 "N+" 배지로 뭉침
+const COURSE_THUMBNAIL_LIMIT = 3;
+
 // Figma 노드 485:10903("코스 저장")/488:11855("관광지 저장") — 두 프레임이 헤더·탭 구조는 동일하고
 // 카드 내용만 다른 한 화면(스크랩북)의 두 탭이라 하나로 합침. 기존 MyCoursesScreen/LikesScreen을
 // 대체함 (2026-09-03, decision-log 참고).
 //
-// 원본 디자인과 다르게 뺀 것:
-// - 코스 카드의 장소 썸네일 3장 스트립 + "N+" 배지: CourseListItem에 코스 안 개별 장소의 썸네일 목록이
-//   없어서(썸네일 1장만 옴) 만들 수 없음 → "장소 N곳" 텍스트로 대체
-// - 코스 카드 우상단 좋아요 버튼: 코스에는 "찜" 개념 자체가 스키마에 없음(PLACE_LIKE만 존재) → 생략
+// 2026-09-05 재검토(Figma 원본 다시 확인, decision-log 참고):
+// - 탭을 박스 버튼에서 원본과 같은 밑줄(underline) 스타일로 교체(HomeScreen 탭과 동일 패턴)
+// - 코스 카드: 원본에 있던 장소 썸네일 3장+"N+" 배지를 백엔드에 place_thumbnails 필드를 새로
+//   추가해서 반영(전엔 대표 썸네일 1장만 있어서 못 만들었음)
+// - 관광지 카드: 원본에 있는 하트(찜 해제) 아이콘 추가 — is_liked로 이미 가능한데 빠져 있었음
+//
+// 여전히 뺀 것:
+// - 코스 카드 우상단 하트(좋아요) 아이콘: 코스에는 "찜/좋아요" 개념 자체가 스키마에 없음
+//   (course_like 같은 테이블 없음, PLACE_LIKE만 존재) → 없는 기능을 만드는 대신 생략
 export function ScrapbookScreen({ initialTab = 'course', onExit }: Props) {
   const insets = useSafeAreaInsets();
   const [tab, setTab] = useState<ScrapTab>(initialTab);
   const [courses, setCourses] = useState<CourseListItem[] | null>(null);
   const [places, setPlaces] = useState<PlaceListItem[] | null>(null);
+  const [unlikeBusyId, setUnlikeBusyId] = useState<number | null>(null);
   const [overlay, setOverlay] = useState<Overlay | null>(null);
 
   useEffect(() => {
@@ -65,6 +75,21 @@ export function ScrapbookScreen({ initialTab = 'course', onExit }: Props) {
       setPlaces([]);
     }
   }, []);
+
+  // 스크랩북은 "찜한 장소만" 모아보는 화면이라, 여기서 하트를 눌러 찜 해제하면 목록에서
+  // 바로 사라지는 게 자연스러움(다시 불러오면 어차피 안 옴) — 로컬 상태에서 즉시 제거
+  async function unlike(placeId: number) {
+    if (unlikeBusyId != null) return;
+    setUnlikeBusyId(placeId);
+    try {
+      await placeApi.unlike(placeId);
+      setPlaces((prev) => (prev ?? []).filter((p) => p.id !== placeId));
+    } catch (e) {
+      Alert.alert('찜 해제에 실패했어요', e instanceof Error ? e.message : '알 수 없는 오류');
+    } finally {
+      setUnlikeBusyId(null);
+    }
+  }
 
   function handleShare() {
     Share.share({ message: '안동 여행, 동글과 함께 떠나보세요 🌿' }).catch(() => {});
@@ -126,17 +151,13 @@ export function ScrapbookScreen({ initialTab = 'course', onExit }: Props) {
       </View>
 
       <View style={styles.tabRow}>
-        <TouchableOpacity
-          style={[styles.tabButton, styles.tabButtonLeft, tab === 'course' && styles.tabButtonActive]}
-          onPress={() => setTab('course')}
-        >
+        <TouchableOpacity onPress={() => setTab('course')} style={styles.tabItem}>
           <Text style={[styles.tabLabel, tab === 'course' && styles.tabLabelActive]}>여행코스</Text>
+          {tab === 'course' && <View style={styles.tabUnderline} />}
         </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tabButton, styles.tabButtonRight, tab === 'place' && styles.tabButtonActive]}
-          onPress={() => setTab('place')}
-        >
+        <TouchableOpacity onPress={() => setTab('place')} style={styles.tabItem}>
           <Text style={[styles.tabLabel, tab === 'place' && styles.tabLabelActive]}>관광지</Text>
+          {tab === 'place' && <View style={styles.tabUnderline} />}
         </TouchableOpacity>
       </View>
 
@@ -150,27 +171,39 @@ export function ScrapbookScreen({ initialTab = 'course', onExit }: Props) {
           keyExtractor={(item) => String(item.id)}
           contentContainerStyle={styles.list}
           ListEmptyComponent={<Text style={styles.emptyText}>저장한 코스가 없어요.</Text>}
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              style={styles.courseCard}
-              onPress={() => setOverlay({ type: 'course-detail', courseId: item.id })}
-            >
-              {item.thumbnail_url ? (
-                <Image source={{ uri: item.thumbnail_url }} style={styles.cardImage} resizeMode="cover" />
-              ) : (
-                <View style={[styles.cardImage, styles.cardImagePlaceholder]} />
-              )}
-              <LinearGradient colors={['#00000000', '#000000']} style={styles.cardGradient} pointerEvents="none" />
-              <View style={styles.courseCardText}>
-                <Text style={styles.courseTitle} numberOfLines={1}>
-                  {item.title}
-                </Text>
-                <Text style={styles.courseMeta}>
-                  {item.travel_date ?? '날짜 미정'} · 장소 {item.place_count}곳
-                </Text>
-              </View>
-            </TouchableOpacity>
-          )}
+          renderItem={({ item }) => {
+            const remaining = item.place_count - item.place_thumbnails.length;
+            return (
+              <TouchableOpacity
+                style={styles.courseCard}
+                onPress={() => setOverlay({ type: 'course-detail', courseId: item.id })}
+              >
+                {item.thumbnail_url ? (
+                  <Image source={{ uri: item.thumbnail_url }} style={styles.cardImage} resizeMode="cover" />
+                ) : (
+                  <View style={[styles.cardImage, styles.cardImagePlaceholder]} />
+                )}
+                <LinearGradient colors={['#00000000', '#000000']} style={styles.cardGradient} pointerEvents="none" />
+                <View style={styles.courseCardText}>
+                  <Text style={styles.courseTitle} numberOfLines={1}>
+                    {item.title}
+                  </Text>
+                  {item.place_thumbnails.length > 0 && (
+                    <View style={styles.thumbStrip}>
+                      {item.place_thumbnails.slice(0, COURSE_THUMBNAIL_LIMIT).map((url, idx) => (
+                        <Image key={idx} source={{ uri: url }} style={styles.thumbItem} resizeMode="cover" />
+                      ))}
+                      {remaining > 0 && (
+                        <View style={[styles.thumbItem, styles.thumbMoreBadge]}>
+                          <Text style={styles.thumbMoreText}>{remaining}+</Text>
+                        </View>
+                      )}
+                    </View>
+                  )}
+                </View>
+              </TouchableOpacity>
+            );
+          }}
         />
       ) : (
         <FlatList
@@ -199,6 +232,14 @@ export function ScrapbookScreen({ initialTab = 'course', onExit }: Props) {
                   </Text>
                 )}
               </View>
+              <TouchableOpacity
+                onPress={() => unlike(item.id)}
+                disabled={unlikeBusyId === item.id}
+                hitSlop={8}
+                style={styles.placeLikeButton}
+              >
+                <Text style={styles.placeLikeIcon}>♥</Text>
+              </TouchableOpacity>
             </TouchableOpacity>
           )}
         />
@@ -216,13 +257,18 @@ const styles = StyleSheet.create({
   backButton: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
   backIcon: { fontSize: 20, color: colors.black },
   headerTitle: { flex: 1, fontFamily: fonts.semiBold, fontSize: 16, color: colors.black, textAlign: 'center' },
-  tabRow: { flexDirection: 'row', paddingHorizontal: 20, marginTop: 8 },
-  tabButton: { flex: 1, height: 44, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
-  tabButtonLeft: { borderTopLeftRadius: 8, borderBottomLeftRadius: 8, borderRightWidth: 0 },
-  tabButtonRight: { borderTopRightRadius: 8, borderBottomRightRadius: 8 },
-  tabButtonActive: { borderColor: colors.black },
-  tabLabel: { fontFamily: fonts.regular, fontSize: 16, letterSpacing: -0.4, color: colors.gray500 },
+  // HomeScreen 탭과 동일한 밑줄 스타일로 통일 (2026-09-05, 원래 박스 버튼이던 걸 Figma 원본대로 수정)
+  tabRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    gap: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.divider,
+  },
+  tabItem: { paddingVertical: 12 },
+  tabLabel: { fontFamily: fonts.regular, fontSize: 16, letterSpacing: -0.4, color: colors.gray700 },
   tabLabelActive: { fontFamily: fonts.semiBold, color: colors.black },
+  tabUnderline: { height: 2, backgroundColor: colors.black, marginTop: 10, borderRadius: 1 },
   list: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 120 },
   emptyText: { fontFamily: fonts.regular, fontSize: 14, color: colors.gray400, textAlign: 'center', marginTop: 60 },
   cardImage: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
@@ -231,9 +277,14 @@ const styles = StyleSheet.create({
   courseCard: { height: 236, borderRadius: 20, overflow: 'hidden', marginBottom: 20, backgroundColor: colors.border },
   courseCardText: { position: 'absolute', left: 20, right: 20, bottom: 20 },
   courseTitle: { fontFamily: fonts.medium, fontSize: 24, letterSpacing: -0.6, color: colors.white },
-  courseMeta: { fontFamily: fonts.regular, fontSize: 13, letterSpacing: -0.3, color: '#cccccc', marginTop: 6 },
-  placeCard: { height: 184, borderRadius: 16, overflow: 'hidden', marginBottom: 20, backgroundColor: colors.border },
-  placeCardText: { position: 'absolute', left: 20, right: 20, bottom: 16 },
+  thumbStrip: { flexDirection: 'row', gap: 6, marginTop: 12 },
+  thumbItem: { width: 44, height: 44, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(255,255,255,0.6)' },
+  thumbMoreBadge: { backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center', borderColor: 'transparent' },
+  thumbMoreText: { fontFamily: fonts.medium, fontSize: 13, color: colors.white },
+  placeCard: { height: 168, borderRadius: 16, overflow: 'hidden', marginBottom: 20, backgroundColor: colors.border },
+  placeCardText: { position: 'absolute', left: 20, right: 56, bottom: 16 },
   placeName: { fontFamily: fonts.medium, fontSize: 20, letterSpacing: -0.5, color: colors.white },
   placeAddr: { fontFamily: fonts.regular, fontSize: 12, letterSpacing: -0.3, color: '#cccccc', marginTop: 4 },
+  placeLikeButton: { position: 'absolute', right: 20, bottom: 16, padding: 4 },
+  placeLikeIcon: { fontSize: 20, color: '#ff4d4d' },
 });
