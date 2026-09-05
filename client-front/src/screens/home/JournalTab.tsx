@@ -149,15 +149,29 @@ export function JournalTab(_props: Props) {
   );
 }
 
+// Figma 시안(카드: 사진→굵은 제목→회색 설명→날짜/장소 뱃지)엔 "일기 제목"이 따로 있는데
+// VisitLog엔 title 컬럼이 없어서(스키마 변경 필요, 2026-09-05 사용자 확인) place_name을 제목
+// 자리에, one_line(한줄리뷰)을 그 아래 설명 자리에 대신 씀. 시안엔 뱃지가 3개(날짜/장소/댓글)인데
+// 앱에 댓글 기능이 없어서 우선 날짜/장소 2개만 구현(2026-09-05 사용자 확인) — 장소는 이미
+// 제목에도 쓰여서 중복되지만 사용자가 명시적으로 이 조합을 선택함
 function JournalLogCard({ log }: { log: VisitLogMapItem }) {
   return (
     <View style={styles.card}>
       {log.photo_url && <Image source={{ uri: log.photo_url }} style={styles.cardImage} resizeMode="cover" />}
-      <Text style={styles.cardTitle}>{log.one_line ?? '(한줄리뷰 없음)'}</Text>
-      <View style={styles.cardMetaRow}>
-        <Text style={styles.cardMetaText}>{log.place_name}</Text>
+      <Text style={styles.cardTitle}>{log.place_name}</Text>
+      <Text style={styles.cardDescription} numberOfLines={2}>
+        {log.one_line ?? '(한줄리뷰 없음)'}
+      </Text>
+      <View style={styles.cardBadgeRow}>
+        <View style={styles.cardBadge}>
+          <Text style={styles.cardBadgeIcon}>📅</Text>
+          <Text style={styles.cardBadgeText}>{formatVisitMonth(log.visited_at)}</Text>
+        </View>
+        <View style={styles.cardBadge}>
+          <Text style={styles.cardBadgeIcon}>📍</Text>
+          <Text style={styles.cardBadgeText}>{log.place_name}</Text>
+        </View>
         {log.rating != null && <StarRating rating={log.rating} size={12} />}
-        <Text style={styles.cardMetaText}>{formatVisitMonth(log.visited_at)}</Text>
       </View>
     </View>
   );
@@ -197,9 +211,20 @@ const styles = StyleSheet.create({
   sheetTitle: { fontFamily: fonts.semiBold, fontSize: 16, letterSpacing: -0.4, color: colors.black },
   listContent: { paddingHorizontal: 20, paddingBottom: 100 },
   emptyText: { textAlign: 'center', color: colors.gray400, fontFamily: fonts.regular, fontSize: 13, marginTop: 40 },
-  card: { marginBottom: 20 },
+  card: { marginBottom: 24 },
   cardImage: { width: '100%', height: 180, borderRadius: 12, marginBottom: 10 },
-  cardTitle: { fontFamily: fonts.medium, fontSize: 15, letterSpacing: -0.4, color: colors.black, marginBottom: 6 },
-  cardMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  cardMetaText: { fontFamily: fonts.regular, fontSize: 12, color: colors.gray500 },
+  cardTitle: { fontFamily: fonts.semiBold, fontSize: 16, letterSpacing: -0.4, color: colors.black, marginBottom: 4 },
+  cardDescription: { fontFamily: fonts.regular, fontSize: 13, lineHeight: 18, color: colors.gray500, marginBottom: 10 },
+  cardBadgeRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
+  cardBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.backgroundMuted,
+    borderRadius: 100,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  cardBadgeIcon: { fontSize: 11 },
+  cardBadgeText: { fontFamily: fonts.regular, fontSize: 12, color: colors.gray500 },
 });
