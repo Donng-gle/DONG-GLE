@@ -151,7 +151,9 @@ CREATE TABLE visit_log (
     user_id    BIGINT       NOT NULL REFERENCES "user" (id) ON DELETE CASCADE,
     place_id   BIGINT       NOT NULL REFERENCES place (id) ON DELETE CASCADE,
     photo_url  TEXT,
+    title      VARCHAR(50),   -- 기록 제목. 2026-09-05 추가(메인 페이지-나의 일지-기록하기), decision-log 참고
     one_line   VARCHAR(100),
+    weather    VARCHAR(20),   -- 자유 입력 텍스트(선택지 코드 없음). 2026-09-05 추가, decision-log 참고
     rating     SMALLINT     CHECK (rating BETWEEN 1 AND 5),  -- 별점(1~5), 선택 입력. 2026-09-05 추가, decision-log 참고
     is_public  BOOLEAN      NOT NULL DEFAULT TRUE,  -- 유사 사용자 탐색(GET /explore/similar-logs)에서 공개 기록만 노출
     visited_at TIMESTAMP    NOT NULL DEFAULT NOW()
