@@ -26,7 +26,8 @@ const NOT_MATCHED: MockResult<never> = { matched: false };
 let visitLogs: MockVisitLog[] = [...MOCK_VISIT_LOGS];
 let courseList: CourseListItem[] = [...MOCK_COURSE_LIST];
 const courseDetails: Record<number, CourseDetail> = { ...MOCK_COURSE_DETAILS };
-const likedPlaceIds = new Set<number>();
+// 스크랩북 "관광지" 탭이 바로 뭔가 보이도록 미리 몇 개 찜한 상태로 시작(하회마을/월영교/미소카페)
+const likedPlaceIds = new Set<number>([1, 5, 11]);
 let nextLogId = 9000;
 let nextCourseId = 9000;
 
@@ -190,6 +191,15 @@ export function resolveMock<T>(method: string, path: string, body: unknown): Moc
     if (method === 'POST') likedPlaceIds.add(id);
     if (method === 'DELETE') likedPlaceIds.delete(id);
     return ok({ is_liked: likedPlaceIds.has(id) } as T);
+  }
+
+  // GET /users/me/likes (스크랩북 "관광지" 탭 — 내가 찜한 장소 목록)
+  if (method === 'GET' && pathname === '/users/me/likes') {
+    const page = Number(query.get('page') ?? '1');
+    const size = Number(query.get('size') ?? '20');
+    const liked = MOCK_PLACES.filter((p) => likedPlaceIds.has(p.id)).map((p) => ({ ...p, is_liked: true }));
+    const { items, meta } = paginate(liked, page, size);
+    return ok({ places: items, meta } as T);
   }
 
   // GET /places/:id/logs (장소 상세의 방문기록 목록 — 내 것/다른 유저 것 다 포함)
