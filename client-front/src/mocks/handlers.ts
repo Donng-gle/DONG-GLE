@@ -49,7 +49,9 @@ function toMapItem(log: MockVisitLog): VisitLogMapItem {
     lat: place.lat,
     lng: place.lng,
     photo_url: log.photoUrl,
+    title: log.title ?? null,
     one_line: log.oneLine,
+    weather: log.weather ?? null,
     rating: log.rating,
     visited_at: log.visitedAt,
     tags: log.tags,
@@ -60,7 +62,9 @@ function toSummary(log: MockVisitLog): VisitLogSummary {
   return {
     id: log.id,
     photo_url: log.photoUrl,
+    title: log.title ?? null,
     one_line: log.oneLine,
+    weather: log.weather ?? null,
     rating: log.rating,
     visited_at: log.visitedAt,
     tags: log.tags,
@@ -74,7 +78,9 @@ function toDetail(log: MockVisitLog): VisitLogDetail {
     place_id: place.id,
     place_name: place.name,
     photo_url: log.photoUrl,
+    title: log.title ?? null,
     one_line: log.oneLine,
+    weather: log.weather ?? null,
     rating: log.rating,
     visited_at: log.visitedAt,
     tags: log.tags,
@@ -217,14 +223,23 @@ export function resolveMock<T>(method: string, path: string, body: unknown): Moc
     const placeId = Number(segments[1]);
     const place = MOCK_PLACES.find((p) => p.id === placeId);
     if (!place) return NOT_MATCHED;
-    const req = (body ?? {}) as { photo_url?: string; one_line?: string; rating?: number; visited_at?: string };
+    const req = (body ?? {}) as {
+      photo_url?: string;
+      title?: string;
+      one_line?: string;
+      weather?: string;
+      rating?: number;
+      visited_at?: string;
+    };
     const newLog: MockVisitLog = {
       id: nextLogId++,
       placeId,
       mine: true,
       authorId: null,
       photoUrl: req.photo_url ?? null,
+      title: req.title ?? null,
       oneLine: req.one_line ?? null,
+      weather: req.weather ?? null,
       rating: req.rating ?? null,
       visitedAt: req.visited_at ?? new Date().toISOString(),
       tags: [],
