@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Alert, Animated, Dimensions, FlatList, Image, PanResponder, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { VisitLogMapItem, visitLogApi } from '../../api/visitLog';
 import { AndongGlobe } from '../../components/AndongGlobe';
 import { StarRating } from '../../components/StarRating';
@@ -29,6 +30,7 @@ interface Props {
 // 추가하면 재빌드가 필요해서(CONTRIBUTING/decision-log 관례) 일단 이걸로. 드래그는 핸들 영역에서만
 // 받고 리스트 자체엔 PanResponder를 안 걸어서 펼친 상태에서 FlatList 스크롤과 제스처가 충돌 안 함
 export function JournalTab(_props: Props) {
+  const insets = useSafeAreaInsets();
   const [logs, setLogs] = useState<VisitLogMapItem[] | null>(null);
   const [regionHeight, setRegionHeight] = useState<number | null>(null);
   const [expanded, setExpanded] = useState(false);
@@ -49,11 +51,15 @@ export function JournalTab(_props: Props) {
   }, []);
 
   // regionHeight(지구본 아래 남는 영역의 실측 높이)를 알아야 접힘 상태 오프셋을 계산할 수 있어서
-  // onLayout에서 처음 잡히는 순간 접힘 상태로 초기화
+  // onLayout에서 처음 잡히는 순간 접힘 상태로 초기화. onLayout이 재는 높이는 화면 물리적 끝까지
+  // 포함하는데, 그 끝은 안드로이드 3버튼 내비게이션 바(반투명이라 내용이 비쳐 보임) 뒤라서 그대로
+  // 쓰면 접힌 상태 핸들+타이틀이 그 바 뒤에 가려짐(2026-09-05 실기기 확인) — insets.bottom만큼
+  // 빼서 시스템 바 위에서 끝나게 함
   function handleRegionLayout(height: number) {
     if (regionHeight != null) return; // 회전 등으로 재측정되어도 사용자가 만든 펼침 상태를 유지
     setRegionHeight(height);
-    maxTranslate.current = Math.max(0, height - PEEK_HEIGHT);
+    const panelHeight = Math.max(0, height - insets.bottom);
+    maxTranslate.current = Math.max(0, panelHeight - PEEK_HEIGHT);
     translateY.setValue(maxTranslate.current);
   }
 
@@ -85,29 +91,36 @@ export function JournalTab(_props: Props) {
     }),
   ).current;
 
+  const panelHeight = regionHeight != null ? Math.max(0, regionHeight - insets.bottom) : 0;
+
   return (
     <View style={styles.container}>
       <AndongGlobe size={GLOBE_SIZE} />
 
       <View style={styles.sheetRegion} onLayout={(e) => handleRegionLayout(e.nativeEvent.layout.height)}>
         {regionHeight != null && (
-          <Animated.View style={[styles.sheet, { height: regionHeight, transform: [{ translateY }] }]}>
-            <View style={styles.handleArea} {...panResponder.panHandlers}>
-              <View style={styles.handleBar} />
-              <Text style={styles.sheetTitle}>안동에서의 추억</Text>
-            </View>
-            <FlatList
-              data={logs ?? []}
-              keyExtractor={(item) => String(item.id)}
-              scrollEnabled={expanded}
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={styles.listContent}
-              ListEmptyComponent={
-                logs != null ? <Text style={styles.emptyText}>아직 방문 기록이 없어요.</Text> : null
-              }
-              renderItem={({ item }) => <JournalLogCard log={item} />}
-            />
-          </Animated.View>
+          // panelHeight로 높이를 미리 줄여서 클리핑 경계 자체가 안드로이드 시스템 내비게이션 바
+          // 위에서 끝나게 함 — sheet를 이 안에서만 top:0~maxTranslate로 움직이면 접힌 상태에서도
+          // 시스템 바 뒤로 내용이 새어나가지 않음
+          <View style={[styles.sheetClip, { height: panelHeight }]}>
+            <Animated.View style={[styles.sheet, { height: panelHeight, transform: [{ translateY }] }]}>
+              <View style={styles.handleArea} {...panResponder.panHandlers}>
+                <View style={styles.handleBar} />
+                <Text style={styles.sheetTitle}>안동에서의 추억</Text>
+              </View>
+              <FlatList
+                data={logs ?? []}
+                keyExtractor={(item) => String(item.id)}
+                scrollEnabled={expanded}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.listContent}
+                ListEmptyComponent={
+                  logs != null ? <Text style={styles.emptyText}>아직 방문 기록이 없어요.</Text> : null
+                }
+                renderItem={({ item }) => <JournalLogCard log={item} />}
+              />
+            </Animated.View>
+          </View>
         )}
       </View>
     </View>
@@ -140,7 +153,8 @@ function clamp(value: number, min: number, max: number) {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  sheetRegion: { flex: 1, overflow: 'hidden' },
+  sheetRegion: { flex: 1 },
+  sheetClip: { overflow: 'hidden' },
   sheet: {
     position: 'absolute',
     left: 0,
