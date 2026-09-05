@@ -10,7 +10,11 @@ export interface MockVisitLog {
   mine: boolean;
   authorId: number | null; // mine이면 null(나니까 굳이 안 씀)
   photoUrl: string | null;
+  // title/weather는 2026-09-05 추가(메인 페이지-나의 일지-기록하기) — 기존 fixture 20여 개를 다
+  // 안 고쳐도 되게 옵셔널로 둠(생략하면 null 취급, handlers.ts의 toMapItem 등 참고)
+  title?: string | null;
   oneLine: string | null;
+  weather?: string | null;
   rating: number | null; // 1~5, 선택 입력이라 null 있음(평균 계산에서 제외됨을 목업으로도 확인 가능)
   visitedAt: string; // ISO
   tags: string[];

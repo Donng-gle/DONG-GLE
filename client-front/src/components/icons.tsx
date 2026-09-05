@@ -41,3 +41,19 @@ const profileIconStyles = StyleSheet.create({
     borderBottomWidth: 0,
   },
 });
+
+// Figma "플러스"(593:12649 등, 24x24) — 나의 일지 헤더의 기록 작성 버튼(2026-09-05 추가)
+export function PlusIcon() {
+  return (
+    <View style={plusIconStyles.container}>
+      <View style={plusIconStyles.horizontalBar} />
+      <View style={plusIconStyles.verticalBar} />
+    </View>
+  );
+}
+
+const plusIconStyles = StyleSheet.create({
+  container: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
+  horizontalBar: { position: 'absolute', width: 14, height: 1.6, borderRadius: 1, backgroundColor: colors.black },
+  verticalBar: { position: 'absolute', width: 1.6, height: 14, borderRadius: 1, backgroundColor: colors.black },
+});

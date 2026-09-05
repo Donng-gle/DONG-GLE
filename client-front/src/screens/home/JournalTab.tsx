@@ -1,10 +1,23 @@
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Animated, Dimensions, FlatList, Image, PanResponder, StyleSheet, Text, View } from 'react-native';
+import {
+  Alert,
+  Animated,
+  Dimensions,
+  FlatList,
+  Image,
+  PanResponder,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { VisitLogMapItem, visitLogApi } from '../../api/visitLog';
 import { AndongGlobe } from '../../components/AndongGlobe';
+import { PlusIcon } from '../../components/icons';
 import { colors } from '../../theme/colors';
 import { fonts } from '../../theme/fonts';
+import { JournalLogCreateModal } from '../JournalLogCreateModal';
 
 const GLOBE_SIZE = Dimensions.get('window').width;
 
@@ -53,8 +66,9 @@ export function JournalTab(_props: Props) {
   const dragBaseValue = useRef(0);
   const maxTranslate = useRef(0);
   const listRef = useRef<FlatList<VisitLogMapItem>>(null);
+  const [createVisible, setCreateVisible] = useState(false);
 
-  useEffect(() => {
+  function loadLogs() {
     visitLogApi
       .myLogs()
       .then((res) => setLogs(res.logs))
@@ -62,6 +76,11 @@ export function JournalTab(_props: Props) {
         Alert.alert('일지를 불러오지 못했어요', e instanceof Error ? e.message : '알 수 없는 오류');
         setLogs([]);
       });
+  }
+
+  useEffect(() => {
+    loadLogs();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // containerHeight(탭 콘텐츠 전체 실측 높이)를 알아야 접힘 상태 오프셋을 계산할 수 있어서
@@ -127,7 +146,15 @@ export function JournalTab(_props: Props) {
           <Animated.View style={[styles.sheet, { height: panelHeight, transform: [{ translateY }] }]}>
             <View style={styles.handleArea} {...panResponder.panHandlers}>
               <View style={styles.handleBar} />
-              <Text style={styles.sheetTitle}>안동에서의 추억</Text>
+              <View style={styles.headerRow}>
+                <Text style={styles.sheetTitle}>안동에서의 추억</Text>
+                {/* "+"는 탭이라 PanResponder(handleArea 전체에 걸려있음)와 겹치는데, RN 터치
+                    협상은 가장 안쪽(TouchableOpacity)이 먼저 응답자가 될 기회를 가져서(캡처
+                    단계 핸들러를 안 쓰는 한) 드래그와 안 충돌함(2026-09-05 실기기 확인) */}
+                <TouchableOpacity onPress={() => setCreateVisible(true)} hitSlop={8}>
+                  <PlusIcon />
+                </TouchableOpacity>
+              </View>
             </View>
             <FlatList
               ref={listRef}
@@ -144,6 +171,12 @@ export function JournalTab(_props: Props) {
           </Animated.View>
         </View>
       )}
+
+      <JournalLogCreateModal
+        visible={createVisible}
+        onClose={() => setCreateVisible(false)}
+        onCreated={loadLogs}
+      />
     </View>
   );
 }
@@ -166,7 +199,9 @@ function JournalLogCard({ log }: { log: VisitLogMapItem }) {
         </View>
       )}
       <View style={styles.cardTextArea}>
-        <Text style={styles.cardTitle}>{log.place_name}</Text>
+        {/* title 컬럼 2026-09-05 추가(기록하기 화면과 같이 도입) — 그 전에 작성된 기록은
+            title이 없을 수 있어서 place_name으로 대체 표시 */}
+        <Text style={styles.cardTitle}>{log.title ?? log.place_name}</Text>
         <Text style={styles.cardDescription} numberOfLines={2}>
           {log.one_line ?? '(한줄리뷰 없음)'}
         </Text>
@@ -180,6 +215,13 @@ function JournalLogCard({ log }: { log: VisitLogMapItem }) {
           <Text style={styles.cardBadgeIcon}>📍</Text>
           <Text style={styles.cardBadgeText}>{log.place_name}</Text>
         </View>
+        {/* weather도 title과 같이 2026-09-05 추가 — 옛 기록엔 없을 수 있어서 있을 때만 표시 */}
+        {log.weather && (
+          <View style={styles.cardBadgeItem}>
+            <Text style={styles.cardBadgeIcon}>☁️</Text>
+            <Text style={styles.cardBadgeText}>{log.weather}</Text>
+          </View>
+        )}
       </View>
     </View>
   );
@@ -225,6 +267,14 @@ const styles = StyleSheet.create({
   // 그 위 paddingTop/marginBottom 값은 임의(2026-09-05 결정, 위 주석 참고)
   handleArea: { alignItems: 'center', paddingTop: 10, paddingBottom: 16 },
   handleBar: { width: 36, height: 4, borderRadius: 2, backgroundColor: colors.border, marginBottom: 12 },
+  // Figma: 타이틀 좌측, "+" 우측 정렬(593:12649 "플러스" 인스턴스가 프레임 오른쪽 끝에 배치됨)
+  headerRow: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+  },
   // Figma 실측: fontSize 20 / SemiBold / letterSpacing -0.5 / lineHeight 28 (노드 601:15203
   // "00에서의 추억") — 이전 버전은 카드 안쪽 제목("일기 제목", fontSize16)과 헷갈려서 잘못 적용함
   sheetTitle: { fontFamily: fonts.semiBold, fontSize: 20, letterSpacing: -0.5, lineHeight: 28, color: colors.black },
