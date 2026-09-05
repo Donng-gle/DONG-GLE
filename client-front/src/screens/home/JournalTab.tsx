@@ -41,8 +41,15 @@ export function JournalTab(_props: Props) {
 
   // 시트가 끌어올려진 정도. 0 = 완전히 펼침(지구본 바로 아래까지), maxTranslate = 접힘(PEEK_HEIGHT만 노출)
   const translateY = useRef(new Animated.Value(0)).current;
+  // translateY의 "현재 값"을 직접 미러링하는 ref — PanResponder는 useRef로 한 번만 만들어져서
+  // 그 콜백 안에서 참조하는 state(expanded)는 항상 최초 렌더 시점 값(false)에 고정되는 stale
+  // closure 문제가 있음(2026-09-05 실기기 테스트 중 발견: 드래그 시작 시점 기준값이 항상 "접힘"
+  // 취급돼서 이미 펼쳐진 상태에서 드래그를 시작하면 순간 점프하는 버그로 이어짐). state 대신 이
+  // ref를 읽게 해서 항상 최신 값을 보게 함
+  const translateYRef = useRef(0);
   const dragBaseValue = useRef(0);
   const maxTranslate = useRef(0);
+  const listRef = useRef<FlatList<VisitLogMapItem>>(null);
 
   useEffect(() => {
     visitLogApi
@@ -65,12 +72,18 @@ export function JournalTab(_props: Props) {
     const panelHeight = Math.max(0, height - insets.bottom);
     maxTranslate.current = Math.max(0, panelHeight - PEEK_HEIGHT - NAV_CLEARANCE);
     translateY.setValue(maxTranslate.current);
+    translateYRef.current = maxTranslate.current;
   }
 
   function snapTo(next: boolean) {
     setExpanded(next);
+    // 접을 때 리스트가 스크롤된 채로 남아있으면 접힌 상태(peek)가 첫 카드가 아니라 스크롤해뒀던
+    // 중간 카드를 보여주게 됨 — 매번 맨 위로 되돌려서 peek이 항상 타이틀+첫 카드로 보이게 함
+    if (!next) listRef.current?.scrollToOffset({ offset: 0, animated: false });
+    const target = next ? 0 : maxTranslate.current;
+    translateYRef.current = target; // 스프링 애니메이션 도중 값이 아니라 목표값 기준(약간의 오차는 감수)
     Animated.spring(translateY, {
-      toValue: next ? 0 : maxTranslate.current,
+      toValue: target,
       useNativeDriver: true,
       bounciness: 4,
     }).start();
@@ -81,11 +94,12 @@ export function JournalTab(_props: Props) {
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: (_, gesture) => Math.abs(gesture.dy) > 2,
       onPanResponderGrant: () => {
-        dragBaseValue.current = expanded ? 0 : maxTranslate.current;
+        dragBaseValue.current = translateYRef.current;
       },
       onPanResponderMove: (_, gesture) => {
         const next = clamp(dragBaseValue.current + gesture.dy, 0, maxTranslate.current);
         translateY.setValue(next);
+        translateYRef.current = next;
       },
       onPanResponderRelease: (_, gesture) => {
         const current = clamp(dragBaseValue.current + gesture.dy, 0, maxTranslate.current);
@@ -113,6 +127,7 @@ export function JournalTab(_props: Props) {
                 <Text style={styles.sheetTitle}>안동에서의 추억</Text>
               </View>
               <FlatList
+                ref={listRef}
                 data={logs ?? []}
                 keyExtractor={(item) => String(item.id)}
                 scrollEnabled={expanded}
