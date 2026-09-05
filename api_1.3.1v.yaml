@@ -566,9 +566,17 @@ components:
         photo_url:
           type: string
           nullable: true
+        title:
+          type: string
+          nullable: true
+          description: 기록 제목. 2026-09-05 추가(메인 페이지-나의 일지-기록하기)
         one_line:
           type: string
           nullable: true
+        weather:
+          type: string
+          nullable: true
+          description: 자유 입력 텍스트(선택지 코드 없음). 2026-09-05 추가
         rating:
           type: integer
           nullable: true
@@ -1047,9 +1055,17 @@ components:
         photo_url:
           type: string
           nullable: true
+        title:
+          type: string
+          nullable: true
+          description: 기록 제목. 2026-09-05 추가(메인 페이지-나의 일지-기록하기)
         one_line:
           type: string
           nullable: true
+        weather:
+          type: string
+          nullable: true
+          description: 자유 입력 텍스트(선택지 코드 없음). 2026-09-05 추가
         rating:
           type: integer
           nullable: true
@@ -1071,14 +1087,22 @@ components:
     VisitLogUpdateRequest:
       type: object
       description: |
-        사진은 수정 불가. 한줄 리뷰·별점·방문 날짜만 수정 가능.
-        one_line을 빈 문자열("")로 보내면 리뷰가 삭제됨(null로 저장). 필드 자체를 생략하면 기존 값 유지.
-        rating은 one_line과 달리 빈 값으로 지우는 기능이 없음 — 값을 보내면 갱신, 생략하면 기존 값 유지.
+        사진은 수정 불가. 제목·한줄 리뷰·날씨·별점·방문 날짜만 수정 가능.
+        title/one_line/weather를 빈 문자열("")로 보내면 해당 값이 삭제됨(null로 저장). 필드 자체를 생략하면 기존 값 유지.
+        rating은 이들과 달리 빈 값으로 지우는 기능이 없음 — 값을 보내면 갱신, 생략하면 기존 값 유지.
       properties:
+        title:
+          type: string
+          nullable: true
+          maxLength: 50
         one_line:
           type: string
           nullable: true
           maxLength: 100
+        weather:
+          type: string
+          nullable: true
+          maxLength: 20
         rating:
           type: integer
           nullable: true
@@ -1111,9 +1135,17 @@ components:
         photo_url:
           type: string
           nullable: true
+        title:
+          type: string
+          nullable: true
+          description: 기록 제목. 2026-09-05 추가(메인 페이지-나의 일지-기록하기)
         one_line:
           type: string
           nullable: true
+        weather:
+          type: string
+          nullable: true
+          description: 자유 입력 텍스트(선택지 코드 없음). 2026-09-05 추가
         rating:
           type: integer
           nullable: true
@@ -2216,7 +2248,7 @@ paths:
         반환된 file_url을 photo_url에 담아 요청해야 한다.
 
         이 API 자체는 이 엔드포인트 호출 시점에 다음 두 가지만 동기로 처리한다.
-          1. 여행 기록 생성 (사진 URL, 한줄 리뷰 저장)
+          1. 여행 기록 생성 (사진 URL, 제목, 한줄 리뷰, 날씨 저장)
           2. place.visit_log_count +1 (방문 로그 수 증가 → 숨은 장소 판단 기준값)
 
         업로드된 사진의 AI 감성 태그 자동 분석은 이 API와 별개로, AI 서버가 사진을 비동기(배치)로
@@ -2246,11 +2278,21 @@ paths:
                   type: string
                   nullable: true
                   description: Presigned URL로 S3 업로드 완료 후 받은 file_url
+                title:
+                  type: string
+                  nullable: true
+                  maxLength: 50
+                  description: 기록 제목
                 one_line:
                   type: string
                   nullable: true
                   maxLength: 100
                   description: 한줄 리뷰
+                weather:
+                  type: string
+                  nullable: true
+                  maxLength: 20
+                  description: 날씨(자유 입력 텍스트)
                 rating:
                   type: integer
                   nullable: true

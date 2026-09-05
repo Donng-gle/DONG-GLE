@@ -39,7 +39,9 @@ class VisitLogService(
                 user = user,
                 place = place,
                 photoUrl = request.photoUrl,
+                title = request.title,
                 oneLine = request.oneLine,
+                weather = request.weather,
                 rating = request.rating,
                 visitedAt = request.visitedAt ?: LocalDateTime.now(),
             )
@@ -92,7 +94,9 @@ class VisitLogService(
         // 프론트가 항상 trim된 값을 보내도록 맞추고(빈 문자열 포함) 여기서 blank를 null로 정규화하는
         // 쪽으로 계약을 명확히 함 — 안 그러면 리뷰를 지워도 예전 값이 그대로 남는 버그가 있었음
         // (2026-09-04 발견/수정, decision-log 참고)
+        request.title?.let { log.title = it.ifBlank { null } }
         request.oneLine?.let { log.oneLine = it.ifBlank { null } }
+        request.weather?.let { log.weather = it.ifBlank { null } }
         request.rating?.let { log.rating = it }
         request.visitedAt?.let { log.visitedAt = it }
         return log.toDetailResponse()
@@ -121,7 +125,9 @@ class VisitLogService(
 private fun VisitLog.toSummaryResponse() = VisitLogSummaryResponse(
     id = id,
     photoUrl = photoUrl,
+    title = title,
     oneLine = oneLine,
+    weather = weather,
     rating = rating,
     visitedAt = visitedAt,
     tags = emotionTags.map { it.tag },
@@ -132,7 +138,9 @@ private fun VisitLog.toDetailResponse() = VisitLogDetailResponse(
     placeId = place.id,
     placeName = place.name,
     photoUrl = photoUrl,
+    title = title,
     oneLine = oneLine,
+    weather = weather,
     rating = rating,
     visitedAt = visitedAt,
     tags = emotionTags.map { it.tag },
@@ -145,7 +153,9 @@ private fun VisitLog.toMapItemResponse() = VisitLogMapItemResponse(
     lat = place.lat,
     lng = place.lng,
     photoUrl = photoUrl,
+    title = title,
     oneLine = oneLine,
+    weather = weather,
     rating = rating,
     visitedAt = visitedAt,
     tags = emotionTags.map { it.tag },

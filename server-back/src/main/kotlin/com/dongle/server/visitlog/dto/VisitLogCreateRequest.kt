@@ -8,8 +8,14 @@ import java.time.LocalDateTime
 data class VisitLogCreateRequest(
     val photoUrl: String? = null,
 
+    @field:Size(max = 50)
+    val title: String? = null,
+
     @field:Size(max = 100)
     val oneLine: String? = null,
+
+    @field:Size(max = 20)
+    val weather: String? = null,
 
     @field:Min(1)
     @field:Max(5)
