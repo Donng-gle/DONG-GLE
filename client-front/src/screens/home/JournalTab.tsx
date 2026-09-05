@@ -13,6 +13,10 @@ const GLOBE_SIZE = Dimensions.get('window').width;
 // 따로 없어서 값 자체는 임의 — 다만 핸들을 아예 안 보여주면 드래그 가능한 걸 알 기회가 없어서
 // (2026-09-05 결정) 핸들+섹션 타이틀 정도는 접힌 상태에도 남겨둠
 const PEEK_HEIGHT = 76;
+// 접힌 상태일 때 핸들+타이틀 아래로 남겨두는 여백 — FloatingNav(하단 오프셋 12 + 높이 52 + 여백
+// 8, FloatingNav.tsx 참고)가 시트 바로 앞에 떠 있어서 이 여백 없이 딱 붙이면 "안동에서의 추억"
+// 타이틀이 내비 알약 뒤에 가려짐(2026-09-05 실기기 확인)
+const NAV_CLEARANCE = 72;
 // 완전히 펼쳤다가 다시 접힐 때 남은 거리가 이 값보다 작으면(=많이 끌어올렸으면) 펼침으로 스냅
 const SNAP_THRESHOLD_RATIO = 0.35;
 
@@ -59,7 +63,7 @@ export function JournalTab(_props: Props) {
     if (regionHeight != null) return; // 회전 등으로 재측정되어도 사용자가 만든 펼침 상태를 유지
     setRegionHeight(height);
     const panelHeight = Math.max(0, height - insets.bottom);
-    maxTranslate.current = Math.max(0, panelHeight - PEEK_HEIGHT);
+    maxTranslate.current = Math.max(0, panelHeight - PEEK_HEIGHT - NAV_CLEARANCE);
     translateY.setValue(maxTranslate.current);
   }
 
