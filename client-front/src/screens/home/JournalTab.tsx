@@ -24,11 +24,14 @@ interface Props {
   onOpenLogs: () => void;
 }
 
-// Figma 노드 506:11115("메인 페이지-나의 일지"). 상단 안동 지구본(장식, 드래그로 회전)은 고정,
-// 그 아래 남는 영역에 방문기록 카드 목록을 "팝업(바텀시트)" 형태로 얹음 — 평소엔 핸들+타이틀만
-// 하단에 살짝 보이다가 위로 끌어올리면 지구본 바로 아래까지 꽉 차면서 안의 목록이 스크롤됨
-// (2026-09-05 결정, decision-log 참고). 기존에 있던 방문기록 핀 지도와 요약 카드 자리를 이 시트가
-// 대신함 — onOpenLogs prop은 지도 복귀 시 다시 쓸 예정이라 시그니처만 유지(지금은 미사용)
+// Figma 노드 506:11115("메인 페이지-나의 일지"). 상단 안동 지구본(장식, 드래그로 회전) 위에
+// 방문기록 카드 목록을 "팝업(바텀시트)" 형태로 얹음 — 평소엔 핸들+타이틀만 하단에 살짝 보이다가
+// 위로 끌어올리면 지구본을 덮으면서 탭 콘텐츠 최상단까지 꽉 차고 안의 목록이 스크롤됨
+// (2026-09-05 결정, decision-log 참고). 처음엔 시트가 지구본 아래 남는 공간까지만 채워지게
+// 만들었었는데, 그러면 완전히 끌어올려도 지구본 사진 밑에서 한계가 생겨서(사용자 피드백,
+// 2026-09-05) 지구본 위까지 덮는 오버레이로 바꿈. 기존에 있던 방문기록 핀 지도와 요약 카드
+// 자리를 이 시트가 대신함 — onOpenLogs prop은 지도 복귀 시 다시 쓸 예정이라 시그니처만
+// 유지(지금은 미사용)
 //
 // gesture-handler/reanimated 없이 RN 코어 PanResponder+Animated만으로 구현 — 새 네이티브 의존성
 // 추가하면 재빌드가 필요해서(CONTRIBUTING/decision-log 관례) 일단 이걸로. 드래그는 핸들 영역에서만
@@ -36,10 +39,11 @@ interface Props {
 export function JournalTab(_props: Props) {
   const insets = useSafeAreaInsets();
   const [logs, setLogs] = useState<VisitLogMapItem[] | null>(null);
-  const [regionHeight, setRegionHeight] = useState<number | null>(null);
+  // 지구본 아래 남는 공간이 아니라 탭 콘텐츠 전체 높이 — 시트가 지구본까지 덮으면서 펼쳐지므로
+  const [containerHeight, setContainerHeight] = useState<number | null>(null);
   const [expanded, setExpanded] = useState(false);
 
-  // 시트가 끌어올려진 정도. 0 = 완전히 펼침(지구본 바로 아래까지), maxTranslate = 접힘(PEEK_HEIGHT만 노출)
+  // 시트가 끌어올려진 정도. 0 = 완전히 펼침(탭 콘텐츠 최상단까지, 지구본을 덮음), maxTranslate = 접힘(PEEK_HEIGHT만 노출)
   const translateY = useRef(new Animated.Value(0)).current;
   // translateY의 "현재 값"을 직접 미러링하는 ref — PanResponder는 useRef로 한 번만 만들어져서
   // 그 콜백 안에서 참조하는 state(expanded)는 항상 최초 렌더 시점 값(false)에 고정되는 stale
@@ -61,14 +65,14 @@ export function JournalTab(_props: Props) {
       });
   }, []);
 
-  // regionHeight(지구본 아래 남는 영역의 실측 높이)를 알아야 접힘 상태 오프셋을 계산할 수 있어서
+  // containerHeight(탭 콘텐츠 전체 실측 높이)를 알아야 접힘 상태 오프셋을 계산할 수 있어서
   // onLayout에서 처음 잡히는 순간 접힘 상태로 초기화. onLayout이 재는 높이는 화면 물리적 끝까지
   // 포함하는데, 그 끝은 안드로이드 3버튼 내비게이션 바(반투명이라 내용이 비쳐 보임) 뒤라서 그대로
   // 쓰면 접힌 상태 핸들+타이틀이 그 바 뒤에 가려짐(2026-09-05 실기기 확인) — insets.bottom만큼
   // 빼서 시스템 바 위에서 끝나게 함
-  function handleRegionLayout(height: number) {
-    if (regionHeight != null) return; // 회전 등으로 재측정되어도 사용자가 만든 펼침 상태를 유지
-    setRegionHeight(height);
+  function handleContainerLayout(height: number) {
+    if (containerHeight != null) return; // 회전 등으로 재측정되어도 사용자가 만든 펼침 상태를 유지
+    setContainerHeight(height);
     const panelHeight = Math.max(0, height - insets.bottom);
     maxTranslate.current = Math.max(0, panelHeight - PEEK_HEIGHT - NAV_CLEARANCE);
     translateY.setValue(maxTranslate.current);
@@ -109,39 +113,38 @@ export function JournalTab(_props: Props) {
     }),
   ).current;
 
-  const panelHeight = regionHeight != null ? Math.max(0, regionHeight - insets.bottom) : 0;
+  const panelHeight = containerHeight != null ? Math.max(0, containerHeight - insets.bottom) : 0;
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} onLayout={(e) => handleContainerLayout(e.nativeEvent.layout.height)}>
       <AndongGlobe size={GLOBE_SIZE} />
 
-      <View style={styles.sheetRegion} onLayout={(e) => handleRegionLayout(e.nativeEvent.layout.height)}>
-        {regionHeight != null && (
-          // panelHeight로 높이를 미리 줄여서 클리핑 경계 자체가 안드로이드 시스템 내비게이션 바
-          // 위에서 끝나게 함 — sheet를 이 안에서만 top:0~maxTranslate로 움직이면 접힌 상태에서도
-          // 시스템 바 뒤로 내용이 새어나가지 않음
-          <View style={[styles.sheetClip, { height: panelHeight }]}>
-            <Animated.View style={[styles.sheet, { height: panelHeight, transform: [{ translateY }] }]}>
-              <View style={styles.handleArea} {...panResponder.panHandlers}>
-                <View style={styles.handleBar} />
-                <Text style={styles.sheetTitle}>안동에서의 추억</Text>
-              </View>
-              <FlatList
-                ref={listRef}
-                data={logs ?? []}
-                keyExtractor={(item) => String(item.id)}
-                scrollEnabled={expanded}
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={styles.listContent}
-                ListEmptyComponent={
-                  logs != null ? <Text style={styles.emptyText}>아직 방문 기록이 없어요.</Text> : null
-                }
-                renderItem={({ item }) => <JournalLogCard log={item} />}
-              />
-            </Animated.View>
-          </View>
-        )}
-      </View>
+      {containerHeight != null && (
+        // 클리핑 경계(위치+높이)를 탭 콘텐츠 맨 위(container 기준 top:0)부터 잡아서, 시트를
+        // 완전히 끌어올리면(translateY:0) 지구본을 덮으면서 탭 콘텐츠 최상단까지 꽉 참.
+        // panelHeight로 높이를 미리 줄여서 클리핑 경계 자체가 안드로이드 시스템 내비게이션 바
+        // 위에서 끝나게 함 — 접힌 상태에서도 시스템 바 뒤로 내용이 새어나가지 않음
+        <View style={[styles.sheetClip, { height: panelHeight }]}>
+          <Animated.View style={[styles.sheet, { height: panelHeight, transform: [{ translateY }] }]}>
+            <View style={styles.handleArea} {...panResponder.panHandlers}>
+              <View style={styles.handleBar} />
+              <Text style={styles.sheetTitle}>안동에서의 추억</Text>
+            </View>
+            <FlatList
+              ref={listRef}
+              data={logs ?? []}
+              keyExtractor={(item) => String(item.id)}
+              scrollEnabled={expanded}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.listContent}
+              ListEmptyComponent={
+                logs != null ? <Text style={styles.emptyText}>아직 방문 기록이 없어요.</Text> : null
+              }
+              renderItem={({ item }) => <JournalLogCard log={item} />}
+            />
+          </Animated.View>
+        </View>
+      )}
     </View>
   );
 }
@@ -172,8 +175,9 @@ function clamp(value: number, min: number, max: number) {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  sheetRegion: { flex: 1 },
-  sheetClip: { overflow: 'hidden' },
+  // container 전체(지구본 포함)를 덮는 오버레이라 top:0부터 시작 — 지구본은 이 View보다 먼저
+  // 렌더돼서 z-order상 아래 깔림, 시트가 펼쳐지면 그 위를 덮으며 올라옴
+  sheetClip: { position: 'absolute', top: 0, left: 0, right: 0, overflow: 'hidden' },
   sheet: {
     position: 'absolute',
     left: 0,
