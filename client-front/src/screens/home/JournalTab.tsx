@@ -220,9 +220,14 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: -4 },
     elevation: 6,
   },
-  handleArea: { alignItems: 'center', paddingTop: 10, paddingBottom: 12 },
+  // paddingBottom 16 = Figma 실측 "제목→첫 카드" 간격(16, 노드 601:15039 "00에서의 추억"
+  // 텍스트 바닥~카드 상단) 그대로. handleBar 자체는 Figma엔 없는 우리 쪽 드래그 어포던스라
+  // 그 위 paddingTop/marginBottom 값은 임의(2026-09-05 결정, 위 주석 참고)
+  handleArea: { alignItems: 'center', paddingTop: 10, paddingBottom: 16 },
   handleBar: { width: 36, height: 4, borderRadius: 2, backgroundColor: colors.border, marginBottom: 12 },
-  sheetTitle: { fontFamily: fonts.semiBold, fontSize: 16, letterSpacing: -0.4, color: colors.black },
+  // Figma 실측: fontSize 20 / SemiBold / letterSpacing -0.5 / lineHeight 28 (노드 601:15203
+  // "00에서의 추억") — 이전 버전은 카드 안쪽 제목("일기 제목", fontSize16)과 헷갈려서 잘못 적용함
+  sheetTitle: { fontFamily: fonts.semiBold, fontSize: 20, letterSpacing: -0.5, lineHeight: 28, color: colors.black },
   listContent: { paddingHorizontal: 20, paddingBottom: 100 },
   emptyText: { textAlign: 'center', color: colors.gray400, fontFamily: fonts.regular, fontSize: 13, marginTop: 40 },
   // 아래 카드 스타일 전부 Figma 노드 601:15039("메인 페이지-나의 일지") 실측값 그대로 —
@@ -276,16 +281,19 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   // 시안엔 뱃지 3개(날짜/장소/날씨)가 각자 알약이 아니라 하나로 이어진 회색 바 안에 나란히 들어있음
-  // — 이전 버전은 날짜/장소를 각각 별도 알약으로 잘못 만들었던 부분
+  // — 이전 버전은 날짜/장소를 각각 별도 알약으로 잘못 만들었던 부분.
+  // marginHorizontal:8 — card의 paddingHorizontal:4와 합쳐 총 12px 인셋(Figma 실측: 뱃지 바
+  // 좌우 여백 12, 사진 4/제목·설명 16과 다 다름 — 처음엔 8로 잘못 계산해서 다시 고침, 2026-09-05).
+  // gap:16 — Figma 실측 뱃지 그룹 사이 간격(날짜↔장소, 원래 3칸 중 첫 두 칸 사이 간격 그대로)
   cardBadgeBar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 28,
+    gap: 16,
     backgroundColor: colors.border,
     borderRadius: 100,
     paddingVertical: 10,
-    marginHorizontal: 4,
+    marginHorizontal: 8,
   },
   cardBadgeItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   cardBadgeIcon: { fontSize: 12 },
