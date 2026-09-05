@@ -3,7 +3,6 @@ import { Alert, Animated, Dimensions, FlatList, Image, PanResponder, StyleSheet,
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { VisitLogMapItem, visitLogApi } from '../../api/visitLog';
 import { AndongGlobe } from '../../components/AndongGlobe';
-import { StarRating } from '../../components/StarRating';
 import { colors } from '../../theme/colors';
 import { fonts } from '../../theme/fonts';
 
@@ -149,31 +148,38 @@ export function JournalTab(_props: Props) {
   );
 }
 
-// Figma 시안(확대본, 2026-09-05 사용자 첨부)엔 "일기 제목"이 따로 있는데 VisitLog엔 title
-// 컬럼이 없어서(스키마 변경 필요, 2026-09-05 사용자 확인) place_name을 제목 자리에, one_line
-// (한줄리뷰)을 그 아래 설명 자리에 대신 씀. 시안엔 뱃지가 3개(날짜/장소/날씨)인데 날씨 데이터가
-// DB에 없어서 날짜/장소 2개만 구현(2026-09-05 사용자 확인) — 장소가 제목과 중복되지만 사용자가
-// 그 조합을 선택함. 사진 아래 페이지네이션 점(여러 장 스와이프)도 시안엔 있으나 VisitLog가 사진을
-// 1장만 저장해서(photo_url 단일 필드) 생략(2026-09-05 사용자 확인)
+// Figma 노드 601:15039("메인 페이지-나의 일지") 직접 확인 후 실측값 그대로 재구현(2026-09-05).
+// VisitLog엔 title 컬럼이 없어서(스키마 변경 필요, 사용자 확인) place_name을 제목 자리에,
+// one_line(한줄리뷰)을 그 아래 설명 자리에 대신 씀. 시안 뱃지 3개(날짜/장소/날씨) 중 날씨는
+// DB에 데이터가 없어서 계속 생략(사용자 확인) — 날짜/장소 2개만 하나의 회색 바 안에 표시.
+// 별점(rating)은 시안에 아예 없는 요소라 이 카드에선 제외(장소 상세 등 다른 화면에서 계속 노출).
 function JournalLogCard({ log }: { log: VisitLogMapItem }) {
+  const photos = log.photo_url ? [log.photo_url] : [];
   return (
     <View style={styles.card}>
-      {log.photo_url && <Image source={{ uri: log.photo_url }} style={styles.cardImage} resizeMode="cover" />}
-      <Text style={styles.cardTitle}>{log.place_name}</Text>
-      <Text style={styles.cardDescription} numberOfLines={2}>
-        {log.one_line ?? '(한줄리뷰 없음)'}
-      </Text>
-      <View style={styles.cardDivider} />
-      <View style={styles.cardBadgeRow}>
-        <View style={styles.cardBadge}>
+      {photos.length > 0 && <Image source={{ uri: photos[0] }} style={styles.cardImage} resizeMode="cover" />}
+      {photos.length > 0 && (
+        <View style={styles.cardDotsRow}>
+          {photos.map((_, i) => (
+            <View key={i} style={[styles.cardDot, i === 0 && styles.cardDotActive]} />
+          ))}
+        </View>
+      )}
+      <View style={styles.cardTextArea}>
+        <Text style={styles.cardTitle}>{log.place_name}</Text>
+        <Text style={styles.cardDescription} numberOfLines={2}>
+          {log.one_line ?? '(한줄리뷰 없음)'}
+        </Text>
+      </View>
+      <View style={styles.cardBadgeBar}>
+        <View style={styles.cardBadgeItem}>
           <Text style={styles.cardBadgeIcon}>📅</Text>
           <Text style={styles.cardBadgeText}>{formatVisitDay(log.visited_at)}</Text>
         </View>
-        <View style={styles.cardBadge}>
+        <View style={styles.cardBadgeItem}>
           <Text style={styles.cardBadgeIcon}>📍</Text>
           <Text style={styles.cardBadgeText}>{log.place_name}</Text>
         </View>
-        {log.rating != null && <StarRating rating={log.rating} size={12} />}
       </View>
     </View>
   );
@@ -202,7 +208,10 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     top: 0,
-    backgroundColor: colors.white,
+    // Figma 실측(2026-09-05, 노드 601:15039 직접 확인) 결과 시트가 흰 패널이 아니라 페이지
+    // 배경(#f7f7fb=backgroundMuted)과 같은 색이고, 그 위에 카드만 흰색+그림자로 떠 있는 구조였음
+    // — 이전엔 시트 자체를 흰 패널로 만들어서 카드(흰색)와 구분이 안 됐던 게 진짜 원인
+    backgroundColor: colors.backgroundMuted,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     shadowColor: '#000',
@@ -216,45 +225,69 @@ const styles = StyleSheet.create({
   sheetTitle: { fontFamily: fonts.semiBold, fontSize: 16, letterSpacing: -0.4, color: colors.black },
   listContent: { paddingHorizontal: 20, paddingBottom: 100 },
   emptyText: { textAlign: 'center', color: colors.gray400, fontFamily: fonts.regular, fontSize: 13, marginTop: 40 },
-  // 시안(2026-09-05 확대본)엔 카드 전체가 흰 라운드 카드 하나로 감싸져 있음 — 시트 배경도 흰색이라
-  // 배경색만으론 구분이 안 돼서 얇은 테두리로 경계를 표시(앱 전반에 그림자 쓰는 카드 관례가 없어서
-  // 그림자 대신 테두리 선택, ScrapbookScreen 카드들과 톤 맞춤)
+  // 아래 카드 스타일 전부 Figma 노드 601:15039("메인 페이지-나의 일지") 실측값 그대로 —
+  // export_node_as_image로 실제 렌더 이미지까지 확인해서 흰 카드+옅은 그림자(테두리 아님) 구조로
+  // 재작성함(2026-09-05, 이전 버전엔 테두리를 썼는데 시안엔 그림자만 있었음)
   card: {
     backgroundColor: colors.white,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 20,
-    padding: 12,
-    marginBottom: 20,
+    borderRadius: 16,
+    paddingTop: 4,
+    paddingHorizontal: 4,
+    paddingBottom: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
   },
-  cardImage: { width: '100%', height: 180, borderRadius: 14, marginBottom: 12 },
+  // Figma 316x236 비율 그대로(aspectRatio) — 이전엔 고정 height:180이라 카드 폭 대비 사진이
+  // 납작해 보였음(사용자 피드백 "사진 크기 좀 더 키우고")
+  cardImage: { width: '100%', aspectRatio: 316 / 236, borderRadius: 12 },
+  // 여러 장 스와이프 시 페이지를 나타내는 점 — VisitLog는 현재 사진을 1장만 저장해서
+  // (photo_url 단일 필드) 항상 점 1개(활성 스타일)만 그려짐. 나중에 사진 여러 장 저장이
+  // 되면 photos 배열 길이만큼 자연히 늘어나도록 배열 기반으로 구현(2026-09-05, 사용자가
+  // "슬라이드 표시도 해야한다"고 명시적으로 재요청 — 이전엔 데이터 없다고 생략했었음)
+  cardDotsRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 8,
+    marginBottom: 12,
+  },
+  cardDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: 'rgba(0,0,0,0.2)' },
+  cardDotActive: { width: 20, backgroundColor: colors.black },
+  cardTextArea: { paddingHorizontal: 12 },
   cardTitle: {
     fontFamily: fonts.semiBold,
     fontSize: 16,
     letterSpacing: -0.4,
     color: colors.black,
     textAlign: 'center',
-    marginBottom: 6,
+    marginBottom: 4,
   },
   cardDescription: {
     fontFamily: fonts.regular,
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 12,
+    lineHeight: 17,
     color: colors.gray500,
     textAlign: 'center',
     marginBottom: 12,
   },
-  cardDivider: { height: 1, backgroundColor: colors.divider, marginBottom: 12 },
-  cardBadgeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: 8 },
-  cardBadge: {
+  // 시안엔 뱃지 3개(날짜/장소/날씨)가 각자 알약이 아니라 하나로 이어진 회색 바 안에 나란히 들어있음
+  // — 이전 버전은 날짜/장소를 각각 별도 알약으로 잘못 만들었던 부분
+  cardBadgeBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    backgroundColor: colors.backgroundMuted,
+    justifyContent: 'center',
+    gap: 28,
+    backgroundColor: colors.border,
     borderRadius: 100,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingVertical: 10,
+    marginHorizontal: 4,
   },
-  cardBadgeIcon: { fontSize: 11 },
+  cardBadgeItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  cardBadgeIcon: { fontSize: 12 },
   cardBadgeText: { fontFamily: fonts.regular, fontSize: 12, color: colors.gray500 },
 });
