@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Line, Path, Rect } from 'react-native-svg';
 import { colors } from '../theme/colors';
 import { fonts } from '../theme/fonts';
 
@@ -24,9 +25,11 @@ interface Props {
 // 으로 명확했음 — 좌측/중앙 둘 다 onHome에 연결해뒀던 것과 우측이 공유하기(onShare)였던 걸 정정.
 // 중앙 버튼 그라디언트도 시안 실측 결과 노랑/주황이 아니라 파랑(#005eff→#0049c7)이었음.
 //
-// 아이콘도 이모지(🏠📅👤) 대신 Figma 실제 아이콘(export_node_as_image로 직접 확인:
-// 홈=지붕+문 모양 아웃라인, 달력=상단 고리 2개+구분선 있는 아웃라인, 사람=머리+어깨 아웃라인,
-// 전부 흰색 선 스타일)에 맞춰 이 파일 안에서 View 조합으로 근사 재현함(2026-09-06, 사용자 요청)
+// 아이콘도 이모지(🏠📅👤) 대신 Figma 실제 아이콘 그대로 재현(2026-09-06, 사용자가 "거의 말고
+// 똑같이" 요청). View 테두리+회전 조합으로 근사했던 1차 시도는 좌표를 눈대중으로 잡아서
+// 미묘하게 어긋났음 — scan_nodes_by_types로 아이콘 내부 벡터 자식들의 실제 bbox 좌표(28x28
+// 기준)를 직접 읽어서 react-native-svg(RadarChart.tsx에서 이미 쓰던 라이브러리, 추가 설치 없음)
+// viewBox="0 0 28 28"에 그 좌표 그대로 옮김 — 대략적 트릭 대신 실측 좌표 기반 재현
 export function FloatingNav({ onHome, onCreateManual, onCreateAI, onProfile }: Props) {
   const insets = useSafeAreaInsets();
   const [scheduleSheetVisible, setScheduleSheetVisible] = useState(false);
@@ -82,67 +85,48 @@ export function FloatingNav({ onHome, onCreateManual, onCreateAI, onProfile }: P
   );
 }
 
-// 집 모양(지붕 + 벽 사각형 + 문 자리 가로선), 전부 흰색 선(icons.tsx의 다른 아이콘들과 동일하게
-// 별도 에셋 없이 View만 조합). 지붕은 막대 2개를 따로 회전시켰다가 꼭짓점이 안 맞아 떨어져
-// 보였음(2026-09-06) — ChevronRightIcon과 동일하게 정사각형 하나에 위/왼쪽 테두리만 주고
-// 45도 회전시키는 방식으로 교체(그 모서리가 그대로 지붕 꼭짓점이 되어 좌우 대칭 지붕이 됨)
+// Figma "홈" 아이콘(I601:14911;225:23653) 내부 벡터 실측(scan_nodes_by_types, 28x28 기준):
+// 집 윤곽(펜타곤) bbox 4.667,4.667~23.333,23.333(정사각형) + 문(가로선) x 11.667~16.333, y 16.333.
+// 지붕 어깨 높이(펜타곤 중간 꺾이는 y좌표)는 벡터 내부 세부 좌표까지는 못 읽어서 정사각형
+// bbox의 45% 지점으로 근사(일반적인 집 아이콘 비율) — 나머지는 전부 실측값 그대로
+const HOME_ICON_TOP = 4.667;
+const HOME_ICON_BOTTOM = 23.333;
+const HOME_ICON_LEFT = 4.667;
+const HOME_ICON_RIGHT = 23.333;
+const HOME_ICON_SHOULDER_Y = HOME_ICON_TOP + (HOME_ICON_BOTTOM - HOME_ICON_TOP) * 0.45;
 function HomeIcon() {
   return (
-    <View style={homeIconStyles.container}>
-      <View style={homeIconStyles.roof} />
-      <View style={homeIconStyles.body} />
-      <View style={homeIconStyles.door} />
-    </View>
+    <Svg width={20} height={20} viewBox="0 0 28 28" fill="none">
+      <Path
+        d={`M14 ${HOME_ICON_TOP} L${HOME_ICON_RIGHT} ${HOME_ICON_SHOULDER_Y} L${HOME_ICON_RIGHT} ${HOME_ICON_BOTTOM} L${HOME_ICON_LEFT} ${HOME_ICON_BOTTOM} L${HOME_ICON_LEFT} ${HOME_ICON_SHOULDER_Y} Z`}
+        stroke={colors.white}
+        strokeWidth={1.8}
+        strokeLinejoin="round"
+      />
+      <Line x1={11.667} y1={16.333} x2={16.333} y2={16.333} stroke={colors.white} strokeWidth={1.8} strokeLinecap="round" />
+    </Svg>
   );
 }
 
-const homeIconStyles = StyleSheet.create({
-  container: { width: 20, height: 18, alignItems: 'center' },
-  roof: {
-    position: 'absolute',
-    top: 1,
-    width: 11,
-    height: 11,
-    borderTopWidth: 1.6,
-    borderLeftWidth: 1.6,
-    borderColor: colors.white,
-    transform: [{ rotate: '45deg' }],
-  },
-  body: {
-    position: 'absolute',
-    bottom: 0,
-    width: 14,
-    height: 9,
-    borderWidth: 1.6,
-    borderTopWidth: 0,
-    borderColor: colors.white,
-  },
-  door: { position: 'absolute', bottom: 3, width: 6, height: 1.6, borderRadius: 1, backgroundColor: colors.white },
-});
-
-// 달력 모양(몸체 아웃라인 + 상단 고리 2개 + 헤더 구분선), 흰색 선
+// Figma "달력" 아이콘(I601:14915;225:23722) 내부 벡터 실측 — 전부 실측값 그대로:
+// 몸체 x4.667~23.333, y8.167~23.333 / 헤더 구분선 y=14(8.167+5.833) / 고리 2개(x=8.167,19.833,
+// y 4.667~8.167)
 function CalendarIcon() {
   return (
-    <View style={calendarIconStyles.container}>
-      <View style={calendarIconStyles.ringLeft} />
-      <View style={calendarIconStyles.ringRight} />
-      <View style={calendarIconStyles.body}>
-        <View style={calendarIconStyles.divider} />
-      </View>
-    </View>
+    <Svg width={20} height={20} viewBox="0 0 28 28" fill="none">
+      <Rect x={4.667} y={8.167} width={18.667} height={15.167} rx={3} stroke={colors.white} strokeWidth={1.8} />
+      <Line x1={4.667} y1={14} x2={23.333} y2={14} stroke={colors.white} strokeWidth={1.8} />
+      <Line x1={8.167} y1={4.667} x2={8.167} y2={8.167} stroke={colors.white} strokeWidth={1.8} strokeLinecap="round" />
+      <Line x1={19.833} y1={4.667} x2={19.833} y2={8.167} stroke={colors.white} strokeWidth={1.8} strokeLinecap="round" />
+    </Svg>
   );
 }
 
-const calendarIconStyles = StyleSheet.create({
-  container: { width: 20, height: 20, alignItems: 'center', justifyContent: 'flex-end' },
-  body: { width: 16, height: 14, borderRadius: 3, borderWidth: 1.6, borderColor: colors.white },
-  divider: { position: 'absolute', top: 4, left: 0, right: 0, height: 1.6, backgroundColor: colors.white },
-  ringLeft: { position: 'absolute', top: 0, left: 5, width: 1.6, height: 5, borderRadius: 1, backgroundColor: colors.white },
-  ringRight: { position: 'absolute', top: 0, right: 5, width: 1.6, height: 5, borderRadius: 1, backgroundColor: colors.white },
-});
-
-// 사람 실루엣(머리 원 + 어깨 아치), 흰색 선 — components/icons.tsx의 ProfileIcon과 같은 형태를
-// 이 화면(어두운 알약 배경) 전용으로 흰색으로 다시 그림
+// Figma "마이페이지"(사람) 아이콘(I601:14912;225:23654) 내부 요소 실측: 머리 원(Ellipse 1,
+// 중심 14,14.17 반지름3.5) + 어깨(Rectangle 8, x4.667~23.333 폭18.667, y22.33~29.33 높이7,
+// 위쪽만 둥근 아치 — 반지름이 높이(7)와 같아서 RN의 borderTopLeftRadius로 그대로 표현 가능,
+// SVG 없이 다른 아이콘들과 동일한 View 방식이 오히려 더 정확함). 28 기준 좌표를 20 아이콘
+// 박스에 맞게 20/28 배율로 환산
 function PersonIcon() {
   return (
     <View style={personIconStyles.container}>
@@ -153,14 +137,24 @@ function PersonIcon() {
 }
 
 const personIconStyles = StyleSheet.create({
-  container: { width: 20, height: 20, alignItems: 'center' },
-  head: { width: 7, height: 7, borderRadius: 3.5, borderWidth: 1.4, borderColor: colors.white, marginBottom: 2 },
+  container: { width: 20, height: 21, alignItems: 'center' },
+  head: {
+    position: 'absolute',
+    top: 7.6, // (14.17-3.5)*20/28
+    width: 5, // 3.5*2*20/28
+    height: 5,
+    borderRadius: 2.5,
+    borderWidth: 1.7,
+    borderColor: colors.white,
+  },
   shoulders: {
-    width: 18,
-    height: 8,
-    borderTopLeftRadius: 9,
-    borderTopRightRadius: 9,
-    borderWidth: 1.4,
+    position: 'absolute',
+    top: 16, // 22.33*20/28
+    width: 13.3, // 18.667*20/28
+    height: 5, // 7*20/28
+    borderTopLeftRadius: 5,
+    borderTopRightRadius: 5,
+    borderWidth: 1.7,
     borderColor: colors.white,
     borderBottomWidth: 0,
   },
