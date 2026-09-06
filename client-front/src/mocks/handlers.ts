@@ -9,10 +9,11 @@
 import { PaginationMeta } from '../api/place';
 import { CourseCandidate, CourseDetail, CourseListItem } from '../api/course';
 import { VisitLogDetail, VisitLogMapItem, VisitLogPhoto, VisitLogSummary } from '../api/visitLog';
-import { SimilarLogItem } from '../api/explore';
+import { SimilarCourseItem, SimilarLogItem } from '../api/explore';
 import { MOCK_PLACES, toPlaceDetail } from './fixtures/places';
 import { MOCK_VISIT_LOGS, MockVisitLog, findMockAuthorForLog } from './fixtures/visitLogs';
-import { MOCK_COURSE_LIST, MOCK_COURSE_DETAILS, buildMockGeneratedCandidate } from './fixtures/courses';
+import { MOCK_COURSE_LIST, MOCK_COURSE_DETAILS, MOCK_OTHER_COURSES, MockOtherCourse, buildMockGeneratedCandidate } from './fixtures/courses';
+import { MOCK_USERS } from './fixtures/users';
 
 export type MockResult<T> = { matched: true; data: T } | { matched: false };
 
@@ -111,6 +112,43 @@ function toSimilarLogItem(log: MockVisitLog): SimilarLogItem {
     tags: log.tags,
     nickname: author.nickname,
     profile_image_url: author.profile_image_url,
+  };
+}
+
+// "취향 맞춤 코스" 탭 카드 목록용(2026-09-07 결정, decision-log 참고) — 방문 순서 기준 최대
+// 3장만(서버 ExploreService.PLACE_PREVIEW_LIMIT과 동일 기준)
+const PLACE_PREVIEW_LIMIT = 3;
+
+function toSimilarCourseItem(course: MockOtherCourse): SimilarCourseItem {
+  const author = MOCK_USERS.find((u) => u.id === course.authorId)!;
+  const sorted = [...course.places].sort((a, b) => a.visit_order - b.visit_order);
+  return {
+    course_id: course.id,
+    title: course.title,
+    travel_date: course.travelDate,
+    end_date: course.endDate,
+    place_count: course.places.length,
+    place_previews: sorted.slice(0, PLACE_PREVIEW_LIMIT).map((p) => ({
+      name: p.name,
+      thumbnail_url: p.main_image_url,
+    })),
+    nickname: author.nickname,
+    profile_image_url: author.profile_image_url,
+  };
+}
+
+function toOtherCourseDetail(course: MockOtherCourse): CourseDetail {
+  return {
+    id: course.id,
+    title: course.title,
+    travel_date: course.travelDate,
+    end_date: course.endDate,
+    source: 'user',
+    places: [...course.places].sort((a, b) => a.visit_order - b.visit_order),
+    total_distance_km: null,
+    total_duration_min: null,
+    polyline: null,
+    updated_at: new Date().toISOString(),
   };
 }
 
@@ -313,6 +351,20 @@ export function resolveMock<T>(method: string, path: string, body: unknown): Moc
     const limit = Number(query.get('limit') ?? '50');
     const others = visitLogs.filter((l) => !l.mine).slice(0, limit);
     return ok({ logs: others.map(toSimilarLogItem) } as T);
+  }
+
+  // GET /explore/similar-courses ("취향 맞춤 코스" 탭 카드 목록, 2026-09-07 결정, decision-log 참고)
+  if (method === 'GET' && pathname === '/explore/similar-courses') {
+    const limit = Number(query.get('limit') ?? '20');
+    return ok({ courses: MOCK_OTHER_COURSES.slice(0, limit).map(toSimilarCourseItem) } as T);
+  }
+
+  // GET /explore/courses/:id ("선택"/"자세히 보기" — 다른 사용자의 공개 코스 상세)
+  if (method === 'GET' && segments.length === 3 && segments[0] === 'explore' && segments[1] === 'courses') {
+    const courseId = Number(segments[2]);
+    const course = MOCK_OTHER_COURSES.find((c) => c.id === courseId);
+    if (!course) return NOT_MATCHED;
+    return ok(toOtherCourseDetail(course) as T);
   }
 
   // GET /users/me/courses
