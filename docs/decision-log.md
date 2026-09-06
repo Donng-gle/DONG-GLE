@@ -817,3 +817,12 @@
 - **영향**: DB(`course.is_public`, 실 데이터 1건 무손실 마이그레이션) → 백엔드(`feat/explore-similar-courses`, `server` 커밋 `6d32664`, 배포 완료, 통합 테스트 전체 통과) → 프론트(`feat/explore-similar-courses-client`, `client` 커밋 `f966a5a`) 순서로 같은 세션에서 전부 완료. `api_1.3.1v.yaml`(`SimilarCourseItem`/`SimilarCoursePlacePreview` 스키마+두 신규 엔드포인트)/`schema.sql`/`schema.dbml` 갱신. 실기기(목업 모드)로 카드 선택→2점/3점 경로 미리보기 전환→자세히 보기→여러 날 코스 날짜별 헤더 표시→뒤로가기 복귀까지 end-to-end 확인. 목업은 `mocks/fixtures/courses.ts`에 `MOCK_OTHER_COURSES`(다른 사용자 코스 3건, 그 중 1건은 2박3일) 신규 추가
 
 ---
+
+## 2026-09-07 | 취향 맞춤 코스 탭: 개별 장소(방문 기록)도 코스와 함께 노출 (바로 위 결정 확장)
+
+- **결정**: `RecommendedTab`이 `/explore/similar-courses`(코스)와 `/explore/similar-logs`(개별 장소 방문 기록 1건) 둘 다 불러와서 하나의 리스트로 합쳐 같은 카드 디자인으로 보여줌. "선택"을 누르면 코스는 기존처럼 경로(2곳=출발/도착, 3곳 이상=중간 번호)를, 개별 장소는 그 장소 좌표 하나만 지도에 마커로 미리보기(개별 장소는 `SimilarLogItem`에 이미 좌표가 있어서 추가 API 호출 없이 바로 표시). "자세히 보기"는 코스면 `PublicCourseDetailScreen`, 개별 장소면 `PlaceDetailScreen`(관광지 상세)으로 이동
+- **이유**: 사용자가 "코스가 아닌 개별 장소도 맞춤 코스에서 확인할 수 있게 하자, 디자인은 동일하게, 선택·자세히 보기 하면 관광지 상세페이지가 나오도록" 요청 — 코스 전용으로 좁혀놨던 걸 다시 넓힘. `SimilarLogItem`(개별 장소) 자체는 이전 결정(코스 전환)에서 카드 데이터로 안 쓰기로 했을 뿐 API/타입은 그대로 남아있어서 재사용 가능했음
+- **구현**: `RecommendedItem = {kind:'course';data:SimilarCourseItem} | {kind:'place';data:SimilarLogItem}` 유니온으로 리스트 항목을 표현. 카드 내부 텍스트(코스 제목 vs 장소명+별점, "N곳 코스" vs 태그 2개)만 종류별로 분기하고 레이아웃/스타일은 완전히 동일. 지도 미리보기도 `PreviewPoint[]`(id/lat/lng/label) 공용 타입으로 통합해서 코스(여러 점)와 개별 장소(점 1개) 둘 다 같은 `RoutePreviewMap` 컴포넌트로 그림 — 점이 1개면 경로선(Polyline)만 안 그리고 마커만 표시
+- **영향**: `feat/recommended-tab-mixed-places`, `client` 커밋 `bd8ccbb`. 백엔드/스키마 변경 없음(기존 두 엔드포인트 조합만으로 구현). 실기기(목업 모드)로 코스 카드와 개별 장소 카드가 같은 리스트에 섞여 나오는 것, 개별 장소 "선택" 시 단일 마커 미리보기, "자세히 보기" 시 `PlaceDetailScreen`(관광지 상세) 진입까지 end-to-end 확인
+
+---
