@@ -16,4 +16,9 @@ export const colors = {
   accentBlue: '#0066ff',
   // "직접 일정 만들기-기본화면"(501:12088) 지도 위 번호 핀 배경 — 옅은 분홍(2026-09-06 실측)
   pinBackground: '#fcf3f6',
+  // "직접 일정 만들기-장소 추가 화면"(600:13996) 탭 밑줄/미선택 칩 테두리 — border(#e5e5ec)와
+  // 미묘하게 다른 값이라 별도 토큰화(2026-09-06 실측)
+  tabDivider: '#d1d3db',
+  chipBorderMuted: '#f2f4fc',
+  rowDivider: '#f1f1f5',
 } as const;
