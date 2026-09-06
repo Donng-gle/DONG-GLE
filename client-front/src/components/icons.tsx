@@ -80,3 +80,36 @@ const chevronRightStyles = StyleSheet.create({
     marginLeft: -2,
   },
 });
+
+// 마이페이지 아바타 위에 얹는 "사진 변경" 배지용 — Figma에 명세가 없어서(프로필 사진 변경 자체가
+// 시안에 없음) 카메라를 단순 도형(몸체+렌즈)으로 흉내낸 아이콘(2026-09-06 추가, 기존 아이콘들과
+// 동일하게 View 조합, 별도 에셋 없음)
+export function CameraIcon() {
+  return (
+    <View style={cameraIconStyles.body}>
+      <View style={cameraIconStyles.bump} />
+      <View style={cameraIconStyles.lens} />
+    </View>
+  );
+}
+
+const cameraIconStyles = StyleSheet.create({
+  body: {
+    width: 14,
+    height: 10,
+    borderRadius: 2,
+    backgroundColor: colors.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bump: {
+    position: 'absolute',
+    top: -2,
+    width: 5,
+    height: 3,
+    borderTopLeftRadius: 1,
+    borderTopRightRadius: 1,
+    backgroundColor: colors.white,
+  },
+  lens: { width: 5, height: 5, borderRadius: 2.5, borderWidth: 1.2, borderColor: colors.black },
+});
