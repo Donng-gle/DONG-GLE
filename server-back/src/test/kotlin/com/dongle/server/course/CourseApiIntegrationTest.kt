@@ -121,6 +121,52 @@ class CourseApiIntegrationTest {
     }
 
     @Test
+    fun `직접 코스 짜기에 end_date를 같이 보내면 여행 기간으로 저장된다`() {
+        val owner = user("course_user_range", "kakao-course-range")
+        val token = tokenFor(owner)
+        val placeA = place("CRS_RANGE1", "테스트전용범위코스장소A")
+
+        val saveResult = mockMvc.perform(
+            post("/courses/manual")
+                .header("Authorization", "Bearer $token")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """{"title":"테스트전용범위코스","travel_date":"2026-08-02","end_date":"2026-08-05",
+                       "places":[{"place_id":${placeA.id},"visit_order":1}]}""",
+                )
+        )
+            .andExpect(status().isCreated)
+            .andReturn()
+
+        val courseId = JsonPath.read<Int>(saveResult.response.contentAsString, "$.course_id")
+        stubDirectionsRoute()
+
+        mockMvc.perform(get("/courses/$courseId").header("Authorization", "Bearer $token"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.travel_date").value("2026-08-02"))
+            .andExpect(jsonPath("$.end_date").value("2026-08-05"))
+    }
+
+    @Test
+    fun `end_date가 travel_date보다 이전이면 400을 반환한다`() {
+        val owner = user("course_user_range_invalid", "kakao-course-range-invalid")
+        val token = tokenFor(owner)
+        val placeA = place("CRS_RANGE2", "테스트전용범위코스장소B")
+
+        mockMvc.perform(
+            post("/courses/manual")
+                .header("Authorization", "Bearer $token")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """{"title":"테스트전용잘못된범위코스","travel_date":"2026-08-05","end_date":"2026-08-02",
+                       "places":[{"place_id":${placeA.id},"visit_order":1}]}""",
+                )
+        )
+            .andExpect(status().isBadRequest)
+            .andExpect(jsonPath("$.code").value("INVALID_COURSE_DATE_RANGE"))
+    }
+
+    @Test
     fun `AI 후보 저장 방식(POST courses)으로도 저장할 수 있다`() {
         val owner = user("course_user_2", "kakao-course-2")
         val token = tokenFor(owner)

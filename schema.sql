@@ -197,6 +197,7 @@ CREATE TABLE course (
     title       VARCHAR(200) NOT NULL,
     source      VARCHAR(20)  NOT NULL CHECK (source IN ('ai', 'ai_edited', 'user')),
     travel_date DATE,
+    end_date    DATE,  -- 여러 날 범위 지원. "직접 코스 만들기"에서만 입력받음(2026-09-06 결정, decision-log 참고)
     transport   VARCHAR(10)  CHECK (transport IN ('car', 'walk', 'public')),  -- 구글맵 경로 재계산용, nullable(과거 데이터/미입력 허용)
     created_at  TIMESTAMP    NOT NULL DEFAULT NOW(),
     updated_at  TIMESTAMP    NOT NULL DEFAULT NOW()

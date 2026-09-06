@@ -82,11 +82,15 @@ class CourseService(
 
     @Transactional
     fun saveManual(userId: Long, request: CourseManualRequest): CourseSaveResponse {
+        if (request.endDate != null && request.travelDate != null && request.endDate < request.travelDate) {
+            throw InvalidCourseDateRangeException()
+        }
         val course = Course(
             user = userRepository.getReferenceById(userId),
             title = request.title,
             source = CourseSource.user,
             travelDate = request.travelDate,
+            endDate = request.endDate,
             transport = request.transport,
         )
         applyPlaces(course, request.places)
@@ -292,6 +296,7 @@ private fun Course.toListItemResponse(): CourseListItemResponse {
         id = id,
         title = title,
         travelDate = travelDate,
+        endDate = endDate,
         source = source.name,
         placeCount = places.size,
         thumbnailUrl = sortedByVisitOrder.firstOrNull()?.place?.mainImageUrl,
@@ -307,6 +312,7 @@ private fun Course.toDetailResponse(sortedPlaces: List<CoursePlace>, route: Rout
     id = id,
     title = title,
     travelDate = travelDate,
+    endDate = endDate,
     source = source.name,
     places = sortedPlaces.mapIndexed { index, cp ->
         val leg = if (index == 0) null else route?.legs?.getOrNull(index - 1)
