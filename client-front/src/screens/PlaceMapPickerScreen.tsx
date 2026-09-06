@@ -58,7 +58,12 @@ export function PlaceMapPickerScreen({ onExit, selectedPlaces, onTogglePlace }: 
 
   // 시트 드래그 — 0(열림, SHEET_OPEN_RATIO 위치)~collapsedOffset(접힘, 손잡이만 보임) 사이를
   // 오감. sheetHeight는 onLayout으로 실측(화면 크기마다 % 높이의 실제 px가 다르므로)
-  const [sheetHeight, setSheetHeight] = useState(0);
+  // sheetHeight는 PanResponder 콜백 안에서 읽어야 하는데, PanResponder.create(...)를
+  // useRef(...).current로 한 번만 만들면 그 콜백들은 "만들어진 시점"의 state 값을 그대로
+  // 캡처해버리는 stale closure가 됨(useState로 두면 onLayout이 나중에 갱신해도 콜백은
+  // 여전히 최초값 0만 봄 — DONG-GLE PanResponder 관련 기존 교훈과 동일 패턴, 2026-09-06
+  // 재발견). state 대신 ref로 미러링해서 콜백이 항상 최신값을 읽게 함
+  const sheetHeightRef = useRef(0);
   const translateY = useRef(new Animated.Value(0)).current;
   const openOffset = useRef(0);
   const isOpen = useRef(true);
@@ -72,12 +77,12 @@ export function PlaceMapPickerScreen({ onExit, selectedPlaces, onTogglePlace }: 
       onPanResponderMove: (_, gesture) => {
         // openOffset.current는 항상 "마지막으로 멈춘 절대 위치"(0 또는 collapsedOffset) —
         // 거기에 이번 제스처의 상대 이동량(gesture.dy)만 더해서 절대 좌표로 클램프
-        const collapsedOffset = Math.max(sheetHeight - SHEET_PEEK_HEIGHT, 0);
+        const collapsedOffset = Math.max(sheetHeightRef.current - SHEET_PEEK_HEIGHT, 0);
         const next = openOffset.current + gesture.dy;
         translateY.setValue(Math.min(Math.max(next, 0), collapsedOffset));
       },
       onPanResponderRelease: (_, gesture) => {
-        const collapsedOffset = Math.max(sheetHeight - SHEET_PEEK_HEIGHT, 0);
+        const collapsedOffset = Math.max(sheetHeightRef.current - SHEET_PEEK_HEIGHT, 0);
         const current = Math.min(Math.max(openOffset.current + gesture.dy, 0), collapsedOffset);
         const shouldCollapse = current > collapsedOffset / 2;
         const target = shouldCollapse ? collapsedOffset : 0;
@@ -178,7 +183,9 @@ export function PlaceMapPickerScreen({ onExit, selectedPlaces, onTogglePlace }: 
 
       <Animated.View
         style={[styles.sheet, { paddingBottom: Math.max(20, insets.bottom + 16), transform: [{ translateY }] }]}
-        onLayout={(e) => setSheetHeight(e.nativeEvent.layout.height)}
+        onLayout={(e) => {
+          sheetHeightRef.current = e.nativeEvent.layout.height;
+        }}
       >
         <View {...panResponder.panHandlers}>
           <View style={styles.handle} />
