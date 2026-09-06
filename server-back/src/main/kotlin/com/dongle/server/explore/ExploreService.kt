@@ -4,7 +4,9 @@ import com.dongle.server.explore.dto.SimilarLogItemResponse
 import com.dongle.server.explore.dto.SimilarLogsResponse
 import com.dongle.server.user.UserPreferenceRepository
 import com.dongle.server.visitlog.VisitLog
+import com.dongle.server.visitlog.VisitLogPhoto
 import com.dongle.server.visitlog.VisitLogRepository
+import com.dongle.server.visitlog.dto.VisitLogPhotoResponse
 import org.springframework.data.domain.PageRequest
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -65,12 +67,14 @@ private fun VisitLog.toSimilarLogItemResponse() = SimilarLogItemResponse(
     placeName = place.name,
     lat = place.lat,
     lng = place.lng,
-    // SimilarLogItem은 여러 장 사진 확장 범위 밖(2026-09-06 결정, decision-log 참고) — 대표
-    // 사진 1장만 계속 노출(VisitLog.mainPhotoUrl = photos 중 sort_order 가장 앞 URL)
-    photoUrl = mainPhotoUrl,
+    // 여러 장 사진 확장은 처음엔 범위 밖이었는데(2026-09-06 결정), 이번에 카드 사진 캐러셀+캡션
+    // 지원으로 다시 확장(2026-09-07 결정, decision-log 참고)
+    photos = photos.map { it.toResponse() },
     oneLine = oneLine,
     rating = rating,
     tags = emotionTags.map { it.tag },
     nickname = user.nickname,
     profileImageUrl = user.profileImageUrl,
 )
+
+private fun VisitLogPhoto.toResponse() = VisitLogPhotoResponse(url = photoUrl, caption = caption)

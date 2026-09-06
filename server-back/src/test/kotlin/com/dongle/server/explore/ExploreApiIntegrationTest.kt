@@ -11,6 +11,7 @@ import com.dongle.server.user.UserPreferenceRepository
 import com.dongle.server.user.UserRepository
 import com.dongle.server.visitlog.LogEmotionTag
 import com.dongle.server.visitlog.VisitLog
+import com.dongle.server.visitlog.VisitLogPhoto
 import com.dongle.server.visitlog.VisitLogRepository
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -66,6 +67,9 @@ class ExploreApiIntegrationTest {
     private fun publicLog(user: User, place: Place, oneLine: String, tag: String): VisitLog {
         val saved = visitLogRepository.save(VisitLog(user = user, place = place, oneLine = oneLine, isPublic = true))
         saved.emotionTags.add(LogEmotionTag(visitLog = saved, tag = tag, score = 0.8))
+        // 사진별 캡션(2026-09-07 결정, decision-log 참고) — "취향 맞춤 코스" 카드가 사진을 넘기면
+        // 이 캡션으로 바뀌어야 해서 explore 응답에 캡션까지 실려오는지 검증용으로 추가
+        saved.photos.add(VisitLogPhoto(visitLog = saved, photoUrl = "https://example.com/${place.contentId}.jpg", caption = "테스트전용캡션-${place.contentId}", sortOrder = 0))
         return visitLogRepository.save(saved)
     }
 
@@ -90,6 +94,8 @@ class ExploreApiIntegrationTest {
             .andExpect(jsonPath("$.logs[?(@.one_line == '테스트전용탐색리뷰-유사')]").exists())
             .andExpect(jsonPath("$.logs[?(@.one_line == '테스트전용탐색리뷰-비유사')]").doesNotExist())
             .andExpect(jsonPath("$.logs[0].nickname").value("테스터"))
+            .andExpect(jsonPath("$.logs[0].photos[0].url").value("https://example.com/EXP001.jpg"))
+            .andExpect(jsonPath("$.logs[0].photos[0].caption").value("테스트전용캡션-EXP001"))
     }
 
     @Test

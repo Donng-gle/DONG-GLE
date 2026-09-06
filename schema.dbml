@@ -149,6 +149,7 @@ Table visit_log_photo {
   visit_log_id bigint [not null, ref: > visit_log.id]
   photo_url    text   [not null]
   sort_order   int    [not null, default: 0, note: '0 이상']
+  caption      text   [note: '사진별 캡션(선택). 취향 맞춤 코스 카드 사진 캐러셀용, 2026-09-07 결정, decision-log 참고']
 }
 
 // 온보딩 카드 (AI 파트가 사전 분석하여 적재. 온보딩 런타임에 AI 호출 없음)

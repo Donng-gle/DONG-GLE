@@ -556,6 +556,20 @@ components:
           description: 현재 정보가 부족한 태그 목록
           example: [lively, modern, romantic]
 
+    VisitLogPhoto:
+      type: object
+      description: |
+        방문 기록 사진 1장 + 캡션(선택). 여러 장 지원(2026-09-06 결정) 때는 URL 문자열이었는데,
+        사진별 캡션 지원(2026-09-07 결정, decision-log 참고)으로 객체로 확장. VisitLogSummary/
+        VisitLogDetail/VisitLogMapItem/SimilarLogItem이 공통으로 사용.
+      properties:
+        url:
+          type: string
+        caption:
+          type: string
+          nullable: true
+          description: 이 사진에 대한 글. 없으면 null(캡션 없이 사진만 올린 경우).
+
     VisitLogSummary:
       type: object
       description: 장소 상세 화면의 기록 미리보기용 요약 데이터
@@ -563,11 +577,11 @@ components:
         id:
           type: integer
           format: int64
-        photo_urls:
+        photos:
           type: array
           items:
-            type: string
-          description: 여러 장 지원(2026-09-06 추가, decision-log 참고). 사진이 없으면 빈 배열.
+            $ref: '#/components/schemas/VisitLogPhoto'
+          description: 여러 장 지원(2026-09-06 추가)+사진별 캡션(2026-09-07 추가, decision-log 참고). 사진이 없으면 빈 배열.
         title:
           type: string
           nullable: true
@@ -1081,11 +1095,11 @@ components:
           format: int64
         place_name:
           type: string
-        photo_urls:
+        photos:
           type: array
           items:
-            type: string
-          description: 여러 장 지원(2026-09-06 추가, decision-log 참고). 사진이 없으면 빈 배열.
+            $ref: '#/components/schemas/VisitLogPhoto'
+          description: 여러 장 지원(2026-09-06 추가)+사진별 캡션(2026-09-07 추가, decision-log 참고). 사진이 없으면 빈 배열.
         title:
           type: string
           nullable: true
@@ -1163,11 +1177,11 @@ components:
         lng:
           type: number
           format: double
-        photo_urls:
+        photos:
           type: array
           items:
-            type: string
-          description: 여러 장 지원(2026-09-06 추가, decision-log 참고). 사진이 없으면 빈 배열.
+            $ref: '#/components/schemas/VisitLogPhoto'
+          description: 여러 장 지원(2026-09-06 추가)+사진별 캡션(2026-09-07 추가, decision-log 참고). 사진이 없으면 빈 배열.
         title:
           type: string
           nullable: true
@@ -1213,9 +1227,14 @@ components:
         lng:
           type: number
           format: double
-        photo_url:
-          type: string
-          nullable: true
+        photos:
+          type: array
+          items:
+            $ref: '#/components/schemas/VisitLogPhoto'
+          description: |
+            여러 장 사진 확장은 처음엔 범위 밖이었는데(2026-09-06 결정), "취향 맞춤 코스" 카드에서
+            사진을 넘기면 그 사진에 달린 글로 바뀌어야 해서(2026-09-07 결정, decision-log 참고)
+            대표 사진 1장(photo_url)에서 전체 목록+캡션(photos)으로 확장. 사진이 없으면 빈 배열.
         one_line:
           type: string
           nullable: true
@@ -1261,7 +1280,7 @@ components:
           description: S3에 직접 PUT 요청을 보낼 Presigned URL. 유효시간 10분.
         file_url:
           type: string
-          description: 업로드 완료 후 실제 서비스에서 사용할 파일 공개 URL. 이 값을 photo_url 등에 저장.
+          description: 업로드 완료 후 실제 서비스에서 사용할 파일 공개 URL. 이 값을 photos[].url 등에 저장.
         expires_in:
           type: integer
           description: Presigned URL 유효 시간(초)
@@ -2278,7 +2297,8 @@ paths:
       description: |
         방문한 장소에 사진(여러 장 가능)과 한줄 리뷰를 기록한다.
         사진마다 먼저 POST /uploads/presigned-url로 S3에 직접 업로드한 뒤,
-        반환된 file_url들을 photo_urls 배열에 담아 요청해야 한다(순서 = 노출 순서, 2026-09-06 결정).
+        반환된 file_url들을 photos 배열에 담아 요청해야 한다(순서 = 노출 순서, 2026-09-06 결정).
+        사진마다 캡션을 같이 담을 수 있다(선택, 2026-09-07 결정, decision-log 참고).
 
         이 API 자체는 이 엔드포인트 호출 시점에 다음 두 가지만 동기로 처리한다.
           1. 여행 기록 생성 (사진 URL 목록, 제목, 한줄 리뷰, 날씨 저장)
@@ -2307,12 +2327,21 @@ paths:
             schema:
               type: object
               properties:
-                photo_urls:
+                photos:
                   type: array
                   items:
-                    type: string
+                    type: object
+                    required: [url]
+                    properties:
+                      url:
+                        type: string
+                        description: Presigned URL로 S3 업로드 완료 후 받은 file_url
+                      caption:
+                        type: string
+                        maxLength: 100
+                        description: 이 사진에 대한 글(선택). 2026-09-07 추가, decision-log 참고
                   maxItems: 10
-                  description: Presigned URL로 S3 업로드 완료 후 받은 file_url 목록. 배열 순서대로 저장/노출됨(2026-09-06 추가)
+                  description: 배열 순서대로 저장/노출됨(2026-09-06 추가). 사진별 캡션은 2026-09-07 추가(decision-log 참고)
                 title:
                   type: string
                   nullable: true
@@ -2956,7 +2985,7 @@ paths:
         업로드 흐름:
           1. POST /uploads/presigned-url 호출 → upload_url, file_url 수신
           2. 클라이언트가 upload_url로 HTTP PUT 요청 (바이너리 파일 직접 전송)
-          3. 업로드 완료 후 file_url을 photo_url 또는 profile_image_url로 사용
+          3. 업로드 완료 후 file_url을 photos[].url 또는 profile_image_url로 사용
 
         upload_url은 10분간 유효하며 만료 후에는 재발급이 필요하다.
         purpose 값에 따라 S3 저장 경로가 분기된다 (visit_logs/ 또는 profiles/).
