@@ -3,8 +3,6 @@ package com.dongle.server.visitlog
 import com.dongle.server.auth.jwt.JwtTokenProvider
 import com.dongle.server.place.Place
 import com.dongle.server.place.PlaceCategory
-import com.dongle.server.place.PlaceEmotionTag
-import com.dongle.server.place.PlaceEmotionTagRepository
 import com.dongle.server.place.PlaceRepository
 import com.dongle.server.user.OAuthProvider
 import com.dongle.server.user.User
@@ -38,9 +36,6 @@ class VisitLogApiIntegrationTest {
     lateinit var placeRepository: PlaceRepository
 
     @Autowired
-    lateinit var placeEmotionTagRepository: PlaceEmotionTagRepository
-
-    @Autowired
     lateinit var visitLogRepository: VisitLogRepository
 
     @Autowired
@@ -64,7 +59,7 @@ class VisitLogApiIntegrationTest {
 
     private fun log(user: User, place: Place, oneLine: String = "좋았어요", tags: List<String> = listOf("relaxing")): VisitLog {
         val saved = visitLogRepository.save(VisitLog(user = user, place = place, oneLine = oneLine))
-        tags.forEach { saved.emotionTags.add(LogEmotionTag(visitLog = saved, tag = it)) }
+        tags.forEach { saved.emotionTags.add(LogEmotionTag(visitLog = saved, tag = it, score = 0.8)) }
         return visitLogRepository.save(saved)
     }
 
@@ -78,13 +73,18 @@ class VisitLogApiIntegrationTest {
             post("/places/${place.id}/logs")
                 .header("Authorization", "Bearer $token")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("""{"photo_url":"https://example.com/a.jpg","one_line":"테스트전용신규기록","visited_at":"2026-08-01T10:00:00"}""")
+                .content(
+                    """{"photo_urls":["https://example.com/a.jpg","https://example.com/b.jpg"],"one_line":"테스트전용신규기록","visited_at":"2026-08-01T10:00:00"}""",
+                )
         )
             .andExpect(status().isCreated)
             .andExpect(jsonPath("$.place_id").value(place.id))
             .andExpect(jsonPath("$.place_name").value("테스트전용기록작성장소"))
             .andExpect(jsonPath("$.one_line").value("테스트전용신규기록"))
-            .andExpect(jsonPath("$.photo_url").value("https://example.com/a.jpg"))
+            // 여러 장 지원(2026-09-06 결정, decision-log 참고) — 요청 목록 순서 그대로 반환됨
+            .andExpect(jsonPath("$.photo_urls.length()").value(2))
+            .andExpect(jsonPath("$.photo_urls[0]").value("https://example.com/a.jpg"))
+            .andExpect(jsonPath("$.photo_urls[1]").value("https://example.com/b.jpg"))
             // AI 이미지 분석 미연동(2026-08-30 결정) — 태그는 항상 빈 배열
             .andExpect(jsonPath("$.tags.length()").value(0))
 
@@ -105,8 +105,64 @@ class VisitLogApiIntegrationTest {
                 .content("""{"one_line":"테스트전용최소필드기록"}""")
         )
             .andExpect(status().isCreated)
-            .andExpect(jsonPath("$.photo_url").doesNotExist())
+            .andExpect(jsonPath("$.photo_urls.length()").value(0))
             .andExpect(jsonPath("$.visited_at").exists())
+    }
+
+    @Test
+    fun `별점을 포함해서 여행 기록을 작성할 수 있다`() {
+        val owner = user("log_user_rating_1", "kakao-log-rating-1")
+        val token = jwtTokenProvider.generateAccessToken(owner.id)
+        val place = place("LOG_RATING001", "테스트전용별점작성장소")
+
+        mockMvc.perform(
+            post("/places/${place.id}/logs")
+                .header("Authorization", "Bearer $token")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"one_line":"테스트전용별점기록","rating":5}""")
+        )
+            .andExpect(status().isCreated)
+            .andExpect(jsonPath("$.rating").value(5))
+    }
+
+    @Test
+    fun `1에서 5를 벗어난 별점으로 기록을 작성하면 400을 반환한다`() {
+        val owner = user("log_user_rating_2", "kakao-log-rating-2")
+        val token = jwtTokenProvider.generateAccessToken(owner.id)
+        val place = place("LOG_RATING002", "테스트전용잘못된별점장소")
+
+        mockMvc.perform(
+            post("/places/${place.id}/logs")
+                .header("Authorization", "Bearer $token")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"one_line":"테스트","rating":6}""")
+        )
+            .andExpect(status().isBadRequest)
+
+        mockMvc.perform(
+            post("/places/${place.id}/logs")
+                .header("Authorization", "Bearer $token")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"one_line":"테스트","rating":0}""")
+        )
+            .andExpect(status().isBadRequest)
+    }
+
+    @Test
+    fun `기록의 별점을 수정할 수 있다`() {
+        val owner = user("log_user_rating_3", "kakao-log-rating-3")
+        val token = jwtTokenProvider.generateAccessToken(owner.id)
+        val place = place("LOG_RATING003", "테스트전용별점수정장소")
+        val savedLog = log(owner, place, oneLine = "별점 수정 테스트")
+
+        mockMvc.perform(
+            patch("/logs/${savedLog.id}")
+                .header("Authorization", "Bearer $token")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"rating":3}""")
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.rating").value(3))
     }
 
     @Test
@@ -183,15 +239,31 @@ class VisitLogApiIntegrationTest {
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.one_line").value("수정후"))
+
+        // 빈 문자열로 보내면 리뷰가 실제로 지워져야 함(2026-09-04 수정) — 이전엔 필드를 생략해서 보내던
+        // 프론트 로직 때문에 지워도 예전 값이 그대로 남는 버그가 있었음, decision-log 참고
+        mockMvc.perform(
+            patch("/logs/${savedLog.id}")
+                .header("Authorization", "Bearer $token")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"one_line":""}""")
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.one_line").doesNotExist())
     }
 
     @Test
-    fun `기록을 삭제하면 장소의 방문 카운트와 감성태그 카운트가 감소한다`() {
+    fun `기록을 삭제하면 장소의 방문 카운트가 감소하고 해당 기록의 감성태그가 장소 상위 태그에서 더 이상 집계되지 않는다`() {
         val owner = user("log_user_4", "kakao-log-4")
         val token = jwtTokenProvider.generateAccessToken(owner.id)
         val place = place("LOG004", "테스트전용기록장소D", visitLogCount = 5)
-        placeEmotionTagRepository.save(PlaceEmotionTag(place = place, tag = "relaxing", count = 3))
+        // log_emotion_tag를 조회 시점에 직접 집계하므로(place_emotion_tag 카운터 테이블 제거,
+        // 2026-09-02 결정) 삭제 전/후로 장소 상세의 top_tags가 실제로 바뀌는지로 검증한다
         val savedLog = log(owner, place, tags = listOf("relaxing"))
+
+        mockMvc.perform(get("/places/${place.id}"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.top_tags[?(@ == 'relaxing')]").exists())
 
         mockMvc.perform(delete("/logs/${savedLog.id}").header("Authorization", "Bearer $token"))
             .andExpect(status().isNoContent)
@@ -199,8 +271,9 @@ class VisitLogApiIntegrationTest {
         val updatedPlace = placeRepository.findById(place.id).orElseThrow()
         assert(updatedPlace.visitLogCount == 4) { "visitLogCount expected 4 but was ${updatedPlace.visitLogCount}" }
 
-        val tagRow = placeEmotionTagRepository.findByPlaceIdAndTag(place.id, "relaxing")
-        assert(tagRow != null && tagRow.count == 2) { "relaxing tag count expected 2 but was ${tagRow?.count}" }
+        mockMvc.perform(get("/places/${place.id}"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.top_tags[?(@ == 'relaxing')]").doesNotExist())
 
         mockMvc.perform(get("/logs/${savedLog.id}").header("Authorization", "Bearer $token"))
             .andExpect(status().isNotFound)

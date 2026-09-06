@@ -1,5 +1,7 @@
 import { API_BASE_URL } from './config';
 import { tokenStorage } from '../auth/tokenStorage';
+import { MOCK_ENABLED, MOCK_DELAY_MS } from '../mocks/config';
+import { resolveMock } from '../mocks/handlers';
 
 export class ApiError extends Error {
   constructor(
@@ -23,6 +25,9 @@ export function registerSessionExpiredListener(listener: SessionExpiredListener 
 
 interface RefreshResponse {
   access_token: string;
+  // 리프레시 토큰 회전(2026-09-04 도입, decision-log 참고) — 서버가 갱신할 때마다 기존 리프레시
+  // 토큰을 폐기하고 새로 발급하므로, 저장된 토큰을 반드시 이 값으로 교체해야 함
+  refresh_token: string;
 }
 
 // 여러 요청이 동시에 401을 받아도 갱신 호출은 한 번만 나가도록 in-flight promise를 공유.
@@ -44,7 +49,7 @@ async function refreshAccessToken(): Promise<string | null> {
         if (!response.ok) return null;
 
         const data = (await response.json()) as RefreshResponse;
-        await tokenStorage.setAccessToken(data.access_token);
+        await tokenStorage.save(data.access_token, data.refresh_token);
         return data.access_token;
       } catch {
         return null;
@@ -61,6 +66,18 @@ async function request<T>(
   options: { method?: string; body?: unknown; auth?: boolean; isRetry?: boolean } = {},
 ): Promise<T> {
   const { method = 'GET', body, auth = false, isRetry = false } = options;
+
+  // 목업 모드(mocks/config.ts EXPO_PUBLIC_USE_MOCK=true)면 네트워크를 아예 안 타고 여기서 바로
+  // 응답을 돌려줌 — auth 토큰 유무와 무관하게 항상 매칭 시도하므로 게스트 로그인으로도 인증 필요
+  // 화면까지 목업으로 볼 수 있음. mocks/handlers.ts가 아직 모르는 경로면 matched:false로 와서
+  // 아래 실제 fetch로 자연스럽게 흘러감(부분적으로만 목업해도 안전)
+  if (MOCK_ENABLED) {
+    const mocked = resolveMock<T>(method, path, body);
+    if (mocked.matched) {
+      if (MOCK_DELAY_MS > 0) await new Promise((resolve) => setTimeout(resolve, MOCK_DELAY_MS));
+      return mocked.data;
+    }
+  }
 
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (auth) {

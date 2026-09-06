@@ -1,7 +1,7 @@
 # 마일스톤
 
 > 공모전 제출 마감: 2026년 9월 20일
-> 최근 수정: 2026-08-30 · 설만수 (온보딩/admin 스펙 정리, 카카오·구글 OAuth 클라이언트 전환 완료 상태 문서 반영)
+> 최근 수정: 2026-09-04 · 설만수 (실기기 테스트 전 로직 검토 — 버그 7건 발견·전부 수정, `client`/`server`가 `dev`보다 다시 앞섬)
 
 ---
 
@@ -153,12 +153,12 @@
 **데이터 (이수연)**
 1. [x] ~~`analyze_place_emotion.py` 전체 배치 실행~~ → **아키텍처 전환으로 폐기** (2026-08-21) — 김지광이 `place_semantic_vector`(사진 3장·검증된 프롬프트 `semantic-image-v4.1` 기반 raw score)로 182곳 전체를 이미 분석·적재 완료 (`feat/semantic-vector`→`ai` PR #20). 우리가 만든 threshold(0.5) 기반 시드값(167곳, 270개 태그)은 삭제 완료, `place_emotion_tag` 테이블/백엔드 서비스 로직 자체는 유지 (방문 로그 누적용으로 별도 역할, decision-log 2026-08-21 참고)
 2. [x] ~~결과 검증~~ → 위 전환으로 대상 자체가 바뀜, `place_semantic_vector` 결과 검증은 김지광 담당(PR #20에 이미 SUN 데이터셋 벤치마크·안동 파일럿 검증 포함됨)
-3. [ ] `onboarding_card` 시드 데이터 스크립트 신규 작성 — 이제 `place_semantic_vector`(장소 단위 raw score)를 참고할지, 이미지별 개별 점수가 별도로 필요한지(온보딩 카드는 "사진 한 장 단위" 대표성이 필요함, ssot.md 카드 선택 전략 참고) 확인 필요. PLACE_IMAGE 후보 조회 → AI 점수 → 태그별 대표 사진 선정. 스키마 제약(태그별 최소 4장, `is_seed=true` 7장) 충족 방법도 확인 필요
+3. [ ] `onboarding_card` 시드 데이터 스크립트 신규 작성 — 이제 `place_semantic_vector`(장소 단위 raw score)를 참고할지, 이미지별 개별 점수가 별도로 필요한지(온보딩 카드는 "사진 한 장 단위" 대표성이 필요함, ssot.md 카드 선택 전략 참고) 확인 필요. PLACE_IMAGE 후보 조회 → AI 점수 → 태그별 대표 사진 선정. 스키마 제약(태그별 최소 4장, `is_seed=true` 7장) 충족 방법도 확인 필요. **2026-08-31 실제 Supabase 확인 — 우선순위 상향 필요**: 현재 11건뿐(시드 7 + 일반 4). 태그별 커버리지 relaxing 4·lively 2·romantic 1·local 3·photogenic 6·traditional 3·modern 2 — 7개 중 5개가 "최소 4장" 기준 미달(romantic은 1장뿐). 시드 7장 소진 후 보여줄 카드가 4장밖에 없어 스펙상 "균형 60%+탐색 30%+랜덤 10%"로 최대 25장까지 진행하는 알고리즘이 사실상 작동 불가 — 데모 전 반드시 채워야 함 (decision-log 2026-08-31 참고)
 4. [x] `fetch_unanalyzed_places` 로직 개선 완료 (2026-08-10) — `main_image_url` 없어도 `place_image` 후보가 있으면 폴백해서 분석 대상에 포함 (부용대 반영 확인). *(단, 이 함수 자체가 있던 `analyze_place_emotion.py`는 위 1번으로 폐기됨 — 로직은 남아있으나 더 이상 호출되지 않음)*
 5. [x] **`place_image` 정리 완료** (2026-08-06~10) — 사진 전무 18건 중 15건 Google Places로 보완(`place_photo_enrichment.py`), 나머지 3건(안동한우갈비/위생찜닭/안동시 월령빠지)은 구글에도 없어 **DB에서 삭제** (2026-08-10, decision-log 참고) — 전체 장소 190건 → 187건, 사진 보유율 100%. **당초 계획했던 "3장으로 트림"은 하지 않기로 함** — `place_image`는 다다익선으로 그대로 두고, 온보딩 카드용 대표 선정은 스프린트3 3번 항목에서 별도 처리. 식당/카페 대표이미지(`main_image_url`)는 32곳 전수 검토해 음식 사진 대신 내부/외부 사진으로 통일 (decision-log 2026-08-08 참고)
 6. [x] **영업시간 `place_hours` 테이블 신설 및 적재 완료** (2026-08-10~24) — Google Places `opening_hours`(70건) + TourAPI 텍스트 자동 파싱(상시개방 38건, 단순 단일시간대 23건) 합쳐 182건 중 **131건(72%)** 확보. "매일 24시간 운영" 특수 케이스를 잘못 파싱하던 버그 수정 완료 (2026-08-24, decision-log 참고). 브레이크타임은 소스에 데이터가 없어 미반영. 남은 51건은 요일/계절별 복잡한 텍스트(33건)거나 데이터 자체가 없음(18건). **코스 추천 알고리즘(`ai/course_optimizer/place_hours_client.py`) 연동 확인 완료** (2026-08-28) — 요일 매핑(`python_weekday_to_place_day`)이 `place_hours.open_day` 컨벤션과 정확히 일치, `close_time=NULL`(상시개방)·요일 행 없음(휴무) 케이스 모두 정확히 해석. `place_hours` 없는 51건은 카테고리별 fallback 운영시간으로 처리되어 안전하게 동작
 7. [x] **종료된 축제 5건 + 사진 없는 장소 3건 DB 삭제** (2026-08-10) — 축제: 경북 K-스토리 페스티벌, 동아시아문화도시 안동, 안동 수(水)페스타, 안동벚꽃축제, 차전장군 노국공주축제(남은 3건은 진행중/예정이라 유지). 장소: 안동한우갈비/위생찜닭/안동시 월령빠지(구글에도 사진 없어 삭제). 연결된 사용자 데이터 없음 확인 후 삭제. 전체 장소 190→182건
-8. [ ] **`place_semantic_vector` vs `place_emotion_tag` 역할 정리 필요** (2026-08-21) — 코스 추천/장소 상세 등에서 이 두 신호를 어떻게 함께 쓸지 알고리즘 설계 영역이라 김지광/설만수 확인 대기 (decision-log 참고)
+8. [~] **`place_semantic_vector` vs 방문 로그 누적 감성 태그 역할 정리** (2026-08-21) — `place_emotion_tag` 테이블 자체는 2026-09-02에 제거됨(log_emotion_tag를 조회 시점에 직접 집계하는 방식으로 전환, decision-log 참고), 저장 방식 문제는 해소됐지만 "코스 추천 등에서 두 신호를 어떻게 함께 쓸지"는 여전히 알고리즘 설계 영역이라 김지광/설만수 확인 대기
 
 **알고리즘 (김지광)**
 - [x] AI 모델 확정 — OpenAI GPT Vision(`gpt-4.1-mini`) 기반, `ai/semantic_vector`로 구현 완료 (2026-08-02 데이터 파트에서 실제 연동·검증함, decision-log 참고)
@@ -192,8 +192,12 @@
   - `/admin/sync/places` — **2026-08-30 재검토 후 보류로 결정, 스펙엔 유지**. 데이터 적재 방식(2026-06-29 결정)과는 성격이 다른 "관리자 수동 재동기화 트리거"라 제거하지 않기로 함. 실제 구현 필요 여부는 데이터 파트(이수연)의 재동기화 운영 계획에 달려있어 확인 필요 (decision-log 참고)
 
 **프론트 (설만수)**
-- [ ] 온보딩 API `dev` 머지되는 대로 온보딩 스와이프 화면 구현 착수
-- [ ] 디자인 시안 나오는 대로 탐색/코스 화면 작업 시작 (계속 이월)
+- [x] 온보딩 API `dev` 머지되는 대로 온보딩 스와이프 화면 구현 착수 — `client` 브랜치에서 로그인/온보딩/홈/장소상세·목록/코스만들기 플로우까지 디자인 반영 완료. **`client` → `dev` 통합 완료** (2026-09-03, decision-log 참고)
+- [x] 스크랩북(내 코스+찜한 장소 통합) 화면 디자인 반영 (2026-09-03, decision-log 참고) — `MyCoursesScreen`/`LikesScreen`을 `ScrapbookScreen`으로 통합, `feat/my-courses-screen` → `client` 병합 완료
+- [x] `CourseDetailScreen`/`CourseEditScreen` 자체 디자인 반영 (2026-09-03, decision-log 참고) — 전용 시안 없어서 `CourseResultScreen`/`CourseManualBuilderScreen` 언어 재사용, `feat/course-detail-edit-screen` → `client` 병합 완료
+- [x] 유사 사용자 탐색 피드(Figma `316:4122`/`507:10963`) 반영 (2026-09-03, decision-log 참고) — 카드에 작성자 정보가 필요해서 백엔드 `SimilarLogItemResponse`에 `nickname`/`profile_image_url` 추가(`feat/explore-nickname` → `server`), 프론트는 `feat/explore-feed` → `client` 병합 완료. **부수 발견**: 이 작업 중 실제 Supabase `log_emotion_tag`에 문서/엔티티에 없던 `score` 컬럼(NOT NULL)이 이미 있던 걸 발견해서 같이 수정함 — 데이터/AI 파트가 왜 라이브 DB에 직접 추가했는지 원인 확인 필요 (decision-log 참고)
+- [~] 좌측 드로어 — 전용 시안은 여전히 없음(Figma 79개 프레임 전수 확인해도 없음). 슬라이드 애니메이션/아바타/섹션 구분 등 UX 기본기는 개선 완료(2026-09-03, decision-log 참고), 항목 배치는 계속 임시
+- [x] 게스트 모드(비로그인 이용) 실제 구현 (2026-09-03, decision-log 참고) — `App.tsx`/`HomeScreen.tsx`/`LoginScreen.tsx`, 인증 필요 기능은 진입 차단 후 로그인 유도. **남은 것**: 로그인 화면의 게스트 진입이 버튼이 아니라 텍스트 링크뿐이라 디자인팀(전성빈) 확인 필요, `PlaceDetailScreen` 찜 버튼은 아직 사전 차단 없이 실패 얼럿으로만 처리
 
 **디자인 (전성빈)**
 - [ ] 주요 화면(온보딩 스와이프, 장소 탐색, 코스 추천) 시안 계속 진행

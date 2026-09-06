@@ -1,12 +1,14 @@
 import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { PlaceListItem } from '../api/place';
+import { colors } from '../theme/colors';
+import { fonts } from '../theme/fonts';
 
 interface Props {
   place: PlaceListItem;
   onPress: () => void;
 }
 
-// 장소 목록/찜 목록 등에서 공통으로 쓰는 한 줄 카드. 디자인 시안 전이라 최소한의 정보만 표시
+// 장소 목록/찜 목록 등에서 공통으로 쓰는 한 줄 카드
 export function PlaceListItemRow({ place, onPress }: Props) {
   return (
     <TouchableOpacity style={styles.row} onPress={onPress}>
@@ -29,12 +31,12 @@ export function PlaceListItemRow({ place, onPress }: Props) {
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#eee' },
-  thumbnail: { width: 56, height: 56, borderRadius: 8, marginRight: 12 },
-  thumbnailPlaceholder: { backgroundColor: '#eee' },
+  row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.divider },
+  thumbnail: { width: 64, height: 64, borderRadius: 12, marginRight: 12 },
+  thumbnailPlaceholder: { backgroundColor: colors.border },
   info: { flex: 1 },
-  name: { fontSize: 15, fontWeight: '600' },
-  meta: { fontSize: 12, color: '#999', marginTop: 2 },
-  tags: { fontSize: 12, color: '#ff5a5f', marginTop: 2 },
-  likedMark: { fontSize: 16, color: '#ff5a5f', marginLeft: 8 },
+  name: { fontFamily: fonts.medium, fontSize: 15, letterSpacing: -0.4, color: colors.black },
+  meta: { fontFamily: fonts.regular, fontSize: 12, color: colors.gray500, marginTop: 2 },
+  tags: { fontFamily: fonts.regular, fontSize: 12, color: colors.gray500, marginTop: 2 },
+  likedMark: { fontSize: 16, color: colors.black, marginLeft: 8 },
 });

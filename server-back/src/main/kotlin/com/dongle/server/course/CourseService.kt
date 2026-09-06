@@ -36,6 +36,7 @@ import org.springframework.data.domain.PageRequest
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import tools.jackson.databind.ObjectMapper
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.util.UUID
@@ -82,11 +83,24 @@ class CourseService(
 
     @Transactional
     fun saveManual(userId: Long, request: CourseManualRequest): CourseSaveResponse {
+        if (request.endDate != null && request.travelDate != null && request.endDate < request.travelDate) {
+            throw InvalidCourseDateRangeException()
+        }
+        // 여러 날 코스 지원(2026-09-06 결정, decision-log 참고) — 장소별 visitDate가 있으면
+        // travelDate~endDate(하루짜리면 travelDate 하루) 범위 안인지 검증
+        if (request.travelDate != null) {
+            val rangeEnd = request.endDate ?: request.travelDate
+            request.places.forEach { p ->
+                val visitDate = p.visitDate?.let { LocalDate.parse(it) } ?: return@forEach
+                if (visitDate < request.travelDate || visitDate > rangeEnd) throw InvalidCourseDateRangeException()
+            }
+        }
         val course = Course(
             user = userRepository.getReferenceById(userId),
             title = request.title,
             source = CourseSource.user,
             travelDate = request.travelDate,
+            endDate = request.endDate,
             transport = request.transport,
         )
         applyPlaces(course, request.places)
@@ -164,6 +178,7 @@ class CourseService(
                     place = place,
                     visitOrder = requireNotNull(item.visitOrder),
                     plannedTime = item.plannedTime?.let { LocalTime.parse(it) },
+                    visitDate = item.visitDate?.let { LocalDate.parse(it) },
                 )
             )
         }
@@ -248,6 +263,7 @@ class CourseService(
                 mainImageUrl = place?.mainImageUrl,
                 distanceFromPrevKm = leg?.distanceMeters?.let { it / 1000.0 },
                 durationFromPrevMin = leg?.durationSeconds?.let { Math.round(it / 60.0).toInt() },
+                visitDate = null, // AI 코스 생성은 계속 단일 날짜 전제(날짜별 구분 없음)
             )
         }
         return CourseCandidateResponse(
@@ -286,20 +302,29 @@ class CourseService(
     }
 }
 
-private fun Course.toListItemResponse() = CourseListItemResponse(
-    id = id,
-    title = title,
-    travelDate = travelDate,
-    source = source.name,
-    placeCount = places.size,
-    thumbnailUrl = places.minByOrNull { it.visitOrder }?.place?.mainImageUrl,
-    createdAt = createdAt,
-)
+private fun Course.toListItemResponse(): CourseListItemResponse {
+    val sortedByVisitOrder = places.sortedBy { it.visitOrder }
+    return CourseListItemResponse(
+        id = id,
+        title = title,
+        travelDate = travelDate,
+        endDate = endDate,
+        source = source.name,
+        placeCount = places.size,
+        thumbnailUrl = sortedByVisitOrder.firstOrNull()?.place?.mainImageUrl,
+        placeThumbnails = sortedByVisitOrder.take(SCRAPBOOK_THUMBNAIL_LIMIT).mapNotNull { it.place.mainImageUrl },
+        createdAt = createdAt,
+    )
+}
+
+// Figma "코스 저장" 카드의 썸네일 스트립 장수(3장 + "N+" 배지, 2026-09-05 추가)
+private const val SCRAPBOOK_THUMBNAIL_LIMIT = 3
 
 private fun Course.toDetailResponse(sortedPlaces: List<CoursePlace>, route: RouteResult?) = CourseDetailResponse(
     id = id,
     title = title,
     travelDate = travelDate,
+    endDate = endDate,
     source = source.name,
     places = sortedPlaces.mapIndexed { index, cp ->
         val leg = if (index == 0) null else route?.legs?.getOrNull(index - 1)
@@ -313,6 +338,7 @@ private fun Course.toDetailResponse(sortedPlaces: List<CoursePlace>, route: Rout
             mainImageUrl = cp.place.mainImageUrl,
             distanceFromPrevKm = leg?.distanceMeters?.let { it / 1000.0 },
             durationFromPrevMin = leg?.durationSeconds?.let { Math.round(it / 60.0).toInt() },
+            visitDate = cp.visitDate?.toString(),
         )
     },
     totalDistanceKm = route?.totalDistanceMeters?.let { it / 1000.0 },

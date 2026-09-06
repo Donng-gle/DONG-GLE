@@ -74,7 +74,7 @@ Table place_semantic_vector {
   qdrant_point_id          text        [not null, note: 'Qdrant place_semantic_vectors 컬렉션의 벡터 검색용 point id']
   analyzed_at              timestamptz [not null, default: `now()`]
 
-  Note: '장소별 VLM(GPT Vision) semantic 분석 raw score. 장소당 최신 분석 결과 1행만 유지. place_image_semantic_vector(이미지별 원본)를 평균 낸 장소 단위 집계값 — 백엔드/코스추천/Qdrant는 이 집계 테이블만 읽음. place_emotion_tag(방문 로그 누적)와는 별개 신호. 데이터 파트 배치 스크립트(data/pipeline/semantic_vector_sync.py)로만 적재됨, 백엔드는 읽기 전용'
+  Note: '장소별 VLM(GPT Vision) semantic 분석 raw score. 장소당 최신 분석 결과 1행만 유지. place_image_semantic_vector(이미지별 원본)를 평균 낸 장소 단위 집계값 — 백엔드/코스추천/Qdrant는 이 집계 테이블만 읽음. log_emotion_tag(방문 로그 누적, 조회 시점에 직접 집계)와는 별개 신호. 데이터 파트 배치 스크립트(data/pipeline/semantic_vector_sync.py)로만 적재됨, 백엔드는 읽기 전용'
 }
 
 Table place_image_semantic_vector {
@@ -95,18 +95,8 @@ Table place_image_semantic_vector {
   }
 }
 
-Table place_emotion_tag {
-  id       bigint      [pk, increment]
-  place_id bigint      [not null, ref: > place.id]
-  tag      varchar(50) [not null]
-  count    int         [not null, default: 1, note: '1 이상, 상위 태그 선정에 사용']
-
-  Note: '방문 로그 누적 전용 (장소 공식 사진 기반 정적 분석은 place_semantic_vector 참고). 초기 시드값 없음 — 실제 방문 기록이 쌓이며 채워짐'
-
-  indexes {
-    (place_id, tag) [unique]
-  }
-}
+// place_emotion_tag 테이블은 2026-09-02 제거됨 — 장소별 방문 로그 누적 감성 태그는 이제 저장된
+// 카운터 없이 log_emotion_tag를 조회 시점에 직접 집계함 (decision-log 참고)
 
 Table user {
   id                bigint       [pk, increment]
@@ -162,10 +152,21 @@ Table visit_log {
   id         bigint       [pk, increment]
   user_id    bigint       [not null, ref: > user.id]
   place_id   bigint       [not null, ref: > place.id]
-  photo_url  text
+  title      varchar(50)  [note: '기록 제목. 2026-09-05 추가(메인 페이지-나의 일지-기록하기), decision-log 참고']
   one_line   varchar(100)
+  weather    varchar(20)  [note: '자유 입력 텍스트(선택지 코드 없음). 2026-09-05 추가, decision-log 참고']
+  rating     smallint     [note: '별점(1~5), 선택 입력. 2026-09-05 추가, decision-log 참고']
   is_public  boolean      [not null, default: true, note: '유사 사용자 탐색(GET /explore/similar-logs)에서 공개 기록만 노출']
   visited_at timestamp    [not null, default: `now()`]
+}
+
+// 방문 기록 사진 (여러 장). 이전엔 visit_log.photo_url 단일 컬럼이었음(사진 1장만 가능).
+// place_image와 동일한 패턴(부모 테이블 + sort_order)으로 확장 (2026-09-06 결정, decision-log 참고)
+Table visit_log_photo {
+  id           bigint [pk, increment]
+  visit_log_id bigint [not null, ref: > visit_log.id]
+  photo_url    text   [not null]
+  sort_order   int    [not null, default: 0, note: '0 이상']
 }
 
 // 온보딩 카드 (AI 파트가 사전 분석하여 적재. 온보딩 런타임에 AI 호출 없음)
@@ -208,9 +209,12 @@ Table onboarding_swipe_log {
 }
 
 Table log_emotion_tag {
-  id           bigint      [pk, increment]
-  visit_log_id bigint      [not null, ref: > visit_log.id]
-  tag          varchar(50) [not null]
+  id           bigint           [pk, increment]
+  visit_log_id bigint           [not null, ref: > visit_log.id]
+  tag          varchar(50)      [not null]
+  score        double precision [not null, note: 'AI 확신도(0.0~1.0). 실제 Supabase엔 이미 있었는데 문서 반영이 안 돼 있던 걸 뒤늦게 맞춤(2026-09-03)']
+
+  Note: '방문 기록 사진 AI 분석으로 자동 부여. 장소의 상위 태그(place.top_tags)는 이 테이블을 SUM(score) 기준으로 조회 시점에 직접 집계해서 계산함(별도 카운터 테이블 없음, 2026-09-02 결정 / score 가중치는 2026-09-03 추가)'
 
   indexes {
     (visit_log_id, tag) [unique]
@@ -223,6 +227,7 @@ Table course {
   title       varchar(200) [not null]
   source      varchar(20)  [not null, note: "CHECK: 'ai' | 'ai_edited' | 'user'"]
   travel_date date
+  end_date    date         [note: '여러 날 범위 지원. "직접 코스 만들기"에서만 입력받음(2026-09-06 결정, decision-log 참고)']
   transport   varchar(10)  [note: "CHECK: 'car' | 'walk' | 'public', 구글맵 경로 재계산용. nullable(과거 데이터/미입력 허용)"]
   created_at  timestamp    [not null, default: `now()`]
   updated_at  timestamp    [not null, default: `now()`, note: 'UPDATE 시 자동 갱신']
@@ -232,8 +237,9 @@ Table course_place {
   id           bigint [pk, increment]
   course_id    bigint [not null, ref: > course.id]
   place_id     bigint [not null, ref: > place.id]
-  visit_order  int    [not null, note: '1 이상']
+  visit_order  int    [not null, note: '1 이상, 코스 전체를 통틀은 전역 순서']
   planned_time time
+  visit_date   date   [note: '며칠째 방문지인지, 여러 날 코스 지원(2026-09-06). 직접 코스 만들기만 채움']
 
   indexes {
     (course_id, visit_order) [unique]

@@ -90,7 +90,6 @@
 |---|---|
 | PLACE | 장소 기본 정보 |
 | PLACE_IMAGE | 장소 추가 이미지 |
-| PLACE_EMOTION_TAG | 장소별 감성태그 집계 |
 | USER | 사용자 (카카오/구글 OAuth) |
 | USER_PREFERENCE | 온보딩 스와이프 취향 점수 |
 | ONBOARDING_CARD | 온보딩용 이미지 카드 및 태그 벡터 (AI 사전 분석) |

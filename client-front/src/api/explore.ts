@@ -8,7 +8,12 @@ export interface SimilarLogItem {
   lng: number | null;
   photo_url: string | null;
   one_line: string | null;
+  rating: number | null; // 1~5, 선택 입력이라 없을 수 있음 (2026-09-05 추가, decision-log 참고)
   tags: string[];
+  // 2026-09-03 추가 (decision-log 참고) — Figma "취향 비슷 사용자 프로필"(507:10963) 카드의
+  // 작성자 이름+아바타에 대응
+  nickname: string;
+  profile_image_url: string | null;
 }
 
 export interface SimilarLogsResponse {

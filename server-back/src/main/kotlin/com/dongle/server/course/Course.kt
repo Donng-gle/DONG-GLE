@@ -40,6 +40,12 @@ class Course(
     @Column(name = "travel_date")
     var travelDate: LocalDate? = null,
 
+    // 여러 날 범위 지원(2026-09-06 결정, decision-log 참고) — "직접 코스 만들기"에서만 입력받음
+    // (AI 코스 생성은 course_optimizer가 단일 날짜 전제라 계속 미사용). 장소 목록 자체는 날짜별로
+    // 안 나뉘고 계속 하나의 순서 리스트(CoursePlace.visitOrder)임 — 범위는 표시/저장 용도만
+    @Column(name = "end_date")
+    var endDate: LocalDate? = null,
+
     // 구글맵 경로 재계산(GoogleRoutesClient)에 쓰는 이동수단. 과거 데이터/미입력 허용(nullable)
     @Enumerated(EnumType.STRING)
     @Column(nullable = true)

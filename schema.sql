@@ -64,7 +64,8 @@ CREATE INDEX idx_place_hours_place ON place_hours (place_id);
 -- 장소별 VLM(GPT Vision) semantic 분석 raw score (장소 공식 사진 기반, 정적 기준선)
 -- 장소당 최신 분석 결과 1행만 유지. model_name/prompt_version/tag_schema_version이 바뀌면 재분석 대상.
 -- 아래 place_image_semantic_vector(이미지별 원본 점수)를 평균 낸 장소 단위 집계값 — 백엔드/코스추천/Qdrant는 이 집계 테이블만 읽음
--- place_emotion_tag(아래, 방문 로그 누적)와는 별개 신호 — 하나가 다른 하나를 대체하지 않음 (decision-log 2026-08-21 참고)
+-- log_emotion_tag(방문 로그 누적, 조회 시점에 직접 집계함 — 2026-09-02 결정)와는 별개 신호,
+-- 하나가 다른 하나를 대체하지 않음 (decision-log 2026-08-21 참고)
 -- 데이터 파트 배치 스크립트(data/pipeline/semantic_vector_sync.py)로만 적재됨, 백엔드는 읽기 전용
 CREATE TABLE place_semantic_vector (
     place_id                 BIGINT      PRIMARY KEY REFERENCES place (id) ON DELETE CASCADE,
@@ -105,18 +106,10 @@ CREATE TABLE place_image_semantic_vector (
 CREATE INDEX idx_place_image_semantic_vector_place ON place_image_semantic_vector (place_id);
 
 
--- 감성 태그 (방문 로그 누적 전용. 장소 공식 사진 기반 정적 분석은 위 place_semantic_vector 참고)
--- 사용자가 방문 기록에 사진을 올려 AI가 분석하면 여기 count가 늘고, 기록을 지우면 줄어드는 실시간 집계 테이블.
--- 초기 시드값은 없음 — 실제 방문 기록이 쌓이며 채워지는 게 정상 (decision-log 2026-08-21 참고)
-CREATE TABLE place_emotion_tag (
-    id       BIGSERIAL PRIMARY KEY,
-    place_id BIGINT      NOT NULL REFERENCES place (id) ON DELETE CASCADE,
-    tag      VARCHAR(50) NOT NULL,
-    count    INT         NOT NULL DEFAULT 1 CHECK (count >= 1),  -- 해당 태그가 이 장소에 붙은 횟수, 상위 태그 선정에 사용
-    UNIQUE (place_id, tag)
-);
-
-CREATE INDEX idx_place_emotion_tag_place ON place_emotion_tag (place_id);
+-- (place_emotion_tag 테이블은 2026-09-02 제거됨 — 장소별 방문 로그 누적 감성 태그는 이제 저장된
+-- 카운터 없이 log_emotion_tag를 조회 시점에 직접 집계함. AI가 log_emotion_tag에 직접 배치로
+-- 적재하기 시작하면서 별도 카운터(count)를 누가 갱신할지 애매해졌던 문제를 이 방식으로 없앰.
+-- LogEmotionTagRepository.countTagsByPlaceId, decision-log 2026-09-02 참고)
 
 
 -- 사용자
@@ -178,8 +171,10 @@ CREATE TABLE visit_log (
     id         BIGSERIAL    PRIMARY KEY,
     user_id    BIGINT       NOT NULL REFERENCES "user" (id) ON DELETE CASCADE,
     place_id   BIGINT       NOT NULL REFERENCES place (id) ON DELETE CASCADE,
-    photo_url  TEXT,
+    title      VARCHAR(50),   -- 기록 제목. 2026-09-05 추가(메인 페이지-나의 일지-기록하기), decision-log 참고
     one_line   VARCHAR(100),
+    weather    VARCHAR(20),   -- 자유 입력 텍스트(선택지 코드 없음). 2026-09-05 추가, decision-log 참고
+    rating     SMALLINT     CHECK (rating BETWEEN 1 AND 5),  -- 별점(1~5), 선택 입력. 2026-09-05 추가, decision-log 참고
     is_public  BOOLEAN      NOT NULL DEFAULT TRUE,  -- 유사 사용자 탐색(GET /explore/similar-logs)에서 공개 기록만 노출
     visited_at TIMESTAMP    NOT NULL DEFAULT NOW()
 );
@@ -189,11 +184,26 @@ CREATE INDEX idx_visit_log_place   ON visit_log (place_id);
 CREATE INDEX idx_visit_log_visited ON visit_log (visited_at);
 
 
+-- 방문 기록 사진 (여러 장). 이전엔 visit_log.photo_url 단일 컬럼이었는데(사진 1장만 가능),
+-- place_image와 동일한 패턴(부모 테이블 + sort_order)으로 확장 (2026-09-06 결정, decision-log 참고)
+CREATE TABLE visit_log_photo (
+    id           BIGSERIAL PRIMARY KEY,
+    visit_log_id BIGINT    NOT NULL REFERENCES visit_log (id) ON DELETE CASCADE,
+    photo_url    TEXT      NOT NULL,
+    sort_order   INT       NOT NULL DEFAULT 0 CHECK (sort_order >= 0)
+);
+
+CREATE INDEX idx_visit_log_photo_log ON visit_log_photo (visit_log_id);
+
+
 -- 로그 감성 태그 (AI 분석)
+-- score: AI가 이 태그를 얼마나 확신했는지(0.0~1.0). 실제 Supabase엔 이미 있었는데 이 문서/백엔드
+-- 엔티티에 반영이 안 돼 있던 걸 뒤늦게 맞춤 (2026-09-03 발견, decision-log 참고)
 CREATE TABLE log_emotion_tag (
-    id           BIGSERIAL   PRIMARY KEY,
-    visit_log_id BIGINT      NOT NULL REFERENCES visit_log (id) ON DELETE CASCADE,
-    tag          VARCHAR(50) NOT NULL,
+    id           BIGSERIAL        PRIMARY KEY,
+    visit_log_id BIGINT           NOT NULL REFERENCES visit_log (id) ON DELETE CASCADE,
+    tag          VARCHAR(50)      NOT NULL,
+    score        DOUBLE PRECISION NOT NULL,
     UNIQUE (visit_log_id, tag)
 );
 
@@ -208,6 +218,7 @@ CREATE TABLE course (
     title       VARCHAR(200) NOT NULL,
     source      VARCHAR(20)  NOT NULL CHECK (source IN ('ai', 'ai_edited', 'user')),
     travel_date DATE,
+    end_date    DATE,  -- 여러 날 범위 지원. "직접 코스 만들기"에서만 입력받음(2026-09-06 결정, decision-log 참고)
     transport   VARCHAR(10)  CHECK (transport IN ('car', 'walk', 'public')),  -- 구글맵 경로 재계산용, nullable(과거 데이터/미입력 허용)
     created_at  TIMESTAMP    NOT NULL DEFAULT NOW(),
     updated_at  TIMESTAMP    NOT NULL DEFAULT NOW()
@@ -221,8 +232,9 @@ CREATE TABLE course_place (
     id           BIGSERIAL PRIMARY KEY,
     course_id    BIGINT    NOT NULL REFERENCES course (id) ON DELETE CASCADE,
     place_id     BIGINT    NOT NULL REFERENCES place (id) ON DELETE CASCADE,
-    visit_order  INT       NOT NULL CHECK (visit_order >= 1),
+    visit_order  INT       NOT NULL CHECK (visit_order >= 1),  -- 코스 전체를 통틀은 전역 순서(날짜 안 나뉨)
     planned_time TIME,
+    visit_date   DATE,  -- 며칠째 방문지인지(여러 날 코스 지원, 2026-09-06 결정, decision-log 참고). "직접 코스 만들기"에서만 채워짐, null이면 날짜 구분 없음
     UNIQUE (course_id, visit_order)
 );
 

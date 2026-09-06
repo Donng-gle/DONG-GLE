@@ -14,6 +14,9 @@ export interface CoursePlaceItem {
   // 구글맵 Directions 계산 실패 시(좌표 없는 장소 포함 등) null로 폴백됨
   distance_from_prev_km: number | null;
   duration_from_prev_min: number | null;
+  // 여러 날 코스 지원(2026-09-06 결정, decision-log 참고) — 이 장소가 코스의 며칠째 방문지인지.
+  // "직접 코스 만들기"에서만 채워짐, AI 코스는 항상 null(단일 날짜 전제)
+  visit_date: string | null;
 }
 
 export interface CourseGenerateRequest {
@@ -40,6 +43,9 @@ export interface CoursePlaceRequest {
   place_id: number;
   visit_order: number;
   planned_time?: string | null;
+  // 여러 날 코스 지원(2026-09-06 결정, decision-log 참고) — 이 장소가 코스의 며칠째 방문지인지.
+  // travel_date~end_date 범위를 벗어나면 서버가 400(INVALID_COURSE_DATE_RANGE)
+  visit_date?: string | null;
 }
 
 export interface CourseSaveRequest {
@@ -54,6 +60,9 @@ export interface CourseSaveRequest {
 export interface CourseManualRequest {
   title: string;
   travel_date?: string | null;
+  // 여러 날 범위 지원(2026-09-06 결정, decision-log 참고) — "직접 코스 만들기"에서만 사용.
+  // travel_date보다 이전이면 서버가 400(INVALID_COURSE_DATE_RANGE)
+  end_date?: string | null;
   transport?: SwipeTransport | null;
   places: CoursePlaceRequest[];
 }
@@ -72,6 +81,7 @@ export interface CourseDetail {
   id: number;
   title: string;
   travel_date: string | null;
+  end_date: string | null; // 여러 날 범위 지원(2026-09-06 결정, decision-log 참고). 직접 코스에서만 채워짐
   source: string;
   places: CoursePlaceItem[];
   total_distance_km: number | null;
@@ -84,9 +94,13 @@ export interface CourseListItem {
   id: number;
   title: string;
   travel_date: string | null;
+  end_date: string | null; // 여러 날 범위 지원(2026-09-06 결정, decision-log 참고). 직접 코스에서만 채워짐
   source: string;
   place_count: number;
   thumbnail_url: string | null;
+  // 스크랩북 카드의 썸네일 스트립용 — 방문 순서 기준 최대 3장. place_count가 이 배열 길이보다
+  // 크면 그 차이를 "N+" 배지로 표시 (2026-09-05 추가, decision-log 참고)
+  place_thumbnails: string[];
   created_at: string;
 }
 

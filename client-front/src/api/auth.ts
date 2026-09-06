@@ -8,6 +8,9 @@ export interface OAuthLoginResponse {
 
 export interface RefreshResponse {
   access_token: string;
+  // 리프레시 토큰 회전(2026-09-04 도입) — 실제 갱신 흐름은 api/client.ts가 자체 구현하므로
+  // (순환 의존 회피, 아래 참고) 이 함수 자체는 현재 호출되는 곳이 없음
+  refresh_token: string;
 }
 
 export interface UserProfile {

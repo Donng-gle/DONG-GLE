@@ -65,7 +65,12 @@ private fun VisitLog.toSimilarLogItemResponse() = SimilarLogItemResponse(
     placeName = place.name,
     lat = place.lat,
     lng = place.lng,
-    photoUrl = photoUrl,
+    // SimilarLogItem은 여러 장 사진 확장 범위 밖(2026-09-06 결정, decision-log 참고) — 대표
+    // 사진 1장만 계속 노출(VisitLog.mainPhotoUrl = photos 중 sort_order 가장 앞 URL)
+    photoUrl = mainPhotoUrl,
     oneLine = oneLine,
+    rating = rating,
     tags = emotionTags.map { it.tag },
+    nickname = user.nickname,
+    profileImageUrl = user.profileImageUrl,
 )

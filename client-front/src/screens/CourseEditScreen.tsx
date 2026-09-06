@@ -1,8 +1,12 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Button, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CourseDetail, CourseUpdateRequest, courseApi } from '../api/course';
 import { PlaceListItem } from '../api/place';
 import { CourseBuilderPlaceList } from '../components/CourseBuilderPlaceList';
+import { colors } from '../theme/colors';
+import { fonts } from '../theme/fonts';
 import { PlaceListScreen } from './PlaceListScreen';
 
 interface Props {
@@ -18,7 +22,12 @@ interface EditablePlace {
   name: string;
 }
 
+// 이 화면도 CourseDetailScreen과 마찬가지로 전용 Figma 시안이 없어서(437:4426 배제, decision-log
+// 2026-09-03 참고) 같은 "장소 순서 편집" 작업인 CourseManualBuilderScreen(Figma 반영 완료분)의
+// 헤더/입력창/버튼 스타일을 그대로 따름. CourseUpdateRequest에 여행 날짜/이동수단 필드가 없어서
+// (제목·장소만 수정 가능) CourseManualBuilderScreen에 있는 날짜·이동수단 선택 UI는 넣지 않음
 export function CourseEditScreen({ courseId, onSaved, onExit }: Props) {
+  const insets = useSafeAreaInsets();
   const [step, setStep] = useState<Step>('form');
   const [course, setCourse] = useState<CourseDetail | null>(null);
   const [title, setTitle] = useState('');
@@ -103,49 +112,76 @@ export function CourseEditScreen({ courseId, onSaved, onExit }: Props) {
   if (!course) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" />
+        <StatusBar style="dark" />
+        <ActivityIndicator size="large" color={colors.black} />
       </View>
     );
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>코스 수정</Text>
+    <View style={styles.container}>
+      <StatusBar style="dark" />
 
-      <Text style={styles.label}>코스 제목</Text>
-      <TextInput style={styles.input} value={title} onChangeText={setTitle} />
-
-      <View style={styles.placesSection}>
-        <Text style={styles.label}>장소 ({places.length}곳)</Text>
-        <CourseBuilderPlaceList items={places} onMoveUp={moveUp} onMoveDown={moveDown} onRemove={remove} />
-        <Button title="장소 추가" onPress={() => setStep('picking')} />
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+        <TouchableOpacity onPress={onExit} hitSlop={8} style={styles.backButton} disabled={saving}>
+          <Text style={styles.backIcon}>←</Text>
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>코스 수정</Text>
+        <View style={styles.backButton} />
       </View>
 
-      <View style={styles.actions}>
-        <Button title={saving ? '저장 중...' : '저장'} onPress={handleSave} disabled={saving} />
-        <View style={styles.gap} />
-        <Button title="취소" onPress={onExit} disabled={saving} />
+      <ScrollView contentContainerStyle={styles.content}>
+        <Text style={styles.label}>코스 제목</Text>
+        <TextInput
+          style={styles.input}
+          value={title}
+          onChangeText={setTitle}
+          placeholder="안동 하루 코스"
+          placeholderTextColor={colors.gray500}
+        />
+
+        <View style={styles.placesSection}>
+          <Text style={[styles.label, styles.labelSpaced]}>장소 ({places.length}곳)</Text>
+          <CourseBuilderPlaceList items={places} onMoveUp={moveUp} onMoveDown={moveDown} onRemove={remove} />
+          <TouchableOpacity style={styles.addPlaceButton} onPress={() => setStep('picking')}>
+            <Text style={styles.addPlaceButtonText}>장소 추가</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+
+      <View style={[styles.actions, { paddingBottom: Math.max(20, insets.bottom + 16) }]}>
+        <TouchableOpacity style={styles.primaryButton} onPress={handleSave} disabled={saving}>
+          {saving ? <ActivityIndicator color={colors.white} /> : <Text style={styles.primaryButtonText}>저장</Text>}
+        </TouchableOpacity>
       </View>
-    </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
-  content: { padding: 20, paddingTop: 32, paddingBottom: 40 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' },
-  title: { fontSize: 22, fontWeight: '700', marginBottom: 24 },
-  label: { fontSize: 13, color: '#666', marginBottom: 8 },
+  container: { flex: 1, backgroundColor: colors.white },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.white },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingBottom: 8 },
+  backButton: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
+  backIcon: { fontSize: 20, color: colors.black },
+  headerTitle: { fontFamily: fonts.semiBold, fontSize: 17, letterSpacing: -0.4, color: colors.black },
+  content: { paddingHorizontal: 20, paddingBottom: 24 },
+  label: { fontFamily: fonts.medium, fontSize: 14, letterSpacing: -0.35, color: colors.black, marginBottom: 8 },
+  labelSpaced: { marginTop: 24 },
   input: {
-    borderWidth: 1,
-    borderColor: '#ddd',
+    height: 52,
     borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 16,
+    fontFamily: fonts.regular,
     fontSize: 15,
-    marginBottom: 20,
+    color: colors.black,
   },
-  placesSection: { marginBottom: 24 },
-  actions: { marginTop: 8 },
-  gap: { height: 12 },
+  placesSection: { marginBottom: 8 },
+  addPlaceButton: { height: 44, borderRadius: 8, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center', marginTop: 8 },
+  addPlaceButtonText: { fontFamily: fonts.medium, fontSize: 14, color: colors.black },
+  actions: { paddingHorizontal: 20, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.divider },
+  primaryButton: { height: 52, borderRadius: 8, backgroundColor: colors.black, alignItems: 'center', justifyContent: 'center' },
+  primaryButtonText: { fontFamily: fonts.bold, fontSize: 16, letterSpacing: -0.24, color: colors.white },
 });

@@ -80,6 +80,9 @@ export interface PlaceDetail {
   hours: PlaceHours[];
   top_tags: string[];
   visit_log_count: number;
+  // 방문 기록 별점(1~5, 선택 입력)의 평균. 아무도 별점을 안 남겼으면 null
+  // (2026-09-05 추가, decision-log 참고)
+  avg_rating: number | null;
   is_liked: boolean | null; // 비인증 조회 시 null
 }
 

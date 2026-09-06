@@ -57,7 +57,4 @@ class Place(
     @OneToMany(mappedBy = "place", fetch = FetchType.LAZY)
     @OrderBy("sortOrder asc")
     val images: List<PlaceImage> = emptyList(),
-
-    @OneToMany(mappedBy = "place", fetch = FetchType.LAZY)
-    val emotionTags: List<PlaceEmotionTag> = emptyList(),
 )
