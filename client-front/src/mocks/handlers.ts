@@ -48,7 +48,7 @@ function toMapItem(log: MockVisitLog): VisitLogMapItem {
     place_name: place.name,
     lat: place.lat,
     lng: place.lng,
-    photo_url: log.photoUrl,
+    photo_urls: log.photoUrls,
     title: log.title ?? null,
     one_line: log.oneLine,
     weather: log.weather ?? null,
@@ -61,7 +61,7 @@ function toMapItem(log: MockVisitLog): VisitLogMapItem {
 function toSummary(log: MockVisitLog): VisitLogSummary {
   return {
     id: log.id,
-    photo_url: log.photoUrl,
+    photo_urls: log.photoUrls,
     title: log.title ?? null,
     one_line: log.oneLine,
     weather: log.weather ?? null,
@@ -77,7 +77,7 @@ function toDetail(log: MockVisitLog): VisitLogDetail {
     id: log.id,
     place_id: place.id,
     place_name: place.name,
-    photo_url: log.photoUrl,
+    photo_urls: log.photoUrls,
     title: log.title ?? null,
     one_line: log.oneLine,
     weather: log.weather ?? null,
@@ -96,7 +96,9 @@ function toSimilarLogItem(log: MockVisitLog): SimilarLogItem {
     place_name: place.name,
     lat: place.lat,
     lng: place.lng,
-    photo_url: log.photoUrl,
+    // SimilarLogItem은 여러 장 지원 범위 밖(2026-09-06 결정, decision-log 참고) — 대표 사진
+    // 1장만 계속 노출(백엔드 VisitLog.mainPhotoUrl과 동일한 취급)
+    photo_url: log.photoUrls[0] ?? null,
     one_line: log.oneLine,
     rating: log.rating,
     tags: log.tags,
@@ -224,7 +226,7 @@ export function resolveMock<T>(method: string, path: string, body: unknown): Moc
     const place = MOCK_PLACES.find((p) => p.id === placeId);
     if (!place) return NOT_MATCHED;
     const req = (body ?? {}) as {
-      photo_url?: string;
+      photo_urls?: string[];
       title?: string;
       one_line?: string;
       weather?: string;
@@ -236,7 +238,7 @@ export function resolveMock<T>(method: string, path: string, body: unknown): Moc
       placeId,
       mine: true,
       authorId: null,
-      photoUrl: req.photo_url ?? null,
+      photoUrls: req.photo_urls ?? [],
       title: req.title ?? null,
       oneLine: req.one_line ?? null,
       weather: req.weather ?? null,

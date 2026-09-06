@@ -6,6 +6,7 @@ import {
   FlatList,
   Image,
   PanResponder,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -20,6 +21,11 @@ import { fonts } from '../../theme/fonts';
 import { JournalLogCreateModal } from '../JournalLogCreateModal';
 
 const GLOBE_SIZE = Dimensions.get('window').width;
+
+// 카드 사진 캐러셀 한 장의 너비. listContent(paddingHorizontal 20)+card(paddingHorizontal 4)
+// 만큼 화면 폭에서 뺀 값 — PlaceDetailScreen의 HERO_IMAGE_WIDTH와 같은 이유로 하드코딩 대신
+// 실제 렌더 폭을 씀(pagingEnabled가 어긋나면 다음 사진이 붙어 보이는 문제, decision-log 참고)
+const CARD_IMAGE_WIDTH = Dimensions.get('window').width - 48;
 
 // 핸들+타이틀만 보이는 "일부만 노출" 상태의 높이. Figma 시안(506:11115)엔 접힌 상태 프레임이
 // 따로 없어서 값 자체는 임의 — 다만 핸들을 아예 안 보여주면 드래그 가능한 걸 알 기회가 없어서
@@ -187,14 +193,31 @@ export function JournalTab(_props: Props) {
 // DB에 데이터가 없어서 계속 생략(사용자 확인) — 날짜/장소 2개만 하나의 회색 바 안에 표시.
 // 별점(rating)은 시안에 아예 없는 요소라 이 카드에선 제외(장소 상세 등 다른 화면에서 계속 노출).
 function JournalLogCard({ log }: { log: VisitLogMapItem }) {
-  const photos = log.photo_url ? [log.photo_url] : [];
+  const photos = log.photo_urls;
+  const [activePhoto, setActivePhoto] = useState(0);
   return (
     <View style={styles.card}>
-      {photos.length > 0 && <Image source={{ uri: photos[0] }} style={styles.cardImage} resizeMode="cover" />}
       {photos.length > 0 && (
+        <ScrollView
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          scrollEnabled={photos.length > 1}
+          onMomentumScrollEnd={(e) =>
+            setActivePhoto(Math.round(e.nativeEvent.contentOffset.x / CARD_IMAGE_WIDTH))
+          }
+        >
+          {photos.map((url, idx) => (
+            <Image key={idx} source={{ uri: url }} style={styles.cardImage} resizeMode="cover" />
+          ))}
+        </ScrollView>
+      )}
+      {/* 사진 여러 장 지원(2026-09-06, decision-log 참고) — photos 배열 길이만큼 점이 늘어나고
+          현재 스와이프 위치(activePhoto)에 맞는 점만 활성 스타일로 표시 */}
+      {photos.length > 1 && (
         <View style={styles.cardDotsRow}>
           {photos.map((_, i) => (
-            <View key={i} style={[styles.cardDot, i === 0 && styles.cardDotActive]} />
+            <View key={i} style={[styles.cardDot, i === activePhoto && styles.cardDotActive]} />
           ))}
         </View>
       )}
@@ -298,11 +321,12 @@ const styles = StyleSheet.create({
   },
   // Figma 316x236 비율 그대로(aspectRatio) — 이전엔 고정 height:180이라 카드 폭 대비 사진이
   // 납작해 보였음(사용자 피드백 "사진 크기 좀 더 키우고")
-  cardImage: { width: '100%', aspectRatio: 316 / 236, borderRadius: 12 },
-  // 여러 장 스와이프 시 페이지를 나타내는 점 — VisitLog는 현재 사진을 1장만 저장해서
-  // (photo_url 단일 필드) 항상 점 1개(활성 스타일)만 그려짐. 나중에 사진 여러 장 저장이
-  // 되면 photos 배열 길이만큼 자연히 늘어나도록 배열 기반으로 구현(2026-09-05, 사용자가
-  // "슬라이드 표시도 해야한다"고 명시적으로 재요청 — 이전엔 데이터 없다고 생략했었음)
+  // 여러 장 캐러셀(가로 ScrollView) 안에 들어가서 퍼센트 대신 실제 픽셀 폭(CARD_IMAGE_WIDTH)을
+  // 써야 함 — 퍼센트면 가로 스크롤 콘텐츠 크기가 잡히지 않음(2026-09-06, 여러 장 지원 추가)
+  cardImage: { width: CARD_IMAGE_WIDTH, aspectRatio: 316 / 236, borderRadius: 12 },
+  // 여러 장 스와이프 시 페이지를 나타내는 점(2026-09-05 처음 배열 기반으로 구현, 2026-09-06
+  // photo_urls 여러 장 지원으로 실제로 늘어나게 됨, decision-log 참고) — photos.length만큼 점이
+  // 그려지고 현재 스와이프 위치(activePhoto)에 맞는 점만 활성 스타일
   cardDotsRow: {
     flexDirection: 'row',
     justifyContent: 'center',
