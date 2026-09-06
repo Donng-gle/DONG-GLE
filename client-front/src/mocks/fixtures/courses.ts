@@ -36,6 +36,7 @@ export const MOCK_COURSE_LIST: CourseListItem[] = [
     id: 5001,
     title: '전통 안동 하루 코스',
     travel_date: '2026-09-10',
+    end_date: null, // AI 코스는 여러 날 범위 미지원(2026-09-06 결정, decision-log 참고)
     source: 'ai',
     place_count: 4,
     thumbnail_url: place(1).main_image_url,
@@ -49,6 +50,8 @@ export const MOCK_COURSE_LIST: CourseListItem[] = [
     id: 5002,
     title: '감성 카페 + 야경 코스',
     travel_date: '2026-09-12',
+    // 직접 코스는 여러 날 범위 선택 가능(2026-09-06 추가) — 목업 데이터로 화면 확인용
+    end_date: '2026-09-14',
     source: 'user',
     place_count: 3,
     thumbnail_url: place(11).main_image_url,
@@ -80,6 +83,7 @@ export const MOCK_COURSE_DETAILS: Record<number, CourseDetail> = {
     id: 5001,
     title: '전통 안동 하루 코스',
     travel_date: '2026-09-10',
+    end_date: null,
     source: 'ai',
     places: COURSE_5001_PLACES,
     total_distance_km: 24.9,
@@ -91,6 +95,7 @@ export const MOCK_COURSE_DETAILS: Record<number, CourseDetail> = {
     id: 5002,
     title: '감성 카페 + 야경 코스',
     travel_date: '2026-09-12',
+    end_date: '2026-09-14',
     source: 'user',
     places: COURSE_5002_PLACES,
     total_distance_km: 2.7,

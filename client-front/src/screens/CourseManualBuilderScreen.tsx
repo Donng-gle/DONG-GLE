@@ -32,6 +32,12 @@ function formatDateLabel(dateStr: string) {
   return `${y}년 ${m}월 ${d}일 (${weekday})`;
 }
 
+// end가 없거나 start와 같으면 하루짜리 여행이라 기존처럼 날짜 하나만 보여줌
+function formatDateRangeLabel(start: string, end: string | null) {
+  if (!end || end === start) return formatDateLabel(start);
+  return `${formatDateLabel(start)} ~ ${formatDateLabel(end)}`;
+}
+
 // decision-log 2026-07-17: 코스 생성 진입점 2가지(AI 코스 / 직접 코스) 중 직접 코스 쪽.
 // POST /courses/manual — course_optimizer를 거치지 않고 사용자가 장소·순서를 직접 정해서 저장
 export function CourseManualBuilderScreen({ onSaved, onExit }: Props) {
@@ -39,6 +45,9 @@ export function CourseManualBuilderScreen({ onSaved, onExit }: Props) {
   const [step, setStep] = useState<Step>('form');
   const [title, setTitle] = useState('');
   const [travelDate, setTravelDate] = useState(TODAY);
+  // 여러 날 범위 지원(2026-09-06 결정, decision-log 참고) — 직접 코스만 range 선택 가능.
+  // travelDate와 같으면(=하루짜리) 서버엔 그대로 travel_date만 의미있게 쓰이도록 null로 보냄
+  const [endDate, setEndDate] = useState<string | null>(null);
   const [transport, setTransport] = useState<SwipeTransport>('walk');
   const [showCalendar, setShowCalendar] = useState(false);
   const [places, setPlaces] = useState<PlaceListItem[]>([]);
@@ -86,6 +95,7 @@ export function CourseManualBuilderScreen({ onSaved, onExit }: Props) {
       const request: CourseManualRequest = {
         title: title.trim(),
         travel_date: travelDate,
+        end_date: endDate && endDate !== travelDate ? endDate : null,
         transport,
         places: places.map((place, index) => ({ place_id: place.id, visit_order: index + 1 })),
       };
@@ -126,7 +136,7 @@ export function CourseManualBuilderScreen({ onSaved, onExit }: Props) {
 
         <Text style={[styles.label, styles.labelSpaced]}>여행 날짜</Text>
         <TouchableOpacity style={styles.fieldButton} onPress={() => setShowCalendar(true)}>
-          <Text style={styles.fieldButtonText}>{formatDateLabel(travelDate)}</Text>
+          <Text style={styles.fieldButtonText}>{formatDateRangeLabel(travelDate, endDate)}</Text>
         </TouchableOpacity>
 
         <Text style={[styles.label, styles.labelSpaced]}>이동 수단</Text>
@@ -168,11 +178,18 @@ export function CourseManualBuilderScreen({ onSaved, onExit }: Props) {
 
       <CalendarPicker
         visible={showCalendar}
+        mode="range"
         value={travelDate}
+        rangeEnd={endDate ?? undefined}
         minDate={TODAY}
         onClose={() => setShowCalendar(false)}
         onConfirm={(date) => {
           setTravelDate(date);
+          setShowCalendar(false);
+        }}
+        onConfirmRange={(start, end) => {
+          setTravelDate(start);
+          setEndDate(end !== start ? end : null);
           setShowCalendar(false);
         }}
       />
