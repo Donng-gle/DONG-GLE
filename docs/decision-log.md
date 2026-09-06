@@ -736,3 +736,22 @@
 - **결정**: `course` 테이블에 `end_date DATE`(nullable) 컬럼 추가. "직접 코스 만들기"(`POST /courses/manual`)에서만 입력받아 저장·응답하고, AI 코스 생성(`POST /courses/generate`)은 계속 단일 `travel_date`만 지원(course_optimizer가 단일 날짜를 전제로 하는 알고리즘이라 범위 밖으로 명시적으로 뺌). 장소 목록(`CoursePlace`)은 날짜별로 안 나뉘고 계속 하나의 순서 리스트(`visit_order`) — `end_date`는 표시/저장 용도만이고 "1일차/2일차" 같은 날짜별 장소 구분은 이번 범위에 없음(알고리즘 담당 영역이라 별도 논의 필요). `end_date`가 `travel_date`보다 이전이면 400(`INVALID_COURSE_DATE_RANGE`)
 - **이유**: 위 프론트 결정(직접 코스 만들기 날짜 범위 선택 UI)과 짝을 이루는 백엔드 반영 — 프론트가 `end_date`를 보내도 서버가 실제로 저장·응답하지 않으면 새로고침 시 사라지는 반쪽짜리 기능이 되므로 같은 날 바로 이어서 처리
 - **영향**: `Course.kt`(엔티티), `CourseManualRequest`/`CourseDetailResponse`/`CourseListItemResponse`(DTO), `CourseService`(검증 로직), `InvalidCourseDateRangeException`+`GlobalExceptionHandler`(400 매핑) 변경. `schema.sql`/`schema.dbml`/`api_1.3.1v.yaml` 갱신. 통합 테스트 2건 추가(정상 범위 저장+조회, 잘못된 범위 400). 공용 Supabase DB에 컬럼 추가 완료(당시 기존 데이터 1건, nullable이라 무손실). `feat/course-end-date` → `server` 커밋·push 완료(`8c7b302`) — `render.yaml`이 `server` 브랜치를 감시해 자동 배포하므로 이 push로 프로덕션에도 이미 반영됨. `compileKotlin`/`compileTestKotlin` 재확인 통과(2026-09-06, 같은 날 뒤이어 검증)
+
+---
+
+## 2026-09-06 | 직접 코스 만들기: 날짜 탭+지도+장소 리스트가 있는 "여행" 화면으로 전면 교체
+
+- **결정**: 기존 단순 폼(제목 입력창+날짜 필드+이동수단 라디오+평평한 장소 리스트) 화면을 Figma 501:12543(빈 상태)/501:12088(장소 있는 상태) 그대로 날짜 탭+지도(번호 핀+점선 경로)+장소 리스트가 있는 "OO 여행" 화면으로 바꿈. 여행 기간(단일/범위)의 각 날짜를 탭으로 보여주되 **UI 표시 전용**(탭을 눌러도 장소 목록은 안 바뀜) — `course.end_date` 결정(위 항목)에서 정한 "장소는 날짜별로 안 나뉜 하나의 순서 리스트" 방침을 유지하기 위한 의도적 단순화(2026-09-06 사용자 확인, 날짜별 실제 배정 기능은 course_place에 날짜 필드 추가하는 백엔드 변경까지 필요해서 범위 밖으로 명시적으로 뺌)
+- **이유**: 사용자가 Figma 스크린샷 6장(날짜 선택 2장 + 여행 화면 2장 + 장소 검색 화면 2장)을 첨부하며 "디자인 동일하게" 요청. 전체를 한 번에 하기엔 범위가 커서(장소 검색 화면 지도 연동은 별도 논의 필요) 이번엔 "여행 화면"만 먼저 진행하기로 사용자와 합의(장소 검색 화면은 기존 PlaceListScreen 그대로 재사용, 지도 연동은 다음 순서)
+- **시안에 없는 것 보완**: 제목 수정·이동 수단 선택 컨트롤이 시안엔 안 보여서 연필 아이콘 뒤 편집 모달로 분리. 장소 순서 변경(▲▼)·삭제(✕)는 기존 `CourseBuilderPlaceList`에 있던 기능이라 퇴보 안 되게 작게 유지. "코스 저장" 버튼은 시안 프레임엔 안 보이는데(플로팅 네비에 가려진 하단 영역으로 추정) 스크롤 맨 아래에 배치. 장소 카드의 "OO KM · N분"은 저장 전(초안) 화면이라 서버 경로 API가 없어서 좌표 직선거리로 클라이언트에서 대략 추정(도보 4.5km/h 가정) — 저장 후 실제 코스 상세는 서버 계산값을 씀. 지도 번호 핀은 옅은 분홍 배경+파란 글씨로 Figma 그대로 실측 반영(`colors.pinBackground` 신규 토큰)
+- **부수 발견 및 수정**: 이 작업 중 `CalendarPicker`에서 날짜를 **탭으로** 선택할 때(모달이 열릴 때부터 이미 선택된 시작일이 아니라) 원이 아니라 각진 사각형으로 그려지는 버그를 실기기에서 재현·발견함 — RN Android가 이미 마운트된 View에 `borderWidth`를 나중에(스타일 업데이트로) 추가하면 `borderRadius`가 같이 재적용 안 되는 문제. `dayCircle` 기본 스타일에 `borderWidth:1.5, borderColor:'transparent'`를 항상 갖게 하고 선택 시 색만 바꾸는 방식으로 회피(`fix/calendar-selected-corner-radius`, `client` 커밋 `fbce10c`) — 탭으로 새로 선택한 단일 날짜/범위 양쪽 다 실기기에서 원/알약으로 정상 렌더링 확인
+- **영향**: `CourseManualBuilderScreen.tsx` 전면 재작성, `HomeScreen.tsx`(FloatingNav를 이 화면 안에서 직접 그리도록 `onCreateManual`/`onCreateAI`/`onProfile` 전달 — ScrapbookScreen/ProfileScreen과 동일 패턴), `theme/colors.ts`(`pinBackground` 토큰 추가), `CalendarPicker.tsx`(위 버그 수정). `feat/trip-builder-screen`+`fix/calendar-selected-corner-radius` → `client` 병합·push 완료(`82a91b4`). 실기기(갤럭시 S22)로 장소 추가(핀·경로선·거리계산)·순서 변경·삭제·제목/날짜/이동수단 편집 모달·날짜 범위 탭 전부 end-to-end 확인. `npx tsc --noEmit` 통과
+- **다음 순서(범위 밖, 후속)**: "안동의 명소 검색" 화면(Figma 600:13996/600:14306)을 지도+검색 결과 핀 연동 화면으로 재설계하는 작업 — 사용자가 "지도-리스트 양방향 연동" 원함, 작업량 있어서 다음 세션으로 미룸
+
+---
+
+## 2026-09-06 | "일정 생성" 팝업 배경 페이드를 시트 애니메이션에 동기화
+
+- **결정**: `FloatingNav`의 "일정 생성" 바텀시트에서 배경(반투명 검정, opacity 0.5)이 시트보다 먼저 꽉 차 보이던 문제를 고침 — `Modal`의 기본 `animationType="slide"` 대신 `animationType="none"`으로 바꾸고, `Animated.Value` 하나(`sheetProgress`)로 배경 opacity(0→0.5)와 시트 `translateY`(400→0)를 같이 구동해서 시트가 다 올라온 시점에 정확히 맞춰 배경도 완전히 어두워지도록 동기화. 닫을 때도 같은 값으로 역재생 후 Modal 언마운트
+- **이유**: 사용자가 "가운데 버튼을 누르면 검은 배경이 팝업이랑 같이 안 올라오고 먼저 꽉 차 보인다"고 지적 — RN Modal의 `animationType="slide"`가 배경(반투명 Pressable)과 시트를 같은 트리로 슬라이드시키는데도 배경이 먼저 다 보이는 것처럼 느껴지는 문제
+- **영향**: `FloatingNav.tsx`만 변경(`fix/schedule-sheet-backdrop-fade`, `client` 커밋 `277cd08`). 실기기로 열기/닫기 애니메이션 둘 다 배경-시트가 같이 움직이는 것 확인. 다른 화면(`CalendarPicker`의 바텀시트 등)도 같은 패턴(`Modal animationType="slide"`+반투명 배경)을 쓰고 있어서 동일 문제가 있을 수 있음 — 이번엔 사용자가 지목한 "일정 생성" 팝업만 수정, 나머지는 범위 밖으로 남겨둠(필요시 다음에 요청)
