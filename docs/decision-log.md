@@ -783,3 +783,13 @@
 - **이유**: 사용자가 "팝업처럼 내려가게도 하자"(드래그 가능), "카메라 옮기는 건 좋은데 팝업이 가리니까 안 가리는 위치의 중앙으로", "전부 내려가지 않고 지금 켜져있는 위치까지만 펼쳐지도록"이라고 요청
 - **버그**: 처음 구현에서 드래그가 전혀 안 먹는 문제 발생 — `useRef(PanResponder.create({...})).current`가 최초 렌더 시점에 딱 한 번만 만들어지는데, 그 콜백 안에서 `sheetHeight`(useState)를 참조해서 stale closure가 됨(onLayout이 나중에 실제 높이로 갱신해도 콜백은 계속 최초값 0만 봄) → `collapsedOffset`이 항상 `max(0-80,0)=0`으로 계산돼서 드래그해도 항상 열림 위치로 재클램프되며 시각적으로 안 움직임. [[dongle-env-workflow]]에 이미 기록된 "PanResponder 콜백의 stale state" 교훈과 정확히 같은 패턴이 재발한 것 — `sheetHeight` state를 `sheetHeightRef`로 바꿔서 해결(`client` 커밋 `be2abd0`)
 - **영향**: 실기기로 드래그 내림(지도 대부분 노출, 손잡이+탭만 남음)→다시 끌어올림(정확히 55% 열림 위치로 복귀, 화면 전체 안 덮음)→장소 선택 시 핀이 팝업 위 가시 영역 중앙에 정상적으로 보이는 것까지 end-to-end 확인
+
+---
+
+## 2026-09-07 | 방문 기록 사진별 캡션 지원 (SimilarLogItem 여러 장 확장 결정 재번복)
+
+- **결정**: `visit_log_photo`에 `caption`(nullable TEXT) 컬럼 추가. `VisitLogCreateRequest.photoUrls`(문자열 목록)를 `photos`(`{url, caption}` 객체 목록, 각 캡션 선택/최대 100자)로 변경하고, `VisitLog` 자신의 응답(Detail/Summary/MapItem)과 `SimilarLogItem` 모두 `photoUrls`/`photoUrl`(단일)에서 `photos`(공용 `VisitLogPhoto`/`VisitLogPhotoResponse` 목록, url+caption)로 통일
+- **이유**: "취향 맞춤 코스" 탭(`RecommendedTab`, Figma "메인 페이지-맞춤 코스")을 나의 일지처럼 지도+팝업 구조로 재설계하면서, 카드 하나 = 다른 사용자의 기록 하나이고 사진을 넘기면 그 사진에 달린 글로 바뀌어야 한다는 요구가 생김 — 기존 `one_line`은 로그 전체 기준 1개뿐이라 사진별로 다른 글을 담을 수 없었음. `SimilarLogItem`의 여러 장 사진 확장은 2026-09-06에 한 번 "범위 밖"으로 명시적으로 미뤄뒀었는데, 이번 요구로 다시 필요해져서 그 결정을 뒤집음(대표 사진 1장 `mainPhotoUrl` 대신 전체 `photos` 노출)
+- **영향**: 실제 데이터 0건이라 무손실 컬럼 추가(이전 사진 여러 장 지원 때와 동일 패턴). API 계약이 깨지는 변경(`photoUrls`→`photos`, `photoUrl`→`photos`)이라 프론트(`api/visitLog.ts`, `api/explore.ts`, `JournalTab.tsx`, `JournalLogCreateModal.tsx`, `VisitLogCreateScreen.tsx`, `PlaceDetailScreen.tsx`, mocks) 전부 같이 맞춰야 함 — 이번 세션에서 백엔드(`feat/visit-log-photo-caption`, `server` 커밋 `59fc209`, 배포 완료)까지만 반영, 프론트는 이어서 진행 예정. `api_1.3.1v.yaml`/`schema.sql`/`schema.dbml` 갱신 완료. 백엔드 통합 테스트(`VisitLogApiIntegrationTest`, `ExploreApiIntegrationTest` 포함 전체) 통과 확인
+
+---
