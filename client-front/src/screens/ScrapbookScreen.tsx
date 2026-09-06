@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Image, Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -23,6 +23,11 @@ type Overlay =
 interface Props {
   initialTab?: ScrapTab;
   onExit: () => void;
+  // FloatingNav 중앙/우측 버튼용(2026-09-06 추가, decision-log 참고) — 이 화면을 여는 쪽
+  // (HomeScreen 직접 또는 ProfileScreen을 거쳐)이 실제 동작을 쥐고 있어서 그대로 전달만 받음
+  onCreateManual: () => void;
+  onCreateAI: () => void;
+  onProfile: () => void;
 }
 
 // 카드 안 장소 썸네일 스트립에 최대 몇 장까지 보여줄지 — 서버도 이 개수(3)만큼만 내려줌
@@ -42,7 +47,7 @@ const COURSE_THUMBNAIL_LIMIT = 3;
 // 여전히 뺀 것:
 // - 코스 카드 우상단 하트(좋아요) 아이콘: 코스에는 "찜/좋아요" 개념 자체가 스키마에 없음
 //   (course_like 같은 테이블 없음, PLACE_LIKE만 존재) → 없는 기능을 만드는 대신 생략
-export function ScrapbookScreen({ initialTab = 'course', onExit }: Props) {
+export function ScrapbookScreen({ initialTab = 'course', onExit, onCreateManual, onCreateAI, onProfile }: Props) {
   const insets = useSafeAreaInsets();
   const [tab, setTab] = useState<ScrapTab>(initialTab);
   const [courses, setCourses] = useState<CourseListItem[] | null>(null);
@@ -89,10 +94,6 @@ export function ScrapbookScreen({ initialTab = 'course', onExit }: Props) {
     } finally {
       setUnlikeBusyId(null);
     }
-  }
-
-  function handleShare() {
-    Share.share({ message: '안동 여행, 동글과 함께 떠나보세요 🌿' }).catch(() => {});
   }
 
   if (overlay?.type === 'course-edit') {
@@ -245,7 +246,7 @@ export function ScrapbookScreen({ initialTab = 'course', onExit }: Props) {
         />
       )}
 
-      <FloatingNav onHome={onExit} onShare={handleShare} />
+      <FloatingNav onHome={onExit} onCreateManual={onCreateManual} onCreateAI={onCreateAI} onProfile={onProfile} />
     </View>
   );
 }

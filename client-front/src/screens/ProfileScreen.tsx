@@ -32,6 +32,10 @@ interface Props {
   onExit: () => void;
   // "취향 재검사" — App.tsx가 profile.has_onboarded를 false로 내려서 OnboardingScreen을 다시 태움
   onRetakeOnboarding: () => void;
+  // FloatingNav 중앙 "일정 생성" 바텀시트용(2026-09-06 추가, decision-log 참고) — HomeScreen이
+  // 실제 동작(코스 생성 화면 열기)을 쥐고 있어서 그대로 전달만 받음
+  onCreateManual: () => void;
+  onCreateAI: () => void;
 }
 
 type SubScreen = 'none' | 'likes';
@@ -52,7 +56,15 @@ const INQUIRY_ITEMS = ['고객센터', '1:1 문의 내역', '상품 문의 내�
 // 공용 컴포넌트, 2026-09-05에 HomeScreen에서 뽑아냄). 이 화면엔 HomeScreen 같은 드로어/검색
 // 오버레이 상태가 따로 없어서 헤더의 메뉴/검색/프로필 아이콘은 전부 onExit(뒤로 가기)에 연결해둠 —
 // 실제 드로어를 여기서도 열고 싶으면 나중에 상태를 끌어올리거나 Context로 빼야 함
-export function ProfileScreen({ profile, onProfileUpdated, onWithdrawn, onExit, onRetakeOnboarding }: Props) {
+export function ProfileScreen({
+  profile,
+  onProfileUpdated,
+  onWithdrawn,
+  onExit,
+  onRetakeOnboarding,
+  onCreateManual,
+  onCreateAI,
+}: Props) {
   const [nickname, setNickname] = useState(profile.nickname);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -158,7 +170,16 @@ export function ProfileScreen({ profile, onProfileUpdated, onWithdrawn, onExit, 
   }
 
   if (subScreen === 'likes') {
-    return <ScrapbookScreen initialTab="place" onExit={() => setSubScreen('none')} />;
+    return (
+      <ScrapbookScreen
+        initialTab="place"
+        onExit={() => setSubScreen('none')}
+        onCreateManual={onCreateManual}
+        onCreateAI={onCreateAI}
+        // 이미 마이페이지에서 한 단계 들어온 화면이라 "프로필로" = 그 마이페이지로 돌아가기
+        onProfile={() => setSubScreen('none')}
+      />
+    );
   }
 
   return (
@@ -261,7 +282,8 @@ export function ProfileScreen({ profile, onProfileUpdated, onWithdrawn, onExit, 
         </View>
       </ScrollView>
 
-      <FloatingNav onHome={onExit} onShare={() => {}} />
+      {/* 이미 마이페이지에 있으니 우측 "프로필" 버튼은 no-op(2026-09-06, decision-log 참고) */}
+      <FloatingNav onHome={onExit} onCreateManual={onCreateManual} onCreateAI={onCreateAI} onProfile={() => {}} />
     </View>
   );
 }
