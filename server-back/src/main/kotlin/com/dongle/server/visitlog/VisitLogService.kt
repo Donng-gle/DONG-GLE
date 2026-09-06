@@ -38,7 +38,6 @@ class VisitLogService(
             VisitLog(
                 user = user,
                 place = place,
-                photoUrl = request.photoUrl,
                 title = request.title,
                 oneLine = request.oneLine,
                 weather = request.weather,
@@ -46,6 +45,11 @@ class VisitLogService(
                 visitedAt = request.visitedAt ?: LocalDateTime.now(),
             )
         )
+        // 요청 목록 순서를 그대로 sort_order로 저장(2026-09-06 결정, decision-log 참고) — cascade
+        // ALL이라 log 저장 시(트랜잭션 커밋 시) 같이 insert됨, 별도 save 호출 불필요
+        request.photoUrls?.forEachIndexed { index, url ->
+            log.photos.add(VisitLogPhoto(visitLog = log, photoUrl = url, sortOrder = index))
+        }
         place.visitLogCount += 1
 
         return log.toDetailResponse()
@@ -124,7 +128,7 @@ class VisitLogService(
 
 private fun VisitLog.toSummaryResponse() = VisitLogSummaryResponse(
     id = id,
-    photoUrl = photoUrl,
+    photoUrls = photos.map { it.photoUrl },
     title = title,
     oneLine = oneLine,
     weather = weather,
@@ -137,7 +141,7 @@ private fun VisitLog.toDetailResponse() = VisitLogDetailResponse(
     id = id,
     placeId = place.id,
     placeName = place.name,
-    photoUrl = photoUrl,
+    photoUrls = photos.map { it.photoUrl },
     title = title,
     oneLine = oneLine,
     weather = weather,
@@ -152,7 +156,7 @@ private fun VisitLog.toMapItemResponse() = VisitLogMapItemResponse(
     placeName = place.name,
     lat = place.lat,
     lng = place.lng,
-    photoUrl = photoUrl,
+    photoUrls = photos.map { it.photoUrl },
     title = title,
     oneLine = oneLine,
     weather = weather,

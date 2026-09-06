@@ -12,6 +12,7 @@ import jakarta.persistence.Id
 import jakarta.persistence.JoinColumn
 import jakarta.persistence.ManyToOne
 import jakarta.persistence.OneToMany
+import jakarta.persistence.OrderBy
 import jakarta.persistence.Table
 import java.time.LocalDateTime
 
@@ -29,9 +30,6 @@ class VisitLog(
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "place_id", nullable = false)
     val place: Place,
-
-    @Column(name = "photo_url")
-    var photoUrl: String? = null,
 
     // Figma "메인 페이지-나의 일지-기록하기"(593:12613) 시안엔 사진/한줄리뷰와 별개로 짧은 제목
     // 입력칸이 있어서 추가(2026-09-05 결정, decision-log 참고). one_line은 계속 "설명" 역할
@@ -59,4 +57,13 @@ class VisitLog(
 
     @OneToMany(mappedBy = "visitLog", fetch = FetchType.LAZY, cascade = [CascadeType.ALL], orphanRemoval = true)
     val emotionTags: MutableList<LogEmotionTag> = mutableListOf(),
-)
+
+    // 여러 장 사진 (2026-09-06 결정, decision-log 참고). place_image와 동일하게 부모 테이블 +
+    // sort_order 방식으로 확장(이전엔 photo_url 단일 컬럼이었음)
+    @OneToMany(mappedBy = "visitLog", fetch = FetchType.LAZY, cascade = [CascadeType.ALL], orphanRemoval = true)
+    @OrderBy("sortOrder ASC")
+    val photos: MutableList<VisitLogPhoto> = mutableListOf(),
+) {
+    val mainPhotoUrl: String?
+        get() = photos.firstOrNull()?.photoUrl
+}

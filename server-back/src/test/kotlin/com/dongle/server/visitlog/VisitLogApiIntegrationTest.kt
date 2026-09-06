@@ -73,13 +73,18 @@ class VisitLogApiIntegrationTest {
             post("/places/${place.id}/logs")
                 .header("Authorization", "Bearer $token")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("""{"photo_url":"https://example.com/a.jpg","one_line":"테스트전용신규기록","visited_at":"2026-08-01T10:00:00"}""")
+                .content(
+                    """{"photo_urls":["https://example.com/a.jpg","https://example.com/b.jpg"],"one_line":"테스트전용신규기록","visited_at":"2026-08-01T10:00:00"}""",
+                )
         )
             .andExpect(status().isCreated)
             .andExpect(jsonPath("$.place_id").value(place.id))
             .andExpect(jsonPath("$.place_name").value("테스트전용기록작성장소"))
             .andExpect(jsonPath("$.one_line").value("테스트전용신규기록"))
-            .andExpect(jsonPath("$.photo_url").value("https://example.com/a.jpg"))
+            // 여러 장 지원(2026-09-06 결정, decision-log 참고) — 요청 목록 순서 그대로 반환됨
+            .andExpect(jsonPath("$.photo_urls.length()").value(2))
+            .andExpect(jsonPath("$.photo_urls[0]").value("https://example.com/a.jpg"))
+            .andExpect(jsonPath("$.photo_urls[1]").value("https://example.com/b.jpg"))
             // AI 이미지 분석 미연동(2026-08-30 결정) — 태그는 항상 빈 배열
             .andExpect(jsonPath("$.tags.length()").value(0))
 
@@ -100,7 +105,7 @@ class VisitLogApiIntegrationTest {
                 .content("""{"one_line":"테스트전용최소필드기록"}""")
         )
             .andExpect(status().isCreated)
-            .andExpect(jsonPath("$.photo_url").doesNotExist())
+            .andExpect(jsonPath("$.photo_urls.length()").value(0))
             .andExpect(jsonPath("$.visited_at").exists())
     }
 

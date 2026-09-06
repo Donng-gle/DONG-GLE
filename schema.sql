@@ -150,7 +150,6 @@ CREATE TABLE visit_log (
     id         BIGSERIAL    PRIMARY KEY,
     user_id    BIGINT       NOT NULL REFERENCES "user" (id) ON DELETE CASCADE,
     place_id   BIGINT       NOT NULL REFERENCES place (id) ON DELETE CASCADE,
-    photo_url  TEXT,
     title      VARCHAR(50),   -- 기록 제목. 2026-09-05 추가(메인 페이지-나의 일지-기록하기), decision-log 참고
     one_line   VARCHAR(100),
     weather    VARCHAR(20),   -- 자유 입력 텍스트(선택지 코드 없음). 2026-09-05 추가, decision-log 참고
@@ -162,6 +161,18 @@ CREATE TABLE visit_log (
 CREATE INDEX idx_visit_log_user    ON visit_log (user_id);
 CREATE INDEX idx_visit_log_place   ON visit_log (place_id);
 CREATE INDEX idx_visit_log_visited ON visit_log (visited_at);
+
+
+-- 방문 기록 사진 (여러 장). 이전엔 visit_log.photo_url 단일 컬럼이었는데(사진 1장만 가능),
+-- place_image와 동일한 패턴(부모 테이블 + sort_order)으로 확장 (2026-09-06 결정, decision-log 참고)
+CREATE TABLE visit_log_photo (
+    id           BIGSERIAL PRIMARY KEY,
+    visit_log_id BIGINT    NOT NULL REFERENCES visit_log (id) ON DELETE CASCADE,
+    photo_url    TEXT      NOT NULL,
+    sort_order   INT       NOT NULL DEFAULT 0 CHECK (sort_order >= 0)
+);
+
+CREATE INDEX idx_visit_log_photo_log ON visit_log_photo (visit_log_id);
 
 
 -- 로그 감성 태그 (AI 분석)

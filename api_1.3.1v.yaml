@@ -563,9 +563,11 @@ components:
         id:
           type: integer
           format: int64
-        photo_url:
-          type: string
-          nullable: true
+        photo_urls:
+          type: array
+          items:
+            type: string
+          description: 여러 장 지원(2026-09-06 추가, decision-log 참고). 사진이 없으면 빈 배열.
         title:
           type: string
           nullable: true
@@ -1052,9 +1054,11 @@ components:
           format: int64
         place_name:
           type: string
-        photo_url:
-          type: string
-          nullable: true
+        photo_urls:
+          type: array
+          items:
+            type: string
+          description: 여러 장 지원(2026-09-06 추가, decision-log 참고). 사진이 없으면 빈 배열.
         title:
           type: string
           nullable: true
@@ -1132,9 +1136,11 @@ components:
         lng:
           type: number
           format: double
-        photo_url:
-          type: string
-          nullable: true
+        photo_urls:
+          type: array
+          items:
+            type: string
+          description: 여러 장 지원(2026-09-06 추가, decision-log 참고). 사진이 없으면 빈 배열.
         title:
           type: string
           nullable: true
@@ -2243,12 +2249,12 @@ paths:
       tags: [VisitLog]
       summary: 여행 기록 작성
       description: |
-        방문한 장소에 사진과 한줄 리뷰를 기록한다.
-        사진은 먼저 POST /uploads/presigned-url로 S3에 직접 업로드한 뒤,
-        반환된 file_url을 photo_url에 담아 요청해야 한다.
+        방문한 장소에 사진(여러 장 가능)과 한줄 리뷰를 기록한다.
+        사진마다 먼저 POST /uploads/presigned-url로 S3에 직접 업로드한 뒤,
+        반환된 file_url들을 photo_urls 배열에 담아 요청해야 한다(순서 = 노출 순서, 2026-09-06 결정).
 
         이 API 자체는 이 엔드포인트 호출 시점에 다음 두 가지만 동기로 처리한다.
-          1. 여행 기록 생성 (사진 URL, 제목, 한줄 리뷰, 날씨 저장)
+          1. 여행 기록 생성 (사진 URL 목록, 제목, 한줄 리뷰, 날씨 저장)
           2. place.visit_log_count +1 (방문 로그 수 증가 → 숨은 장소 판단 기준값)
 
         업로드된 사진의 AI 감성 태그 자동 분석은 이 API와 별개로, AI 서버가 사진을 비동기(배치)로
@@ -2274,10 +2280,12 @@ paths:
             schema:
               type: object
               properties:
-                photo_url:
-                  type: string
-                  nullable: true
-                  description: Presigned URL로 S3 업로드 완료 후 받은 file_url
+                photo_urls:
+                  type: array
+                  items:
+                    type: string
+                  maxItems: 10
+                  description: Presigned URL로 S3 업로드 완료 후 받은 file_url 목록. 배열 순서대로 저장/노출됨(2026-09-06 추가)
                 title:
                   type: string
                   nullable: true

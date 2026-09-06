@@ -6,7 +6,7 @@ data class VisitLogDetailResponse(
     val id: Long,
     val placeId: Long,
     val placeName: String,
-    val photoUrl: String?,
+    val photoUrls: List<String>,
     val title: String?,
     val oneLine: String?,
     val weather: String?,

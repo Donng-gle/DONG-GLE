@@ -8,7 +8,7 @@ data class VisitLogMapItemResponse(
     val placeName: String,
     val lat: Double?,
     val lng: Double?,
-    val photoUrl: String?,
+    val photoUrls: List<String>,
     val title: String?,
     val oneLine: String?,
     val weather: String?,
