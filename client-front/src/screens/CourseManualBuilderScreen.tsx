@@ -22,7 +22,7 @@ import { CalendarPicker } from '../components/CalendarPicker';
 import { FloatingNav } from '../components/FloatingNav';
 import { colors } from '../theme/colors';
 import { fonts } from '../theme/fonts';
-import { PlaceListScreen } from './PlaceListScreen';
+import { PlaceMapPickerScreen } from './PlaceMapPickerScreen';
 
 interface Props {
   onSaved: () => void;
@@ -236,7 +236,7 @@ export function CourseManualBuilderScreen({ onSaved, onExit, onCreateManual, onC
   }
 
   if (step === 'picking') {
-    return <PlaceListScreen onExit={() => setStep('form')} onSelectPlace={addPlace} />;
+    return <PlaceMapPickerScreen onExit={() => setStep('form')} onSelectPlace={addPlace} />;
   }
 
   const pinnedPlaces = places
