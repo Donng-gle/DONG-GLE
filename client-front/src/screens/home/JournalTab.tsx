@@ -312,7 +312,11 @@ const styles = StyleSheet.create({
     paddingTop: 4,
     paddingHorizontal: 4,
     paddingBottom: 16,
-    marginBottom: 12,
+    // marginBottom 없음(2026-09-06 수정, decision-log 참고) — Figma는 카드 한 장짜리 팝업이라
+    // "카드 사이 간격" 자체가 시안에 없어서 예전에 12를 임의로 넣었는데, 그러면 카드-카드 간격이
+    // paddingBottom(16)+marginBottom(12)+다음 카드 paddingTop(4)=32dp로 쌓이는 반면 헤더→첫 카드
+    // 간격은 handleArea.paddingBottom(16)+paddingTop(4)=20dp뿐이라 리듬이 안 맞았음(사용자 피드백
+    // "카드 간격이 안 맞다"). marginBottom을 없애서 둘 다 20dp로 통일
     shadowColor: '#000',
     shadowOpacity: 0.06,
     shadowRadius: 10,
