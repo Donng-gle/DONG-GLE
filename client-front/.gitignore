@@ -2,6 +2,9 @@
 
 # dependencies
 node_modules/
+# 트레일링 슬래시(node_modules/)는 심볼릭 링크는 매칭 안 함(디렉터리만) — git worktree에서
+# node_modules가 메인 디렉토리로의 심볼릭 링크일 때 실수로 커밋되는 걸 방지 (2026-09-04 실제 발생)
+node_modules
 
 # Expo
 .expo/

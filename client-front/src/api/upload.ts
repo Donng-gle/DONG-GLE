@@ -10,12 +10,11 @@ export interface PresignedUrlRequest {
 
 export interface PresignedUrlResponse {
   upload_url: string; // 이 주소로 파일 바이너리를 PUT하면 S3에 업로드됨
-  file_url: string; // 업로드 완료 후 실제 접근 가능한 URL — VisitLogCreateRequest.photo_url 등에 사용
+  file_url: string; // 업로드 완료 후 실제 접근 가능한 URL — VisitLogCreateRequest.photo_urls 등에 사용
   expires_in: number; // upload_url 유효 시간(초)
 }
 
-// 실제 "사진 선택 → 업로드" 흐름은 expo-image-picker 등 피커 라이브러리 도입 후 완성 가능.
-// 요청 함수 자체는 순수 request/response라 미리 준비해둠 (아직 호출하는 화면 없음)
+// expo-image-picker로 "사진 선택 → 업로드" 흐름 완성됨 — VisitLogCreateScreen이 실제로 호출함
 export const uploadApi = {
   getPresignedUrl: (request: PresignedUrlRequest) =>
     apiClient.post<PresignedUrlResponse>('/uploads/presigned-url', request, true),
