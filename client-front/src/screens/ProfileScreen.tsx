@@ -1,13 +1,26 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import * as ImagePicker from 'expo-image-picker';
 import { UserProfile } from '../api/auth';
+import { uploadApi } from '../api/upload';
 import { UserPreferenceTag, userApi } from '../api/user';
 import { tokenStorage } from '../auth/tokenStorage';
 import { AppHeader } from '../components/AppHeader';
 import { FloatingNav } from '../components/FloatingNav';
-import { ChevronRightIcon, ProfileIcon } from '../components/icons';
+import { CameraIcon, ChevronRightIcon, ProfileIcon } from '../components/icons';
 import { RadarChart } from '../components/RadarChart';
+import { MOCK_ENABLED } from '../mocks/config';
 import { colors } from '../theme/colors';
 import { fonts } from '../theme/fonts';
 import { ScrapbookScreen } from './ScrapbookScreen';
@@ -43,6 +56,7 @@ export function ProfileScreen({ profile, onProfileUpdated, onWithdrawn, onExit, 
   const [nickname, setNickname] = useState(profile.nickname);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [withdrawing, setWithdrawing] = useState(false);
   const [preferences, setPreferences] = useState<UserPreferenceTag[] | null>(null);
   const [subScreen, setSubScreen] = useState<SubScreen>('none');
@@ -58,6 +72,17 @@ export function ProfileScreen({ profile, onProfileUpdated, onWithdrawn, onExit, 
     if (!nickname.trim()) return;
     setSaving(true);
     try {
+      // 목업 모드에선 GET/PATCH /users/me 자체가 목업 처리가 안 돼 있어서(mocks/handlers.ts엔
+      // /users/me/likes, /users/me/preferences 등 하위 경로만 있고 /users/me 자체는 없음) 이
+      // 화면의 프로필(닉네임/프로바이더)이 실제로는 실기기에 저장된 진짜 로그인 토큰으로 실제
+      // 배포 서버를 그대로 호출해서 보여주고 있었음 — 목업 모드에서 저장까지 눌러버리면 테스트용
+      // 입력이 실제 계정에 반영돼버려서, 프로필 사진 업로드 기능을 추가하며 같이 발견하고 로컬
+      // state만 갱신하도록 우회 처리 추가(2026-09-06, decision-log 참고)
+      if (MOCK_ENABLED) {
+        onProfileUpdated({ ...profile, nickname: nickname.trim() });
+        setEditing(false);
+        return;
+      }
       const updated = await userApi.updateProfile({ nickname: nickname.trim() });
       onProfileUpdated(updated);
       setEditing(false);
@@ -65,6 +90,40 @@ export function ProfileScreen({ profile, onProfileUpdated, onWithdrawn, onExit, 
       Alert.alert('저장에 실패했어요', e instanceof Error ? e.message : '알 수 없는 오류');
     } finally {
       setSaving(false);
+    }
+  }
+
+  // 아바타를 누르면 사진 선택 → 업로드까지 바로 이어짐(닉네임처럼 별도 "저장" 확인 단계 없음 —
+  // 사진은 골라서 확정하면 바로 반영되는 게 자연스러운 흐름이라 판단, 2026-09-06 사용자 요청).
+  // legacy:true — 방문기록 사진 선택과 동일하게 로컬 갤러리 접근 문제 방지(decision-log 참고)
+  async function handlePickAvatar() {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('사진 접근 권한이 필요해요', '설정에서 사진 보관함 접근을 허용해주세요.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.7, legacy: true });
+    if (result.canceled || result.assets.length === 0) return;
+
+    const asset = result.assets[0];
+    setUploadingAvatar(true);
+    try {
+      if (MOCK_ENABLED) {
+        // handleSave와 동일한 이유로 로컬 uri만 반영하고 실제 업로드/PATCH는 건너뜀
+        onProfileUpdated({ ...profile, profile_image_url: asset.uri });
+        return;
+      }
+      const contentType = asset.mimeType ?? 'image/jpeg';
+      const filename = asset.fileName ?? `profile-${Date.now()}.jpg`;
+      const presigned = await uploadApi.getPresignedUrl({ filename, content_type: contentType, purpose: 'profile' });
+      const file = await fetch(asset.uri).then((r) => r.blob());
+      await uploadApi.uploadFile(presigned.upload_url, file, contentType);
+      const updated = await userApi.updateProfile({ profile_image_url: presigned.file_url });
+      onProfileUpdated(updated);
+    } catch (e) {
+      Alert.alert('프로필 사진 변경에 실패했어요', e instanceof Error ? e.message : '알 수 없는 오류');
+    } finally {
+      setUploadingAvatar(false);
     }
   }
 
@@ -109,23 +168,35 @@ export function ProfileScreen({ profile, onProfileUpdated, onWithdrawn, onExit, 
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.profileCard}>
-          {/* 별도 "프로필 수정" 버튼 대신 프로필(아바타+닉네임) 영역을 누르면 바로 수정 모드로
-              들어가도록 변경(2026-09-06 사용자 요청) — 편집 중엔 다시 눌러도 아무 효과 없게
-              disabled 처리(입력 중 재진입으로 포커스가 튀는 걸 방지) */}
-          <TouchableOpacity
-            style={styles.profileRow}
-            onPress={() => setEditing(true)}
-            disabled={editing}
-            activeOpacity={0.7}
-          >
-            {profile.profile_image_url ? (
-              <Image source={{ uri: profile.profile_image_url }} style={styles.avatar} />
-            ) : (
-              <View style={[styles.avatar, styles.avatarPlaceholder]}>
-                <ProfileIcon />
-              </View>
-            )}
-            <View style={styles.profileTextCol}>
+          {/* 별도 "프로필 수정" 버튼 대신 프로필 영역을 누르면 바로 수정할 수 있게 변경
+              (2026-09-06 사용자 요청) — 아바타/닉네임을 각자 다른 동작(사진 변경 vs 이름 수정)에
+              연결해야 해서 하나의 TouchableOpacity 대신 둘로 분리(전엔 profileRow 전체가 하나의
+              탭 영역이었음, 사진 변경 기능 추가하며 같이 정리) */}
+          <View style={styles.profileRow}>
+            <TouchableOpacity onPress={handlePickAvatar} disabled={uploadingAvatar} activeOpacity={0.8}>
+              {profile.profile_image_url ? (
+                <Image source={{ uri: profile.profile_image_url }} style={styles.avatar} />
+              ) : (
+                <View style={[styles.avatar, styles.avatarPlaceholder]}>
+                  <ProfileIcon />
+                </View>
+              )}
+              {uploadingAvatar ? (
+                <View style={styles.avatarOverlay}>
+                  <ActivityIndicator color={colors.white} size="small" />
+                </View>
+              ) : (
+                <View style={styles.avatarBadge}>
+                  <CameraIcon />
+                </View>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.profileTextCol}
+              onPress={() => setEditing(true)}
+              disabled={editing}
+              activeOpacity={0.7}
+            >
               {editing ? (
                 <TextInput
                   style={styles.nicknameInput}
@@ -138,8 +209,8 @@ export function ProfileScreen({ profile, onProfileUpdated, onWithdrawn, onExit, 
                 <Text style={styles.nickname}>{profile.nickname}</Text>
               )}
               <Text style={styles.providerLabel}>{PROVIDER_LABEL[profile.oauth_provider]}</Text>
-            </View>
-          </TouchableOpacity>
+            </TouchableOpacity>
+          </View>
 
           {editing && (
             <TouchableOpacity style={styles.editButton} onPress={handleSave} disabled={saving}>
@@ -210,6 +281,32 @@ const styles = StyleSheet.create({
   profileRow: { flexDirection: 'row', alignItems: 'center', gap: 12, flexShrink: 1 },
   avatar: { width: 56, height: 56, borderRadius: 28 },
   avatarPlaceholder: { backgroundColor: colors.backgroundMuted, alignItems: 'center', justifyContent: 'center' },
+  // 아바타 우하단에 겹치는 "사진 변경" 배지(Figma엔 없음, 2026-09-06 신규 기능이라 앱 전반 톤인
+  // 검정 배경+흰 아이콘으로 맞춤 — retakeButton/기본버튼 등과 동일 계열)
+  avatarBadge: {
+    position: 'absolute',
+    right: -2,
+    bottom: -2,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: colors.black,
+    borderWidth: 2,
+    borderColor: colors.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(17,17,17,0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   profileTextCol: { gap: 4 },
   nickname: { fontFamily: fonts.semiBold, fontSize: 18, letterSpacing: -0.5, color: colors.black },
   providerLabel: { fontFamily: fonts.regular, fontSize: 13, color: colors.gray500 },
