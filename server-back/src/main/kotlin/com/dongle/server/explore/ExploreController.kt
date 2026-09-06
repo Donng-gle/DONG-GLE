@@ -1,5 +1,6 @@
 package com.dongle.server.explore
 
+import com.dongle.server.explore.dto.SimilarCoursesResponse
 import com.dongle.server.explore.dto.SimilarLogsResponse
 import org.springframework.security.core.Authentication
 import org.springframework.web.bind.annotation.GetMapping
@@ -29,4 +30,11 @@ class ExploreController(
             limit = limit,
         )
     }
+
+    // "취향 맞춤 코스" 탭 카드 목록(2026-09-07 결정, decision-log 참고)
+    @GetMapping("/similar-courses")
+    fun similarCourses(
+        authentication: Authentication,
+        @RequestParam(defaultValue = "20") limit: Int,
+    ): SimilarCoursesResponse = exploreService.similarCourses(authentication.principal as Long, limit)
 }

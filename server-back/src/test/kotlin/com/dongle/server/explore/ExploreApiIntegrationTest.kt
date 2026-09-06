@@ -1,6 +1,10 @@
 package com.dongle.server.explore
 
 import com.dongle.server.auth.jwt.JwtTokenProvider
+import com.dongle.server.course.Course
+import com.dongle.server.course.CoursePlace
+import com.dongle.server.course.CourseRepository
+import com.dongle.server.course.CourseSource
 import com.dongle.server.place.Place
 import com.dongle.server.place.PlaceCategory
 import com.dongle.server.place.PlaceRepository
@@ -42,6 +46,9 @@ class ExploreApiIntegrationTest {
 
     @Autowired
     lateinit var visitLogRepository: VisitLogRepository
+
+    @Autowired
+    lateinit var courseRepository: CourseRepository
 
     @Autowired
     lateinit var jwtTokenProvider: JwtTokenProvider
@@ -112,5 +119,45 @@ class ExploreApiIntegrationTest {
     fun `인증 없이 호출하면 401을 반환한다`() {
         mockMvc.perform(get("/explore/similar-logs"))
             .andExpect(status().isUnauthorized)
+    }
+
+    private fun publicCourse(user: User, title: String, places: List<Place>): Course {
+        val saved = courseRepository.save(Course(user = user, title = title, source = CourseSource.user, isPublic = true))
+        places.forEachIndexed { index, place ->
+            saved.places.add(CoursePlace(course = saved, place = place, visitOrder = index + 1))
+        }
+        return courseRepository.save(saved)
+    }
+
+    // "취향 맞춤 코스" 탭 카드 목록(2026-09-07 결정, decision-log 참고) — similar-logs와 동일한
+    // 취향 겹침 판단을 코스에도 그대로 적용
+    @Test
+    fun `취향이 비슷한 유저의 공개 코스만 반환한다`() {
+        val me = user("explore_course_user_1", "kakao-explore-course-1")
+        val token = jwtTokenProvider.generateAccessToken(me.id)
+        preference(me, "relaxing", 0.9)
+
+        val similarUser = user("explore_course_user_2", "kakao-explore-course-2")
+        preference(similarUser, "relaxing", 0.85)
+        val similarPlace = place("EXPC001", "테스트전용탐색코스장소-유사")
+        publicCourse(similarUser, "테스트전용탐색코스-유사", listOf(similarPlace))
+
+        val dissimilarUser = user("explore_course_user_3", "kakao-explore-course-3")
+        preference(dissimilarUser, "modern", 0.9)
+        val dissimilarPlace = place("EXPC002", "테스트전용탐색코스장소-비유사")
+        val privatePlace = place("EXPC003", "테스트전용비공개코스장소")
+        publicCourse(dissimilarUser, "테스트전용탐색코스-비유사", listOf(dissimilarPlace))
+        val privateCourse = publicCourse(similarUser, "테스트전용비공개코스", listOf(privatePlace))
+        privateCourse.isPublic = false
+        courseRepository.save(privateCourse)
+
+        mockMvc.perform(get("/explore/similar-courses").header("Authorization", "Bearer $token"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.courses[?(@.title == '테스트전용탐색코스-유사')]").exists())
+            .andExpect(jsonPath("$.courses[?(@.title == '테스트전용탐색코스-비유사')]").doesNotExist())
+            .andExpect(jsonPath("$.courses[?(@.title == '테스트전용비공개코스')]").doesNotExist())
+            .andExpect(jsonPath("$.courses[0].nickname").value("테스터"))
+            .andExpect(jsonPath("$.courses[0].place_count").value(1))
+            .andExpect(jsonPath("$.courses[0].place_previews[0].name").value("테스트전용탐색코스장소-유사"))
     }
 }

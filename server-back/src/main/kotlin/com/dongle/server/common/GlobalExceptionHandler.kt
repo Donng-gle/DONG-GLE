@@ -5,6 +5,7 @@ import com.dongle.server.auth.InvalidOAuthCodeException
 import com.dongle.server.auth.InvalidRefreshTokenException
 import com.dongle.server.course.CourseAccessDeniedException
 import com.dongle.server.course.CourseNotFoundException
+import com.dongle.server.course.CourseNotPublicException
 import com.dongle.server.course.InvalidCourseDateRangeException
 import com.dongle.server.course.InvalidCourseSourceException
 import com.dongle.server.course.NotEnoughSwipeCandidatesException
@@ -104,6 +105,11 @@ class GlobalExceptionHandler {
     fun handleCourseAccessDenied(ex: CourseAccessDeniedException): ResponseEntity<ErrorResponse> =
         ResponseEntity.status(HttpStatus.FORBIDDEN)
             .body(ErrorResponse(code = "COURSE_ACCESS_DENIED", message = ex.message ?: "본인 코스가 아닙니다."))
+
+    @ExceptionHandler(CourseNotPublicException::class)
+    fun handleCourseNotPublic(ex: CourseNotPublicException): ResponseEntity<ErrorResponse> =
+        ResponseEntity.status(HttpStatus.FORBIDDEN)
+            .body(ErrorResponse(code = "COURSE_NOT_PUBLIC", message = ex.message ?: "공개되지 않은 코스입니다."))
 
     @ExceptionHandler(InvalidCourseSourceException::class)
     fun handleInvalidCourseSource(ex: InvalidCourseSourceException): ResponseEntity<ErrorResponse> =

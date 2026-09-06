@@ -141,6 +141,14 @@ class CourseService(
     fun getDetail(userId: Long, courseId: Long): CourseDetailResponse =
         courseDetailWithRoute(findOwnedCourse(userId, courseId))
 
+    // "취향 맞춤 코스" 탭에서 "자세히 보기" — 소유자 확인 대신 공개 여부만 확인(2026-09-07 결정,
+    // decision-log 참고). userId 파라미터는 안 받음(본인 여부와 무관하게 공개면 누구나 조회 가능)
+    fun getPublicDetail(courseId: Long): CourseDetailResponse {
+        val course = courseRepository.findById(courseId).orElseThrow { CourseNotFoundException(courseId) }
+        if (!course.isPublic) throw CourseNotPublicException()
+        return courseDetailWithRoute(course)
+    }
+
     @Transactional
     fun update(userId: Long, courseId: Long, request: CourseUpdateRequest): CourseDetailResponse {
         val course = findOwnedCourse(userId, courseId)
