@@ -197,6 +197,7 @@ CREATE TABLE course (
     title       VARCHAR(200) NOT NULL,
     source      VARCHAR(20)  NOT NULL CHECK (source IN ('ai', 'ai_edited', 'user')),
     travel_date DATE,
+    end_date    DATE,  -- 여러 날 범위 지원. "직접 코스 만들기"에서만 입력받음(2026-09-06 결정, decision-log 참고)
     transport   VARCHAR(10)  CHECK (transport IN ('car', 'walk', 'public')),  -- 구글맵 경로 재계산용, nullable(과거 데이터/미입력 허용)
     created_at  TIMESTAMP    NOT NULL DEFAULT NOW(),
     updated_at  TIMESTAMP    NOT NULL DEFAULT NOW()
@@ -210,8 +211,9 @@ CREATE TABLE course_place (
     id           BIGSERIAL PRIMARY KEY,
     course_id    BIGINT    NOT NULL REFERENCES course (id) ON DELETE CASCADE,
     place_id     BIGINT    NOT NULL REFERENCES place (id) ON DELETE CASCADE,
-    visit_order  INT       NOT NULL CHECK (visit_order >= 1),
+    visit_order  INT       NOT NULL CHECK (visit_order >= 1),  -- 코스 전체를 통틀은 전역 순서(날짜 안 나뉨)
     planned_time TIME,
+    visit_date   DATE,  -- 며칠째 방문지인지(여러 날 코스 지원, 2026-09-06 결정, decision-log 참고). "직접 코스 만들기"에서만 채워짐, null이면 날짜 구분 없음
     UNIQUE (course_id, visit_order)
 );
 

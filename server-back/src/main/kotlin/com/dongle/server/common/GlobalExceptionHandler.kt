@@ -5,6 +5,7 @@ import com.dongle.server.auth.InvalidOAuthCodeException
 import com.dongle.server.auth.InvalidRefreshTokenException
 import com.dongle.server.course.CourseAccessDeniedException
 import com.dongle.server.course.CourseNotFoundException
+import com.dongle.server.course.InvalidCourseDateRangeException
 import com.dongle.server.course.InvalidCourseSourceException
 import com.dongle.server.course.NotEnoughSwipeCandidatesException
 import com.dongle.server.course.optimizer.CourseOptimizerUpstreamException
@@ -108,6 +109,11 @@ class GlobalExceptionHandler {
     fun handleInvalidCourseSource(ex: InvalidCourseSourceException): ResponseEntity<ErrorResponse> =
         ResponseEntity.status(HttpStatus.BAD_REQUEST)
             .body(ErrorResponse(code = "INVALID_COURSE_SOURCE", message = ex.message ?: "잘못된 source 값입니다."))
+
+    @ExceptionHandler(InvalidCourseDateRangeException::class)
+    fun handleInvalidCourseDateRange(ex: InvalidCourseDateRangeException): ResponseEntity<ErrorResponse> =
+        ResponseEntity.status(HttpStatus.BAD_REQUEST)
+            .body(ErrorResponse(code = "INVALID_COURSE_DATE_RANGE", message = ex.message ?: "잘못된 날짜 범위입니다."))
 
     @ExceptionHandler(VisitLogNotFoundException::class)
     fun handleVisitLogNotFound(ex: VisitLogNotFoundException): ResponseEntity<ErrorResponse> =

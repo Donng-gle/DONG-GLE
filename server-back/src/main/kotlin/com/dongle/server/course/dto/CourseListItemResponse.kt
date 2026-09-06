@@ -7,6 +7,8 @@ data class CourseListItemResponse(
     val id: Long,
     val title: String,
     val travelDate: LocalDate?,
+    // 여러 날 범위 지원(2026-09-06 결정, decision-log 참고) — "직접 코스 만들기"에서만 채워짐
+    val endDate: LocalDate?,
     val source: String,
     val placeCount: Int,
     val thumbnailUrl: String?,

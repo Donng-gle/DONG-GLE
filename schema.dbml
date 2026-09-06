@@ -209,6 +209,7 @@ Table course {
   title       varchar(200) [not null]
   source      varchar(20)  [not null, note: "CHECK: 'ai' | 'ai_edited' | 'user'"]
   travel_date date
+  end_date    date         [note: '여러 날 범위 지원. "직접 코스 만들기"에서만 입력받음(2026-09-06 결정, decision-log 참고)']
   transport   varchar(10)  [note: "CHECK: 'car' | 'walk' | 'public', 구글맵 경로 재계산용. nullable(과거 데이터/미입력 허용)"]
   created_at  timestamp    [not null, default: `now()`]
   updated_at  timestamp    [not null, default: `now()`, note: 'UPDATE 시 자동 갱신']
@@ -218,8 +219,9 @@ Table course_place {
   id           bigint [pk, increment]
   course_id    bigint [not null, ref: > course.id]
   place_id     bigint [not null, ref: > place.id]
-  visit_order  int    [not null, note: '1 이상']
+  visit_order  int    [not null, note: '1 이상, 코스 전체를 통틀은 전역 순서']
   planned_time time
+  visit_date   date   [note: '며칠째 방문지인지, 여러 날 코스 지원(2026-09-06). 직접 코스 만들기만 채움']
 
   indexes {
     (course_id, visit_order) [unique]
