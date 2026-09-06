@@ -2,7 +2,7 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
 import { fonts } from '../theme/fonts';
-import { HamburgerIcon, ProfileIcon } from './icons';
+import { HamburgerIcon, ProfileIcon, SearchIcon } from './icons';
 
 interface Props {
   onMenuPress: () => void;
@@ -25,7 +25,7 @@ export function AppHeader({ onMenuPress, onSearchPress, onProfilePress }: Props)
       </View>
       <View style={styles.headerRight}>
         <TouchableOpacity onPress={onSearchPress} hitSlop={8} style={styles.iconButton}>
-          <Text style={styles.emojiIcon}>🔍</Text>
+          <SearchIcon size={20} />
         </TouchableOpacity>
         <TouchableOpacity onPress={onProfilePress} hitSlop={8} style={styles.iconButton}>
           <ProfileIcon />
@@ -46,6 +46,5 @@ const styles = StyleSheet.create({
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   iconButton: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
-  emojiIcon: { fontSize: 18 },
   logo: { fontFamily: fonts.logo, fontSize: 24, color: colors.black },
 });
