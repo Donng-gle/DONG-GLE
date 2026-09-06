@@ -806,3 +806,14 @@
 - **영향**: `feat/recommended-tab-map-popup`, `client` 커밋 `1d63335`. 실기기(목업 모드)로 접힘→펼침(지도 완전히 덮임)→사진 스와이프 시 캡션 교체→"선택" 눌러 장소 상세 이동→뒤로가기 복귀까지 end-to-end 확인
 
 ---
+
+## 2026-09-07 | 취향 맞춤 코스 탭: 카드를 방문 기록 1건에서 실제 코스로 전면 교체 + 선택→지도 미리보기→자세히 보기 플로우 (바로 위 두 결정 일부 뒤집음)
+
+- **결정**: `RecommendedTab`의 데이터 소스를 `/explore/similar-logs`(다른 사용자의 방문 기록 1건, 장소 1곳)에서 신규 `/explore/similar-courses`(다른 사용자의 공개 코스, 여러 장소)로 전면 교체. `course.is_public`(nullable 아님, 기본값 true) 컬럼 신규 추가 — `visit_log.is_public`과 동일 패턴. 카드 "선택"을 누르면 `GET /explore/courses/{courseId}`(`CourseDetail` 그대로 재사용, 소유권 대신 공개 여부만 확인)로 좌표를 불러와 배경 지도를 AndongGlobe에서 실제 `MapView`+`Polyline` 경로 미리보기(장소 2곳이면 "출발"/"도착" 라벨, 3곳 이상이면 중간은 방문 순서 번호)로 바꾸고 시트를 접어서 보여줌 — 이때 버튼 라벨이 "자세히 보기"로 바뀌고, 다시 누르면 신규 `PublicCourseDetailScreen`(직접 일정 만들기와 같은 지도+장소 리스트 구성, 여러 날 코스면 날짜별 헤더로 구분, 수정/삭제 없음)으로 이동
+- **이유**: 사용자가 Figma "메인 페이지-맞춤 코스"(경로 있는 지도)와 "직접 일정 만들기-기본화면"(날짜 탭+지도+장소 리스트) 두 프레임을 근거로 "추천 코스 선택을 누르면 지도 위에 간단한 경로만 보여주고 선택이 자세히 보기로 바뀐 다음, 자세히 보기를 누르면 직접 일정 만들기-기본화면처럼 보여지는 방식으로 가자"고 명시 요청. 방문 기록 1건(장소 1곳)으로는 "경로"/"여러 날 코스"를 표현할 데이터 자체가 없어서, 카드가 가리키는 대상을 코스로 바꾸는 것 외엔 답이 없었음(`AskUserQuestion`으로 "그 작성자가 실제로 저장한 코스(신규 기능)" 확답받고 진행 — 방문 기록을 날짜로 묶어 흉내내는 방안과 완전 신규 기능 방안을 놓고 사용자가 후자를 선택)
+- **바로 위 두 결정에서 뒤집힌 부분**: (1) 카드 데이터가 `SimilarLogItem`(방문 기록)이 아니라 `SimilarCourseItem`(코스)이 됨 — 카드에서 `place_name`/`rating`/`tags`가 빠지고 `title`(코스 제목)+`place_previews`(장소 이름+썸네일, 사진 넘기면 캡션 대신 장소 이름이 뜸)로 바뀜. 사진별 캡션 지원 작업 자체는 여전히 유효(방문 기록 API 자체엔 남아있음)하나 이 카드에서는 안 씀. (2) "선택" 버튼이 `PlaceDetailScreen`이 아니라 새 지도 미리보기+`PublicCourseDetailScreen`으로 연결됨
+- **백엔드 신규**: `CourseRepository.findPublicByUserIds`(similarLogs와 동일한 취향 겹침 판단 재사용), `ExploreService.similarCourses`/`CourseService.getPublicDetail`, `CourseNotPublicException`(소유권 문제인 기존 `CourseAccessDeniedException`과 구분). 카드 목록 응답(`SimilarCourseItemResponse`)은 가볍게(장소 이름+썸네일만, 좌표/경로 없음) 유지하고 "선택" 시점에만 `CourseDetail`(좌표+경로 포함)을 따로 조회 — 코스 목록 조회마다 Google Directions를 호출하지 않기 위함
+- **읽기 전용 코스 상세 화면의 스코프 축소**: Figma "직접 일정 만들기-기본화면"의 인터랙티브 날짜 탭(눌러서 그 날짜 지도만 필터링) 대신, `PublicCourseDetailScreen`은 스크롤 목록 안에 "7/5(일)" 같은 날짜 구분 헤더만 넣음 — 읽기 전용 화면이라 날짜별 지도 필터링까지는 불필요하다고 판단(지도는 전체 경로를 한 번에 보여줌)
+- **영향**: DB(`course.is_public`, 실 데이터 1건 무손실 마이그레이션) → 백엔드(`feat/explore-similar-courses`, `server` 커밋 `6d32664`, 배포 완료, 통합 테스트 전체 통과) → 프론트(`feat/explore-similar-courses-client`, `client` 커밋 `f966a5a`) 순서로 같은 세션에서 전부 완료. `api_1.3.1v.yaml`(`SimilarCourseItem`/`SimilarCoursePlacePreview` 스키마+두 신규 엔드포인트)/`schema.sql`/`schema.dbml` 갱신. 실기기(목업 모드)로 카드 선택→2점/3점 경로 미리보기 전환→자세히 보기→여러 날 코스 날짜별 헤더 표시→뒤로가기 복귀까지 end-to-end 확인. 목업은 `mocks/fixtures/courses.ts`에 `MOCK_OTHER_COURSES`(다른 사용자 코스 3건, 그 중 1건은 2박3일) 신규 추가
+
+---
