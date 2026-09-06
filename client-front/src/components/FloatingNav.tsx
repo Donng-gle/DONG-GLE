@@ -82,13 +82,14 @@ export function FloatingNav({ onHome, onCreateManual, onCreateAI, onProfile }: P
   );
 }
 
-// 집 모양(지붕 두 변 + 벽 사각형 + 문 자리 가로선), 전부 흰색 선(icons.tsx의 다른 아이콘들과
-// 동일하게 별도 에셋 없이 View만 조합)
+// 집 모양(지붕 + 벽 사각형 + 문 자리 가로선), 전부 흰색 선(icons.tsx의 다른 아이콘들과 동일하게
+// 별도 에셋 없이 View만 조합). 지붕은 막대 2개를 따로 회전시켰다가 꼭짓점이 안 맞아 떨어져
+// 보였음(2026-09-06) — ChevronRightIcon과 동일하게 정사각형 하나에 위/왼쪽 테두리만 주고
+// 45도 회전시키는 방식으로 교체(그 모서리가 그대로 지붕 꼭짓점이 되어 좌우 대칭 지붕이 됨)
 function HomeIcon() {
   return (
     <View style={homeIconStyles.container}>
-      <View style={homeIconStyles.roofLeft} />
-      <View style={homeIconStyles.roofRight} />
+      <View style={homeIconStyles.roof} />
       <View style={homeIconStyles.body} />
       <View style={homeIconStyles.door} />
     </View>
@@ -97,31 +98,21 @@ function HomeIcon() {
 
 const homeIconStyles = StyleSheet.create({
   container: { width: 20, height: 18, alignItems: 'center' },
-  roofLeft: {
+  roof: {
     position: 'absolute',
-    top: 2,
-    left: 1,
-    width: 12,
-    height: 1.6,
-    borderRadius: 1,
-    backgroundColor: colors.white,
-    transform: [{ rotate: '38deg' }],
-  },
-  roofRight: {
-    position: 'absolute',
-    top: 2,
-    right: 1,
-    width: 12,
-    height: 1.6,
-    borderRadius: 1,
-    backgroundColor: colors.white,
-    transform: [{ rotate: '-38deg' }],
+    top: 1,
+    width: 11,
+    height: 11,
+    borderTopWidth: 1.6,
+    borderLeftWidth: 1.6,
+    borderColor: colors.white,
+    transform: [{ rotate: '45deg' }],
   },
   body: {
     position: 'absolute',
     bottom: 0,
     width: 14,
-    height: 10,
+    height: 9,
     borderWidth: 1.6,
     borderTopWidth: 0,
     borderColor: colors.white,
