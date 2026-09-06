@@ -1254,6 +1254,51 @@ components:
           type: string
           nullable: true
 
+    SimilarCoursePlacePreview:
+      type: object
+      description: |
+        코스 안 장소 하나의 미리보기(이름+썸네일). "취향 맞춤 코스" 카드에서 사진을 넘기면
+        그 장소 이름으로 설명 텍스트가 바뀌게 하기 위한 쌍(2026-09-07 결정, decision-log 참고).
+      properties:
+        name:
+          type: string
+        thumbnail_url:
+          type: string
+          nullable: true
+
+    SimilarCourseItem:
+      type: object
+      description: |
+        유사 취향 사용자의 공개 코스. "취향 맞춤 코스" 탭 카드 목록용(2026-09-07 결정,
+        decision-log 참고). 장소 좌표/전체 경로는 없음 — "선택" 시
+        GET /explore/courses/{course_id}(CourseDetail)로 따로 조회해서 지도 미리보기에 씀.
+      properties:
+        course_id:
+          type: integer
+          format: int64
+        title:
+          type: string
+        travel_date:
+          type: string
+          format: date
+          nullable: true
+        end_date:
+          type: string
+          format: date
+          nullable: true
+        place_count:
+          type: integer
+        place_previews:
+          type: array
+          items:
+            $ref: '#/components/schemas/SimilarCoursePlacePreview'
+          description: 방문 순서 기준 최대 3장(카드 사진 캐러셀용)
+        nickname:
+          type: string
+        profile_image_url:
+          type: string
+          nullable: true
+
     PresignedUrlRequest:
       type: object
       required: [filename, content_type]
@@ -2969,6 +3014,82 @@ paths:
                       $ref: '#/components/schemas/SimilarLogItem'
         '401':
           description: 인증 필요
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /explore/similar-courses:
+    get:
+      tags: [Explore]
+      summary: 유사 사용자 공개 코스 탐색 ("취향 맞춤 코스" 탭)
+      description: |
+        내 user_preference 상위 태그와 유사한 취향을 가진 다른 사용자의 공개 코스를 반환한다
+        (2026-09-07 결정, decision-log 참고). similar-logs와 동일한 취향 겹침 판단(상위 태그
+        3개, 유사도 0.6 이상)을 코스에도 그대로 적용한다.
+        카드 목록용 가벼운 응답이라 장소 좌표/전체 경로는 포함하지 않는다 — "선택" 시
+        GET /explore/courses/{courseId}로 상세(좌표+경로)를 따로 조회해야 한다.
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: 조회 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  courses:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SimilarCourseItem'
+        '401':
+          description: 인증 필요
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /explore/courses/{courseId}:
+    get:
+      tags: [Explore]
+      summary: 공개 코스 상세 조회 ("취향 맞춤 코스" 탭 "자세히 보기")
+      description: |
+        GET /courses/{courseId}와 응답 형태는 동일(CourseDetail, 경로 재계산 포함)하지만
+        소유자 확인 대신 공개 여부(is_public)만 확인한다 — 로그인만 돼 있으면 다른 사용자의
+        공개 코스도 조회할 수 있다(2026-09-07 결정, decision-log 참고).
+      parameters:
+        - name: courseId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CourseDetail'
+        '401':
+          description: 인증 필요
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 공개되지 않은 코스
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 코스 없음
           content:
             application/json:
               schema:

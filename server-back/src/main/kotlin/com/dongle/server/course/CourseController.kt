@@ -56,6 +56,13 @@ class CourseController(
     fun getDetail(authentication: Authentication, @PathVariable courseId: Long): CourseDetailResponse =
         courseService.getDetail(authentication.userId(), courseId)
 
+    // "취향 맞춤 코스" 탭 "자세히 보기" — 소유자가 아니어도 공개 코스면 조회 가능(2026-09-07 결정,
+    // decision-log 참고). authentication은 로그인 여부만 확인(탭 자체가 로그인 필요 화면)하고
+    // 소유권 검사엔 안 씀
+    @GetMapping("/explore/courses/{courseId}")
+    fun getPublicDetail(authentication: Authentication, @PathVariable courseId: Long): CourseDetailResponse =
+        courseService.getPublicDetail(courseId)
+
     @PatchMapping("/courses/{courseId}")
     fun update(
         authentication: Authentication,

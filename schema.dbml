@@ -214,6 +214,7 @@ Table course {
   transport   varchar(10)  [note: "CHECK: 'car' | 'walk' | 'public', 구글맵 경로 재계산용. nullable(과거 데이터/미입력 허용)"]
   created_at  timestamp    [not null, default: `now()`]
   updated_at  timestamp    [not null, default: `now()`, note: 'UPDATE 시 자동 갱신']
+  is_public   boolean      [not null, default: true, note: '취향 맞춤 코스 탭(GET /explore/similar-courses)에서 공개 코스만 노출, 2026-09-07 결정, decision-log 참고']
 }
 
 Table course_place {

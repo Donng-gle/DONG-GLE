@@ -57,6 +57,12 @@ class Course(
     @Column(name = "updated_at", nullable = false)
     var updatedAt: LocalDateTime = LocalDateTime.now(),
 
+    // "취향 맞춤 코스" 탭에서 취향 겹치는 다른 유저의 코스를 탐색할 수 있게 추가(2026-09-07 결정,
+    // decision-log 참고) — visit_log.is_public과 동일한 패턴. 실 데이터 1건 있었고 기본값 true로
+    // 안전 마이그레이션(그 1건도 공개로 취급됨)
+    @Column(name = "is_public", nullable = false)
+    var isPublic: Boolean = true,
+
     @OneToMany(mappedBy = "course", fetch = FetchType.LAZY, cascade = [CascadeType.ALL], orphanRemoval = true)
     @OrderBy("visitOrder asc")
     val places: MutableList<CoursePlace> = mutableListOf(),
