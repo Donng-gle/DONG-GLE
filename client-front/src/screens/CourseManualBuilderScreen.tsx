@@ -162,6 +162,20 @@ export function CourseManualBuilderScreen({ onSaved, onExit, onCreateManual, onC
 
   async function handleSave() {
     if (!travelDate) return; // 'form' 단계에선 항상 있음(가드)
+
+    // 날짜별로 하나도 안 채운 날이 있으면 저장 자체를 막음(2026-09-06 사용자 지적) —
+    // N박N일 코스인데 특정 날짜가 통째로 비면 그 날은 뭘 할지 모르는 코스가 저장돼버림.
+    // 하루짜리(dateTabs 1개)면 이 검사가 곧 기존 "장소 1곳 이상" 검사와 같아짐
+    const emptyTabs = dateTabs.filter((tab) => (placesByDate[tab.dateKey] ?? []).length === 0);
+    if (emptyTabs.length > 0) {
+      setSelectedDateTab(emptyTabs[0].dateKey); // 뭘 채워야 하는지 바로 보이게 그 날짜 탭으로 이동
+      Alert.alert(
+        '아직 장소가 없는 날짜가 있어요',
+        `${emptyTabs.map((t) => formatShortDateLabel(t.dateKey)).join(', ')}에 장소를 1곳 이상 추가해주세요`,
+      );
+      return;
+    }
+
     // 날짜 순서대로, 그 안에서 리스트 순서대로 이어붙여서 코스 전체를 통틀은 전역 visit_order를
     // 매김(course_place.visitOrder는 날짜와 무관하게 전역 순서, visitDate로 날짜만 구분)
     const flatPlaces: CoursePlaceRequest[] = [];
@@ -170,10 +184,6 @@ export function CourseManualBuilderScreen({ onSaved, onExit, onCreateManual, onC
         flatPlaces.push({ place_id: place.id, visit_order: flatPlaces.length + 1, visit_date: tab.dateKey });
       });
     });
-    if (flatPlaces.length === 0) {
-      Alert.alert('장소를 1곳 이상 추가해주세요');
-      return;
-    }
     setSaving(true);
     try {
       const request: CourseManualRequest = {
