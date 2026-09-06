@@ -14,11 +14,13 @@ import {
 } from 'react-native';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { CourseDetail, CoursePlaceItem } from '../../api/course';
-import { SimilarCourseItem, exploreApi } from '../../api/explore';
+import { CoursePlaceItem } from '../../api/course';
+import { SimilarCourseItem, SimilarLogItem, exploreApi } from '../../api/explore';
 import { AndongGlobe } from '../../components/AndongGlobe';
+import { StarRating } from '../../components/StarRating';
 import { colors } from '../../theme/colors';
 import { fonts } from '../../theme/fonts';
+import { PlaceDetailScreen } from '../PlaceDetailScreen';
 import { PublicCourseDetailScreen } from '../PublicCourseDetailScreen';
 
 const GLOBE_SIZE = Dimensions.get('window').width;
@@ -34,39 +36,60 @@ const PEEK_HEIGHT = 76;
 const NAV_CLEARANCE = 72;
 const SNAP_THRESHOLD_RATIO = 0.35;
 
+// "취향 맞춤 코스" 탭 리스트 항목 — 코스(여러 장소)와 개별 장소(방문 기록 1건)를 같은 카드
+// 디자인으로 섞어서 보여줌(2026-09-07 결정, decision-log 참고). "선택"/"자세히 보기"의 목적지만
+// 다름 — 코스는 PublicCourseDetailScreen, 장소는 PlaceDetailScreen(관광지 상세)
+type RecommendedItem =
+  | { kind: 'course'; data: SimilarCourseItem }
+  | { kind: 'place'; data: SimilarLogItem };
+
+function itemKey(item: RecommendedItem): string {
+  return item.kind === 'course' ? `course-${item.data.course_id}` : `place-${item.data.log_id}`;
+}
+
+// "선택" 시 지도 미리보기에 찍는 점 하나 — 코스는 장소마다, 개별 장소는 그 장소 하나뿐
+interface PreviewPoint {
+  id: string;
+  lat: number;
+  lng: number;
+  label: string;
+}
+
 // Figma 노드 507:10963/510:11050("메인 페이지-맞춤 코스") 실측 + JournalTab.tsx의 팝업(바텀시트)
-// 메커니즘 재사용. 카드는 원래 "유사 사용자 탐색"(방문 기록 1건)을 썼었는데(2026-08-31 결정),
-// 사용자가 "선택 → 지도에 간단한 경로 미리보기 → 자세히 보기 → 직접 일정 만들기와 같은 코스 상세
-// 화면"을 요청하면서 실제 COURSE(여러 장소로 구성된 코스) 데이터로 전면 교체(2026-09-07 결정,
-// decision-log 참고) — 방문 기록 1건짜리 카드로는 "코스"를 보여줄 수 없었음.
+// 메커니즘 재사용. 카드는 원래 "유사 사용자 탐색"(방문 기록 1건)만 썼다가(2026-08-31 결정) 사용자
+// 요청으로 실제 COURSE 데이터로 전면 교체했었는데(2026-09-07 결정), 개별 장소도 이 탭에서 계속
+// 확인할 수 있어야 한다는 요청으로 두 데이터(코스+개별 장소)를 같은 카드 디자인으로 섞어서 보여줌
+// (2026-09-07 결정, decision-log 참고)
 //
 // Figma 원안과 의도적으로 다르게 간 부분:
 // 1. 배경 지도: 평소엔 나의 일지와 동일한 AndongGlobe(사용자 명시 요청). "선택" 시엔 Figma의
-//    정적 출발/도착 일러스트 대신 실제 MapView+Polyline으로 대체 — "자세히 보기"(PublicCourseDetailScreen)도
-//    실제 지도를 쓰므로 같은 방식이 일관적이고, 코스마다 장소 수가 다를 수 있어 정적 2점 일러스트로는
-//    표현이 안 됨
+//    정적 출발/도착 일러스트 대신 실제 MapView+Polyline/마커로 대체
 // 2. 사진 우상단 하트(좋아요) 버튼: ExploreScreen.tsx가 이미 "방문 기록 좋아요 개념이 스키마에
-//    없음"으로 생략한 선례를 그대로 따름(코스에도 좋아요 개념 없음)
+//    없음"으로 생략한 선례를 그대로 따름
 export function RecommendedTab() {
   const insets = useSafeAreaInsets();
-  const [courses, setCourses] = useState<SimilarCourseItem[] | null>(null);
+  const [items, setItems] = useState<RecommendedItem[] | null>(null);
   const [containerHeight, setContainerHeight] = useState<number | null>(null);
   const [expanded, setExpanded] = useState(false);
-  const [selectedCourseId, setSelectedCourseId] = useState<number | null>(null);
-  const [selectedCourseDetail, setSelectedCourseDetail] = useState<CourseDetail | null>(null);
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [previewPoints, setPreviewPoints] = useState<PreviewPoint[] | null>(null);
   const [detailCourseId, setDetailCourseId] = useState<number | null>(null);
+  const [detailPlaceId, setDetailPlaceId] = useState<number | null>(null);
 
   const translateY = useRef(new Animated.Value(0)).current;
   const translateYRef = useRef(0);
   const dragBaseValue = useRef(0);
   const maxTranslate = useRef(0);
-  const listRef = useRef<FlatList<SimilarCourseItem>>(null);
+  const listRef = useRef<FlatList<RecommendedItem>>(null);
 
   useEffect(() => {
-    exploreApi
-      .similarCourses()
-      .then((res) => setCourses(res.courses))
-      .catch(() => setCourses([]));
+    Promise.all([exploreApi.similarCourses(), exploreApi.similarLogs()])
+      .then(([coursesRes, logsRes]) => {
+        const courseItems: RecommendedItem[] = coursesRes.courses.map((c) => ({ kind: 'course', data: c }));
+        const placeItems: RecommendedItem[] = logsRes.logs.map((l) => ({ kind: 'place', data: l }));
+        setItems([...courseItems, ...placeItems]);
+      })
+      .catch(() => setItems([]));
   }, []);
 
   // JournalTab.handleContainerLayout과 동일 — 접힘 상태 오프셋 계산 로직 그대로
@@ -113,31 +136,49 @@ export function RecommendedTab() {
 
   const panelHeight = containerHeight != null ? Math.max(0, containerHeight - insets.bottom) : 0;
 
-  // "선택" — 코스 상세(좌표+경로)를 불러와서 지도 미리보기로 바꾸고, 지도가 보이도록 시트를 접음.
-  // 버튼은 이 코스가 selectedCourseId가 되면 "자세히 보기"로 바뀜(카드 렌더링 참고)
-  async function handleSelectCourse(courseId: number) {
-    setSelectedCourseId(courseId);
+  // "선택"(코스) — 코스 상세(좌표+경로)를 불러와서 지도 미리보기로 바꾸고, 지도가 보이도록 시트를 접음
+  async function handleSelectCourse(course: SimilarCourseItem) {
+    setSelectedKey(itemKey({ kind: 'course', data: course }));
     try {
-      const detail = await exploreApi.getCourseDetail(courseId);
-      setSelectedCourseDetail(detail);
+      const detail = await exploreApi.getCourseDetail(course.course_id);
+      const pinned = detail.places.filter((p) => p.lat != null && p.lng != null);
+      setPreviewPoints(
+        pinned.map((p, idx) => ({
+          id: String(p.place_id),
+          lat: p.lat as number,
+          lng: p.lng as number,
+          label: previewPinLabel(p, idx, pinned.length),
+        })),
+      );
       snapTo(false);
     } catch (e) {
       Alert.alert('코스를 불러오지 못했어요', e instanceof Error ? e.message : '알 수 없는 오류');
-      setSelectedCourseId(null);
+      setSelectedKey(null);
     }
+  }
+
+  // "선택"(개별 장소) — 이미 좌표를 들고 있어서(SimilarLogItem.lat/lng) 별도 조회 없이 바로 미리보기.
+  // 좌표가 없는 장소면 미리보기만 못 보여줄 뿐 선택 자체는 막지 않음(자세히 보기는 계속 가능)
+  function handleSelectPlace(log: SimilarLogItem) {
+    setSelectedKey(itemKey({ kind: 'place', data: log }));
+    if (log.lat != null && log.lng != null) {
+      setPreviewPoints([{ id: String(log.place_id), lat: log.lat, lng: log.lng, label: log.place_name }]);
+    } else {
+      setPreviewPoints(null);
+    }
+    snapTo(false);
   }
 
   if (detailCourseId != null) {
     return <PublicCourseDetailScreen courseId={detailCourseId} onExit={() => setDetailCourseId(null)} />;
   }
+  if (detailPlaceId != null) {
+    return <PlaceDetailScreen placeId={detailPlaceId} onExit={() => setDetailPlaceId(null)} />;
+  }
 
   return (
     <View style={styles.container} onLayout={(e) => handleContainerLayout(e.nativeEvent.layout.height)}>
-      {selectedCourseDetail ? (
-        <CourseRoutePreviewMap course={selectedCourseDetail} size={GLOBE_SIZE} />
-      ) : (
-        <AndongGlobe size={GLOBE_SIZE} />
-      )}
+      {previewPoints ? <RoutePreviewMap points={previewPoints} size={GLOBE_SIZE} /> : <AndongGlobe size={GLOBE_SIZE} />}
 
       {containerHeight != null && (
         <View style={[styles.sheetClip, { height: panelHeight }]}>
@@ -148,22 +189,26 @@ export function RecommendedTab() {
             </View>
             <FlatList
               ref={listRef}
-              data={courses ?? []}
-              keyExtractor={(item) => String(item.course_id)}
+              data={items ?? []}
+              keyExtractor={itemKey}
               scrollEnabled={expanded}
               showsVerticalScrollIndicator={false}
               contentContainerStyle={styles.listContent}
               ListEmptyComponent={
-                courses != null ? (
-                  <Text style={styles.emptyText}>아직 취향이 겹치는 유저의 공개 코스가 없어요</Text>
+                items != null ? (
+                  <Text style={styles.emptyText}>아직 취향이 겹치는 유저의 공개 코스/기록이 없어요</Text>
                 ) : null
               }
               renderItem={({ item }) => (
-                <SimilarCourseCard
+                <SimilarItemCard
                   item={item}
-                  isSelected={item.course_id === selectedCourseId}
-                  onSelect={() => handleSelectCourse(item.course_id)}
-                  onViewDetail={() => setDetailCourseId(item.course_id)}
+                  isSelected={itemKey(item) === selectedKey}
+                  onSelect={() =>
+                    item.kind === 'course' ? handleSelectCourse(item.data) : handleSelectPlace(item.data)
+                  }
+                  onViewDetail={() =>
+                    item.kind === 'course' ? setDetailCourseId(item.data.course_id) : setDetailPlaceId(item.data.place_id)
+                  }
                 />
               )}
             />
@@ -174,17 +219,14 @@ export function RecommendedTab() {
   );
 }
 
-// "선택"된 코스의 장소들을 실제 지도 위에 마커+경로로 보여줌(2026-09-07 결정, decision-log 참고).
-// PublicCourseDetailScreen/CourseDetailScreen의 지도 블록과 같은 패턴(MapView+Polyline)이지만
-// 카드 미리보기용이라 번호 핀 대신 첫/마지막 장소만 "출발"/"도착"으로 라벨링(장소가 2곳 초과면
-// 중간은 방문 순서 번호)
-function CourseRoutePreviewMap({ course, size }: { course: CourseDetail; size: number }) {
-  const pinned = course.places.filter((p) => p.lat != null && p.lng != null);
-  if (pinned.length === 0) {
+// "선택"된 항목의 좌표를 실제 지도 위에 마커(+2개 이상이면 경로)로 보여줌(2026-09-07 결정,
+// decision-log 참고). 코스든 개별 장소든 PreviewPoint 배열만 받으면 동일하게 그림
+function RoutePreviewMap({ points, size }: { points: PreviewPoint[]; size: number }) {
+  if (points.length === 0) {
     return <View style={[styles.mapFallback, { width: size, height: size }]} />;
   }
 
-  const coords = pinned.map((p) => ({ latitude: p.lat as number, longitude: p.lng as number }));
+  const coords = points.map((p) => ({ latitude: p.lat, longitude: p.lng }));
 
   return (
     <MapView
@@ -195,10 +237,10 @@ function CourseRoutePreviewMap({ course, size }: { course: CourseDetail; size: n
       {coords.length > 1 && (
         <Polyline coordinates={coords} strokeColor={colors.accentBlue} strokeWidth={3} />
       )}
-      {pinned.map((p, idx) => (
-        <Marker key={p.place_id} coordinate={{ latitude: p.lat as number, longitude: p.lng as number }}>
+      {points.map((p) => (
+        <Marker key={p.id} coordinate={{ latitude: p.lat, longitude: p.lng }}>
           <View style={styles.previewPin}>
-            <Text style={styles.previewPinText}>{previewPinLabel(p, idx, pinned.length)}</Text>
+            <Text style={styles.previewPinText}>{p.label}</Text>
           </View>
         </Marker>
       ))}
@@ -206,6 +248,8 @@ function CourseRoutePreviewMap({ course, size }: { course: CourseDetail; size: n
   );
 }
 
+// 코스 미리보기 전용 라벨 규칙 — 장소가 2곳이면 "출발"/"도착", 3곳 이상이면 중간은 방문 순서 번호.
+// 개별 장소(1곳)는 이 함수를 안 타고 RecommendedTab에서 바로 장소 이름을 라벨로 씀
 function previewPinLabel(place: CoursePlaceItem, index: number, total: number): string {
   if (total <= 1) return place.name;
   if (index === 0) return '출발';
@@ -214,7 +258,8 @@ function previewPinLabel(place: CoursePlaceItem, index: number, total: number): 
 }
 
 // 모든 좌표가 화면에 들어오도록 중심+델타를 계산 — 코스마다 장소 수/범위가 달라서 고정 리전 대신
-// 매번 bounding box로 계산(*1.6 여유는 CourseDetailScreen이 안 쓰는 값이라 이 화면 전용 조정)
+// 매번 bounding box로 계산(*1.6 여유는 CourseDetailScreen이 안 쓰는 값이라 이 화면 전용 조정).
+// 점이 1개뿐이면 delta가 0이 되므로 최소값(0.02)으로 바닥을 깜(개별 장소 미리보기용)
 function regionForCoords(coords: { latitude: number; longitude: number }[]) {
   const lats = coords.map((c) => c.latitude);
   const lngs = coords.map((c) => c.longitude);
@@ -230,36 +275,60 @@ function regionForCoords(coords: { latitude: number; longitude: number }[]) {
   };
 }
 
-// Figma 노드 507:10963/510:11050("취향 비슷 사용자 프로필") 실측값 그대로 재구현(2026-09-07,
-// 방문 기록 1건 → 실제 코스로 데이터가 바뀌면서 place_name/rating/tags는 카드에서 빠짐).
-// 사진(장소 미리보기)을 넘기면 그 장소 이름으로 설명 텍스트가 바뀜
-function SimilarCourseCard({
+// 카드 하나에 표시할 사진(또는 장소 미리보기) + 캡션 슬라이드 — 코스/개별 장소 데이터 모양이 달라서
+// 카드 렌더링 전에 공통 형태로 정규화(2026-09-07 결정, decision-log 참고)
+interface CardSlide {
+  url: string | null;
+  caption: string | null;
+}
+
+function slidesFor(item: RecommendedItem): CardSlide[] {
+  if (item.kind === 'course') {
+    return item.data.place_previews.map((p) => ({ url: p.thumbnail_url, caption: p.name }));
+  }
+  return item.data.photos.map((p) => ({ url: p.url, caption: p.caption }));
+}
+
+// Figma 노드 507:10963/510:11050("취향 비슷 사용자 프로필") 실측값 그대로 재구현(2026-09-07).
+// 코스/개별 장소 둘 다 같은 레이아웃을 쓰되(사용자 요청 "디자인은 동일하게"), 상단 보조 텍스트
+// (코스 수 vs 태그)와 제목 줄(코스 제목 vs 장소명+별점)만 종류별로 다르게 채움
+function SimilarItemCard({
   item,
   isSelected,
   onSelect,
   onViewDetail,
 }: {
-  item: SimilarCourseItem;
+  item: RecommendedItem;
   isSelected: boolean;
   onSelect: () => void;
   onViewDetail: () => void;
 }) {
-  const previews = item.place_previews;
+  const { data } = item;
+  const slides = slidesFor(item);
   const [activePhoto, setActivePhoto] = useState(0);
-  const caption = previews[activePhoto]?.name ?? null;
+  const slideCaption = slides[activePhoto]?.caption ?? null;
+  // 개별 장소는 슬라이드(사진)에 캡션이 없으면 로그 대표 한줄리뷰로 대체 — 코스는 place_previews의
+  // name이 항상 있어서 폴백이 필요 없음
+  const caption = slideCaption ?? (item.kind === 'place' ? item.data.one_line : null);
 
   return (
     <View style={styles.card}>
       <View style={styles.topRow}>
         <View style={styles.profileRow}>
-          {item.profile_image_url ? (
-            <Image source={{ uri: item.profile_image_url }} style={styles.avatar} resizeMode="cover" />
+          {data.profile_image_url ? (
+            <Image source={{ uri: data.profile_image_url }} style={styles.avatar} resizeMode="cover" />
           ) : (
             <View style={[styles.avatar, styles.avatarPlaceholder]} />
           )}
           <View style={styles.nameCategory}>
-            <Text style={styles.nickname}>{item.nickname}</Text>
-            <Text style={styles.tagsText}>{item.place_count}곳 코스</Text>
+            <Text style={styles.nickname}>{data.nickname}</Text>
+            {item.kind === 'course' ? (
+              <Text style={styles.tagsText}>{item.data.place_count}곳 코스</Text>
+            ) : (
+              item.data.tags.length > 0 && (
+                <Text style={styles.tagsText}>{item.data.tags.slice(0, 2).map((tag) => `# ${tag}`).join('  ')}</Text>
+              )
+            )}
           </View>
         </View>
         <TouchableOpacity
@@ -273,7 +342,15 @@ function SimilarCourseCard({
       </View>
 
       <View style={styles.textBlock}>
-        <Text style={styles.placeName}>{item.title}</Text>
+        <View style={styles.placeNameRow}>
+          <Text style={styles.placeName}>{item.kind === 'course' ? item.data.title : item.data.place_name}</Text>
+          {item.kind === 'place' && item.data.rating != null && (
+            <View style={styles.ratingRow}>
+              <StarRating rating={item.data.rating} size={12} />
+              <Text style={styles.ratingText}>{item.data.rating.toFixed(1)}</Text>
+            </View>
+          )}
+        </View>
         {caption && (
           <Text style={styles.captionText} numberOfLines={2}>
             {caption}
@@ -281,28 +358,28 @@ function SimilarCourseCard({
         )}
       </View>
 
-      {previews.length > 0 && (
+      {slides.length > 0 && (
         <View style={styles.photoBlock}>
           <ScrollView
             horizontal
             pagingEnabled
             showsHorizontalScrollIndicator={false}
-            scrollEnabled={previews.length > 1}
+            scrollEnabled={slides.length > 1}
             onMomentumScrollEnd={(e) =>
               setActivePhoto(Math.round(e.nativeEvent.contentOffset.x / CARD_IMAGE_WIDTH))
             }
           >
-            {previews.map((p, idx) =>
-              p.thumbnail_url ? (
-                <Image key={idx} source={{ uri: p.thumbnail_url }} style={styles.cardImage} resizeMode="cover" />
+            {slides.map((s, idx) =>
+              s.url ? (
+                <Image key={idx} source={{ uri: s.url }} style={styles.cardImage} resizeMode="cover" />
               ) : (
                 <View key={idx} style={[styles.cardImage, styles.cardImagePlaceholder]} />
               ),
             )}
           </ScrollView>
-          {previews.length > 1 && (
+          {slides.length > 1 && (
             <View style={styles.dotsRow}>
-              {previews.map((_, i) => (
+              {slides.map((_, i) => (
                 <View key={i} style={[styles.dot, i === activePhoto && styles.dotActive]} />
               ))}
             </View>
@@ -400,7 +477,10 @@ const styles = StyleSheet.create({
   selectButtonTextActive: { color: colors.white },
 
   textBlock: { marginTop: 16 },
+  placeNameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   placeName: { fontFamily: fonts.medium, fontSize: 16, letterSpacing: -0.4, lineHeight: 22, color: colors.black },
+  ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  ratingText: { fontFamily: fonts.regular, fontSize: 13, color: colors.black },
   // Figma 시안 폰트웨이트는 Light(300)인데 앱엔 Regular/Medium/SemiBold/Bold 4종만 번들돼 있어서
   // (App.tsx useFonts 참고) 가장 가까운 Regular로 대체 — 새 폰트 파일 추가는 이번 범위 밖
   captionText: {
