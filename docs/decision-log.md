@@ -790,6 +790,19 @@
 
 - **결정**: `visit_log_photo`에 `caption`(nullable TEXT) 컬럼 추가. `VisitLogCreateRequest.photoUrls`(문자열 목록)를 `photos`(`{url, caption}` 객체 목록, 각 캡션 선택/최대 100자)로 변경하고, `VisitLog` 자신의 응답(Detail/Summary/MapItem)과 `SimilarLogItem` 모두 `photoUrls`/`photoUrl`(단일)에서 `photos`(공용 `VisitLogPhoto`/`VisitLogPhotoResponse` 목록, url+caption)로 통일
 - **이유**: "취향 맞춤 코스" 탭(`RecommendedTab`, Figma "메인 페이지-맞춤 코스")을 나의 일지처럼 지도+팝업 구조로 재설계하면서, 카드 하나 = 다른 사용자의 기록 하나이고 사진을 넘기면 그 사진에 달린 글로 바뀌어야 한다는 요구가 생김 — 기존 `one_line`은 로그 전체 기준 1개뿐이라 사진별로 다른 글을 담을 수 없었음. `SimilarLogItem`의 여러 장 사진 확장은 2026-09-06에 한 번 "범위 밖"으로 명시적으로 미뤄뒀었는데, 이번 요구로 다시 필요해져서 그 결정을 뒤집음(대표 사진 1장 `mainPhotoUrl` 대신 전체 `photos` 노출)
-- **영향**: 실제 데이터 0건이라 무손실 컬럼 추가(이전 사진 여러 장 지원 때와 동일 패턴). API 계약이 깨지는 변경(`photoUrls`→`photos`, `photoUrl`→`photos`)이라 프론트(`api/visitLog.ts`, `api/explore.ts`, `JournalTab.tsx`, `JournalLogCreateModal.tsx`, `VisitLogCreateScreen.tsx`, `PlaceDetailScreen.tsx`, mocks) 전부 같이 맞춰야 함 — 이번 세션에서 백엔드(`feat/visit-log-photo-caption`, `server` 커밋 `59fc209`, 배포 완료)까지만 반영, 프론트는 이어서 진행 예정. `api_1.3.1v.yaml`/`schema.sql`/`schema.dbml` 갱신 완료. 백엔드 통합 테스트(`VisitLogApiIntegrationTest`, `ExploreApiIntegrationTest` 포함 전체) 통과 확인
+- **영향**: 실제 데이터 0건이라 무손실 컬럼 추가(이전 사진 여러 장 지원 때와 동일 패턴). API 계약이 깨지는 변경(`photoUrls`→`photos`, `photoUrl`→`photos`)이라 프론트(`api/visitLog.ts`, `api/explore.ts`, `JournalTab.tsx`, `JournalLogCreateModal.tsx`, `VisitLogCreateScreen.tsx`, `PlaceDetailScreen.tsx`, `ExploreScreen.tsx`, mocks) 전부 같이 맞춤(`feat/visit-log-photo-caption-client`, `client` 커밋 `9be1076`) — 백엔드(`feat/visit-log-photo-caption`, `server` 커밋 `59fc209`, 배포 완료)와 같은 세션에서 전부 완료. `api_1.3.1v.yaml`/`schema.sql`/`schema.dbml` 갱신 완료. 백엔드 통합 테스트(`VisitLogApiIntegrationTest`, `ExploreApiIntegrationTest` 포함 전체) 통과 확인. 단, 캡션 입력 UI(기록하기 모달/화면)는 Figma에 없는 요소라 이번 범위 밖 — 새로 쓰는 기록의 캡션은 계속 비어있고, 기존 캡션 샘플은 목업 데이터로만 확인 가능
+
+---
+
+## 2026-09-07 | 취향 맞춤 코스 탭: 나의 일지처럼 지도+팝업 구조로 재설계
+
+- **결정**: `RecommendedTab`(취향 맞춤 코스 탭)을 Figma 노드 507:10963/510:11050("메인 페이지-맞춤 코스") 실측대로 카드 디자인을 다시 만들고, `JournalTab`(나의 일지)의 바텀시트 메커니즘(PanResponder+Animated, PEEK_HEIGHT/NAV_CLEARANCE/SNAP_THRESHOLD_RATIO 상수까지 동일)을 그대로 재사용해 배경 지도 위에 팝업으로 얹음 — 팝업을 끝까지 올리면 지도를 덮고 카드 목록만 남음. 카드 사진을 넘기면 그 사진의 캡션(없으면 로그 대표 `one_line`)으로 설명 텍스트가 바뀜(위 캡션 지원 작업과 세트)
+- **Figma 원안과 다르게 간 부분(둘 다 사용자 확인/기존 결정 근거)**:
+  1. 배경 지도: Figma는 "출발"/"도착" 라벨이 붙은 정적 경로 일러스트(`지도-2`, `Component 1`)를 쓰는데, `SimilarLogItem`은 장소 하나짜리 방문 기록이라 실제 경로(코스) 데이터가 없음 — 사용자가 "나의 일지에 있던 지도가 보이도록" 명시적으로 요청해서 `AndongGlobe`(안동 지구본)로 대체
+  2. 사진 우상단 하트(좋아요) 버튼: 같은 데이터(`SimilarLogItem`)를 쓰는 `ExploreScreen`이 이미 2026-08-31에 "방문 기록 좋아요 개념 자체가 스키마에 없음"이라는 이유로 생략하기로 결정해뒀던 선례를 그대로 따름
+  3. 카드 설명 텍스트 폰트 웨이트: Figma는 Light(300)인데 앱엔 Regular/Medium/SemiBold/Bold 4종만 번들돼 있어서(2026-08-31 결정) 가장 가까운 Regular로 대체
+  4. Figma 하단의 "1/20" 페이지네이션(이전/다음 화살표) 컨트롤: 스크롤 리스트로 충분하다고 보고 이번엔 생략(참고: `ExploreScreen`엔 이미 유사한 pager가 구현돼 있어서 필요해지면 그 패턴 재사용 가능)
+- **"선택" 버튼**: `ExploreScreen`과 동일하게 해당 장소 상세 화면(`PlaceDetailScreen`)으로 이동하는 용도로 구현(별도 "코스에 추가" 등의 개념은 백엔드에 없어서 만들지 않음)
+- **영향**: `feat/recommended-tab-map-popup`, `client` 커밋 `1d63335`. 실기기(목업 모드)로 접힘→펼침(지도 완전히 덮임)→사진 스와이프 시 캡션 교체→"선택" 눌러 장소 상세 이동→뒤로가기 복귀까지 end-to-end 확인
 
 ---
