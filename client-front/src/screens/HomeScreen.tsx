@@ -163,7 +163,17 @@ export function HomeScreen({ profile: initialProfile, onLogout, onRequireLogin, 
     case 'course-flow':
       return <CourseFlowScreen onExit={closeOverlay} />;
     case 'course-manual':
-      return <CourseManualBuilderScreen onSaved={closeOverlay} onExit={closeOverlay} />;
+      // Figma 501:12543/501:12088 반영(2026-09-06) 후 이 화면도 FloatingNav를 직접 그려서
+      // ScrapbookScreen/ProfileScreen과 동일하게 openCreateManual/openCreateAI/openProfile 전달
+      return (
+        <CourseManualBuilderScreen
+          onSaved={closeOverlay}
+          onExit={closeOverlay}
+          onCreateManual={openCreateManual}
+          onCreateAI={openCreateAI}
+          onProfile={openProfile}
+        />
+      );
     case 'scrapbook':
       return (
         <ScrapbookScreen
