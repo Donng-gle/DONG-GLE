@@ -133,13 +133,15 @@ export function CourseManualBuilderScreen({ onSaved, onExit, onCreateManual, onC
     setPlacesByDate({ ...placesByDate, [selectedDateTab]: next });
   }
 
-  function addPlace(place: PlaceListItem) {
+  // 장소 추가 화면(PlaceMapPickerScreen)에서 "선택"을 누를 때마다 호출 — 이미 추가돼있으면
+  // 빼고(취소), 아니면 더함. 화면을 안 나가고 계속 여러 장소를 골라 담을 수 있게
+  // 함(2026-09-06 사용자 지적 — 예전엔 하나 고르면 바로 폼으로 돌아갔음)
+  function togglePlace(place: PlaceListItem) {
     if (places.some((p) => p.id === place.id)) {
-      Alert.alert('이미 추가된 장소예요');
-      return;
+      setPlacesForSelectedDate(places.filter((p) => p.id !== place.id));
+    } else {
+      setPlacesForSelectedDate([...places, place]);
     }
-    setPlacesForSelectedDate([...places, place]);
-    setStep('form');
   }
 
   function moveUp(index: number) {
@@ -236,7 +238,7 @@ export function CourseManualBuilderScreen({ onSaved, onExit, onCreateManual, onC
   }
 
   if (step === 'picking') {
-    return <PlaceMapPickerScreen onExit={() => setStep('form')} onSelectPlace={addPlace} />;
+    return <PlaceMapPickerScreen onExit={() => setStep('form')} selectedPlaces={places} onTogglePlace={togglePlace} />;
   }
 
   const pinnedPlaces = places

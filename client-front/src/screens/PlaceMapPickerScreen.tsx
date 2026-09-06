@@ -10,7 +10,9 @@ import { fonts } from '../theme/fonts';
 
 interface Props {
   onExit: () => void;
-  onSelectPlace: (place: PlaceListItem) => void;
+  // 이미 이 날짜에 담겨있는 장소들(핀으로 계속 떠있어야 함) + 토글 콜백(있으면 빼고, 없으면 더함)
+  selectedPlaces: PlaceListItem[];
+  onTogglePlace: (place: PlaceListItem) => void;
 }
 
 type Tab = 'all' | 'saved';
@@ -18,23 +20,16 @@ type Tab = 'all' | 'saved';
 const ANDONG_REGION = { latitude: 36.5684, longitude: 128.7294, latitudeDelta: 0.15, longitudeDelta: 0.15 };
 const PAGE_SIZE = 20;
 
-// Figma 600:13996(기본)/600:14306(장소 미리보기 상태) 반영(2026-09-06, 사용자가 스크린샷
-// 재검토 요청) — "직접 일정 만들기 → 장소 추가"에서만 쓰는 지도 연동 검색 화면. 기존
-// PlaceListScreen(카테고리 칩 목록, 지도 없음)은 다른 곳에서 계속 그대로 쓰고 이 화면만 새로 만듦.
-//
-// 실측과 실제 데이터가 안 맞는 부분은 이렇게 근사함:
-// - 시안엔 지도 위에 뜨는 흰 바텀시트가 드래그로 확장되는데, 이 프로젝트엔 바텀시트 라이브러리가
-//   없어서 지도(고정 높이)+흰 콘텐츠 영역(고정)을 위아래로 쌓는 정적 레이아웃으로 단순화
-// - 탭이 "전체보기"/"저장된 장소"/"저장된 장소"(똑같은 라벨 2번, 시안 자체의 복붙 실수로 보임)
-//   3개인데 의미상 다른 탭 2개("전체보기"/"저장된 장소")만 구현
-// - 장소 카드 두 번째 줄 설명 문구는 시안에 모든 카드가 똑같은 더미 텍스트라 실제 데이터엔 없는
-//   필드(place list API에 없음) — 대신 기존 목록 화면과 같은 카테고리·주소 조합으로 대체
-// - 지도 핀은 시안이 커스텀 SVG(파란 눈물방울+흰 점)인데 react-native-maps 기본 마커를
-//   파란색으로 칠해서 근사(모양 자체는 거의 동일)
-//
-// 인터랙션: 카드를 탭하면 그 장소가 지도에 파란 핀으로 뜨고 이름이 파란색으로 강조되는
-// "미리보기" 상태가 됨(600:14306) — 실제 코스에 추가되는 건 "선택" 버튼을 눌렀을 때(onSelectPlace)
-export function PlaceMapPickerScreen({ onExit, onSelectPlace }: Props) {
+// Figma 600:13996(기본)/600:14306(선택 상태) 반영. 2026-09-06 사용자 재지적으로 두 가지 크게
+// 고침(처음엔 "비슷하게"로 잘못 단순화했었음):
+// 1) "지도가 배경 전체를 차지하고 그 위에 검색창/리스트가 뜨는 진짜 오버레이" 구조로 변경 —
+//    지도를 화면 전체에 깔고(StyleSheet.absoluteFill), 검색창은 지도 위 플로팅, 장소 리스트는
+//    화면 하단에 뜨는 팝업(고정 높이 카드, 둥근 위 모서리)으로 지도 위에 겹치게 함
+//    (드래그로 늘어나는 진짜 바텀시트는 이 프로젝트에 라이브러리가 없어서 고정 높이로 근사)
+// 2) 다중 선택 지원 — "선택"을 누르면 그 장소가 즉시 코스에 더해지고 화면은 안 닫힘(계속
+//    골라 담을 수 있음), 이미 선택된 걸 다시 누르면 "취소"(제거)됨. 선택된 장소는 전부
+//    지도에 핀으로 남아있고, 방금 누른 장소로만 카메라가 이동함(다른 핀은 그대로 유지)
+export function PlaceMapPickerScreen({ onExit, selectedPlaces, onTogglePlace }: Props) {
   const insets = useSafeAreaInsets();
   const mapRef = useRef<MapView>(null);
   const [tab, setTab] = useState<Tab>('all');
@@ -43,7 +38,6 @@ export function PlaceMapPickerScreen({ onExit, onSelectPlace }: Props) {
   const [page, setPage] = useState(1);
   const [hasNext, setHasNext] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [previewId, setPreviewId] = useState<number | null>(null);
 
   useEffect(() => {
     load(1);
@@ -53,8 +47,6 @@ export function PlaceMapPickerScreen({ onExit, onSelectPlace }: Props) {
   async function load(pageToLoad: number) {
     if (pageToLoad === 1) {
       setPlaces(null);
-      setPreviewId(null);
-      mapRef.current?.animateToRegion(ANDONG_REGION, 300);
     } else {
       setLoadingMore(true);
     }
@@ -79,11 +71,10 @@ export function PlaceMapPickerScreen({ onExit, onSelectPlace }: Props) {
     if (!loadingMore && hasNext) load(page + 1);
   }
 
-  // 안동 시내 기준 지도(초기 delta 0.15)에 안 들어오는 장소도 많아서(예: 하회마을은 중심에서
-  // 서쪽으로 한참 떨어짐) 미리보기 시 그냥 핀만 찍으면 화면 밖이라 안 보이는 문제가 있었음
-  // (2026-09-06 실기기 확인) — 카드를 누르면 지도가 그 장소로 애니메이션 이동하도록 추가
-  function previewOnMap(place: PlaceListItem) {
-    setPreviewId(place.id);
+  // 토글(선택/취소) 둘 다 "방금 누른 장소"로 카메라를 옮김 — 안동 시내 기준 지도(초기
+  // delta 0.15)에 하회마을처럼 범위 밖인 장소가 많아서, 그냥 두면 핀이 화면 밖이라 안 보임
+  function handleTap(place: PlaceListItem) {
+    onTogglePlace(place);
     if (place.lat != null && place.lng != null) {
       mapRef.current?.animateToRegion(
         { latitude: place.lat, longitude: place.lng, latitudeDelta: 0.03, longitudeDelta: 0.03 },
@@ -92,11 +83,17 @@ export function PlaceMapPickerScreen({ onExit, onSelectPlace }: Props) {
     }
   }
 
-  const previewPlace = places?.find((p) => p.id === previewId) ?? null;
-
   return (
     <View style={styles.container}>
       <StatusBar style="dark" />
+
+      <MapView ref={mapRef} provider={PROVIDER_GOOGLE} style={StyleSheet.absoluteFill} initialRegion={ANDONG_REGION}>
+        {selectedPlaces
+          .filter((p) => p.lat != null && p.lng != null)
+          .map((p) => (
+            <Marker key={p.id} coordinate={{ latitude: p.lat as number, longitude: p.lng as number }} pinColor={colors.accentBlue} />
+          ))}
+      </MapView>
 
       <View style={[styles.searchBar, { marginTop: insets.top + 8 }]}>
         <TouchableOpacity onPress={onExit} hitSlop={8}>
@@ -116,16 +113,7 @@ export function PlaceMapPickerScreen({ onExit, onSelectPlace }: Props) {
         </TouchableOpacity>
       </View>
 
-      <MapView ref={mapRef} provider={PROVIDER_GOOGLE} style={styles.map} initialRegion={ANDONG_REGION}>
-        {previewPlace?.lat != null && previewPlace?.lng != null && (
-          <Marker
-            coordinate={{ latitude: previewPlace.lat, longitude: previewPlace.lng }}
-            pinColor={colors.accentBlue}
-          />
-        )}
-      </MapView>
-
-      <View style={styles.sheet}>
+      <View style={[styles.sheet, { paddingBottom: Math.max(20, insets.bottom + 16) }]}>
         <View style={styles.handle} />
 
         <View style={styles.tabRow}>
@@ -143,23 +131,23 @@ export function PlaceMapPickerScreen({ onExit, onSelectPlace }: Props) {
           <FlatList
             data={places}
             keyExtractor={(item) => String(item.id)}
-            contentContainerStyle={[styles.listContent, { paddingBottom: Math.max(20, insets.bottom + 16) }]}
+            contentContainerStyle={styles.listContent}
             ItemSeparatorComponent={() => <View style={styles.rowDivider} />}
             ListEmptyComponent={<Text style={styles.emptyText}>결과가 없어요</Text>}
             onEndReached={loadMore}
             onEndReachedThreshold={0.5}
             ListFooterComponent={loadingMore ? <ActivityIndicator color={colors.black} style={styles.footerLoading} /> : null}
             renderItem={({ item }) => {
-              const isPreviewed = item.id === previewId;
+              const isSelected = selectedPlaces.some((p) => p.id === item.id);
               return (
-                <TouchableOpacity style={styles.row} onPress={() => previewOnMap(item)}>
+                <TouchableOpacity style={styles.row} onPress={() => handleTap(item)}>
                   {item.main_image_url ? (
                     <Image source={{ uri: item.main_image_url }} style={styles.thumbnail} resizeMode="cover" />
                   ) : (
                     <View style={[styles.thumbnail, styles.thumbnailPlaceholder]} />
                   )}
                   <View style={styles.rowInfo}>
-                    <Text style={[styles.rowName, isPreviewed && styles.rowNameSelected]} numberOfLines={1}>
+                    <Text style={[styles.rowName, isSelected && styles.rowNameSelected]} numberOfLines={1}>
                       {item.name}
                     </Text>
                     <Text style={styles.rowMeta} numberOfLines={2}>
@@ -167,8 +155,10 @@ export function PlaceMapPickerScreen({ onExit, onSelectPlace }: Props) {
                       {item.addr1 ? ` · ${item.addr1}` : ''}
                     </Text>
                   </View>
-                  <TouchableOpacity style={styles.selectButton} onPress={() => onSelectPlace(item)}>
-                    <Text style={styles.selectButtonText}>선택</Text>
+                  <TouchableOpacity style={[styles.selectButton, isSelected && styles.selectButtonSelected]} onPress={() => handleTap(item)}>
+                    <Text style={[styles.selectButtonText, isSelected && styles.selectButtonTextSelected]}>
+                      {isSelected ? '취소' : '선택'}
+                    </Text>
                   </TouchableOpacity>
                 </TouchableOpacity>
               );
@@ -183,23 +173,46 @@ export function PlaceMapPickerScreen({ onExit, onSelectPlace }: Props) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.white },
   searchBar: {
+    position: 'absolute',
+    top: 0,
+    left: 20,
+    right: 20,
     flexDirection: 'row',
     alignItems: 'center',
     height: 48,
-    marginHorizontal: 20,
     paddingHorizontal: 16,
     borderRadius: 100,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.white,
     gap: 10,
-    zIndex: 1,
+    // 지도 위에 뜨는 카드라 그림자로 띄워 보이게(2026-09-06, "지도가 배경 전체" 요청 반영)
+    shadowColor: colors.black,
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
   },
   backIcon: { fontSize: 18, color: colors.black },
   searchInput: { flex: 1, fontFamily: fonts.regular, fontSize: 16, letterSpacing: -0.4, color: colors.black, padding: 0 },
   searchIcon: { fontSize: 16 },
-  map: { width: '100%', height: 260, marginTop: -20 },
-  sheet: { flex: 1, backgroundColor: colors.white },
+  // 리스트를 지도 위에 뜨는 팝업으로 취급(2026-09-06 요청) — 화면 하단에 고정 높이로 겹쳐 올림.
+  // 드래그로 늘어나는 진짜 바텀시트 라이브러리가 없어서 고정 55% 높이로 근사
+  sheet: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: '55%',
+    backgroundColor: colors.white,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    shadowColor: colors.black,
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: -4 },
+    elevation: 8,
+  },
   handle: { alignSelf: 'center', width: 54, height: 5, borderRadius: 100, backgroundColor: colors.gray700, marginTop: 10 },
   tabRow: {
     flexDirection: 'row',
@@ -215,7 +228,7 @@ const styles = StyleSheet.create({
   tabTextSelected: { color: colors.accentBlue },
   loading: { marginTop: 40 },
   footerLoading: { marginVertical: 16 },
-  listContent: { paddingHorizontal: 20, paddingTop: 12 },
+  listContent: { paddingHorizontal: 20, paddingTop: 12, flexGrow: 1 },
   emptyText: { fontFamily: fonts.regular, fontSize: 14, color: colors.gray500, textAlign: 'center', marginTop: 40 },
   rowDivider: { height: 1, backgroundColor: colors.rowDivider },
   row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, gap: 12 },
@@ -226,5 +239,7 @@ const styles = StyleSheet.create({
   rowNameSelected: { fontFamily: fonts.semiBold, color: colors.accentBlue },
   rowMeta: { fontFamily: fonts.regular, fontSize: 12, letterSpacing: -0.3, color: colors.gray500, marginTop: 4 },
   selectButton: { height: 33, paddingHorizontal: 14, borderRadius: 100, backgroundColor: colors.border, alignItems: 'center', justifyContent: 'center' },
+  selectButtonSelected: { backgroundColor: colors.accentBlue },
   selectButtonText: { fontFamily: fonts.semiBold, fontSize: 12, letterSpacing: -0.3, color: colors.gray500 },
+  selectButtonTextSelected: { color: colors.white },
 });
