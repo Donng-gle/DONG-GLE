@@ -22,7 +22,11 @@ interface Props {
 //   추천받기 두 옵션 — 601:15506 "일정 생성" 프레임 실측 그대로)
 // - 우측(사람): 마이페이지로 이동(지금까지는 헤더 우상단 아이콘에만 연결돼 있었음)
 // 으로 명확했음 — 좌측/중앙 둘 다 onHome에 연결해뒀던 것과 우측이 공유하기(onShare)였던 걸 정정.
-// 중앙 버튼 그라디언트도 시안 실측 결과 노랑/주황이 아니라 파랑(#005eff→#0049c7)이었음
+// 중앙 버튼 그라디언트도 시안 실측 결과 노랑/주황이 아니라 파랑(#005eff→#0049c7)이었음.
+//
+// 아이콘도 이모지(🏠📅👤) 대신 Figma 실제 아이콘(export_node_as_image로 직접 확인:
+// 홈=지붕+문 모양 아웃라인, 달력=상단 고리 2개+구분선 있는 아웃라인, 사람=머리+어깨 아웃라인,
+// 전부 흰색 선 스타일)에 맞춰 이 파일 안에서 View 조합으로 근사 재현함(2026-09-06, 사용자 요청)
 export function FloatingNav({ onHome, onCreateManual, onCreateAI, onProfile }: Props) {
   const insets = useSafeAreaInsets();
   const [scheduleSheetVisible, setScheduleSheetVisible] = useState(false);
@@ -36,11 +40,11 @@ export function FloatingNav({ onHome, onCreateManual, onCreateAI, onProfile }: P
     <>
       <View style={[styles.floatingNav, { bottom: Math.max(20, insets.bottom + 12) }]}>
         <TouchableOpacity style={styles.sideButton} onPress={onHome} hitSlop={6}>
-          <Text style={styles.emojiIcon}>🏠</Text>
+          <HomeIcon />
         </TouchableOpacity>
         <View style={styles.centerSpacer} />
         <TouchableOpacity style={styles.sideButton} onPress={onProfile} hitSlop={6}>
-          <Text style={styles.emojiIcon}>👤</Text>
+          <PersonIcon />
         </TouchableOpacity>
         <TouchableOpacity onPress={() => setScheduleSheetVisible(true)} hitSlop={6} style={styles.centerButton}>
           <LinearGradient
@@ -49,7 +53,7 @@ export function FloatingNav({ onHome, onCreateManual, onCreateAI, onProfile }: P
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
           >
-            <Text style={styles.emojiIcon}>📅</Text>
+            <CalendarIcon />
           </LinearGradient>
         </TouchableOpacity>
       </View>
@@ -77,6 +81,99 @@ export function FloatingNav({ onHome, onCreateManual, onCreateAI, onProfile }: P
     </>
   );
 }
+
+// 집 모양(지붕 두 변 + 벽 사각형 + 문 자리 가로선), 전부 흰색 선(icons.tsx의 다른 아이콘들과
+// 동일하게 별도 에셋 없이 View만 조합)
+function HomeIcon() {
+  return (
+    <View style={homeIconStyles.container}>
+      <View style={homeIconStyles.roofLeft} />
+      <View style={homeIconStyles.roofRight} />
+      <View style={homeIconStyles.body} />
+      <View style={homeIconStyles.door} />
+    </View>
+  );
+}
+
+const homeIconStyles = StyleSheet.create({
+  container: { width: 20, height: 18, alignItems: 'center' },
+  roofLeft: {
+    position: 'absolute',
+    top: 2,
+    left: 1,
+    width: 12,
+    height: 1.6,
+    borderRadius: 1,
+    backgroundColor: colors.white,
+    transform: [{ rotate: '38deg' }],
+  },
+  roofRight: {
+    position: 'absolute',
+    top: 2,
+    right: 1,
+    width: 12,
+    height: 1.6,
+    borderRadius: 1,
+    backgroundColor: colors.white,
+    transform: [{ rotate: '-38deg' }],
+  },
+  body: {
+    position: 'absolute',
+    bottom: 0,
+    width: 14,
+    height: 10,
+    borderWidth: 1.6,
+    borderTopWidth: 0,
+    borderColor: colors.white,
+  },
+  door: { position: 'absolute', bottom: 3, width: 6, height: 1.6, borderRadius: 1, backgroundColor: colors.white },
+});
+
+// 달력 모양(몸체 아웃라인 + 상단 고리 2개 + 헤더 구분선), 흰색 선
+function CalendarIcon() {
+  return (
+    <View style={calendarIconStyles.container}>
+      <View style={calendarIconStyles.ringLeft} />
+      <View style={calendarIconStyles.ringRight} />
+      <View style={calendarIconStyles.body}>
+        <View style={calendarIconStyles.divider} />
+      </View>
+    </View>
+  );
+}
+
+const calendarIconStyles = StyleSheet.create({
+  container: { width: 20, height: 20, alignItems: 'center', justifyContent: 'flex-end' },
+  body: { width: 16, height: 14, borderRadius: 3, borderWidth: 1.6, borderColor: colors.white },
+  divider: { position: 'absolute', top: 4, left: 0, right: 0, height: 1.6, backgroundColor: colors.white },
+  ringLeft: { position: 'absolute', top: 0, left: 5, width: 1.6, height: 5, borderRadius: 1, backgroundColor: colors.white },
+  ringRight: { position: 'absolute', top: 0, right: 5, width: 1.6, height: 5, borderRadius: 1, backgroundColor: colors.white },
+});
+
+// 사람 실루엣(머리 원 + 어깨 아치), 흰색 선 — components/icons.tsx의 ProfileIcon과 같은 형태를
+// 이 화면(어두운 알약 배경) 전용으로 흰색으로 다시 그림
+function PersonIcon() {
+  return (
+    <View style={personIconStyles.container}>
+      <View style={personIconStyles.head} />
+      <View style={personIconStyles.shoulders} />
+    </View>
+  );
+}
+
+const personIconStyles = StyleSheet.create({
+  container: { width: 20, height: 20, alignItems: 'center' },
+  head: { width: 7, height: 7, borderRadius: 3.5, borderWidth: 1.4, borderColor: colors.white, marginBottom: 2 },
+  shoulders: {
+    width: 18,
+    height: 8,
+    borderTopLeftRadius: 9,
+    borderTopRightRadius: 9,
+    borderWidth: 1.4,
+    borderColor: colors.white,
+    borderBottomWidth: 0,
+  },
+});
 
 const styles = StyleSheet.create({
   floatingNav: {
@@ -108,7 +205,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  emojiIcon: { fontSize: 18 },
   sheetBackdrop: { flex: 1, backgroundColor: 'rgba(17,17,17,0.5)', justifyContent: 'flex-end' },
   sheet: { backgroundColor: colors.white, paddingHorizontal: 28, paddingTop: 28 },
   sheetLabel: { fontFamily: fonts.medium, fontSize: 12, letterSpacing: -0.3, color: colors.gray500, marginBottom: 28 },
