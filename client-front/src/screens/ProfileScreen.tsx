@@ -109,7 +109,15 @@ export function ProfileScreen({ profile, onProfileUpdated, onWithdrawn, onExit, 
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.profileCard}>
-          <View style={styles.profileRow}>
+          {/* 별도 "프로필 수정" 버튼 대신 프로필(아바타+닉네임) 영역을 누르면 바로 수정 모드로
+              들어가도록 변경(2026-09-06 사용자 요청) — 편집 중엔 다시 눌러도 아무 효과 없게
+              disabled 처리(입력 중 재진입으로 포커스가 튀는 걸 방지) */}
+          <TouchableOpacity
+            style={styles.profileRow}
+            onPress={() => setEditing(true)}
+            disabled={editing}
+            activeOpacity={0.7}
+          >
             {profile.profile_image_url ? (
               <Image source={{ uri: profile.profile_image_url }} style={styles.avatar} />
             ) : (
@@ -131,15 +139,11 @@ export function ProfileScreen({ profile, onProfileUpdated, onWithdrawn, onExit, 
               )}
               <Text style={styles.providerLabel}>{PROVIDER_LABEL[profile.oauth_provider]}</Text>
             </View>
-          </View>
+          </TouchableOpacity>
 
-          {editing ? (
+          {editing && (
             <TouchableOpacity style={styles.editButton} onPress={handleSave} disabled={saving}>
               <Text style={styles.editButtonText}>{saving ? '저장 중...' : '저장'}</Text>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity style={styles.editButton} onPress={() => setEditing(true)}>
-              <Text style={styles.editButtonText}>프로필 수정</Text>
             </TouchableOpacity>
           )}
         </View>
