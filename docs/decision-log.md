@@ -695,3 +695,19 @@
 
 - **부수 확인**: 백엔드 전체 테스트(`./gradlew test`) 실행 중 `ImageProxyApiIntegrationTest` 5건이 간헐적으로 실패하는 걸 봤는데, 재실행하니 통과 — 8/30에 이미 기록된 "공용 Supabase pooler 커넥션 한도로 가끔 플레이키함" 관찰과 같은 현상으로 판단, 별도 이슈로 추가 기록 안 함
 - **영향**: 프론트 `feat/fix-review-bugs`(1·2번) + `feat/review-fixes-round2`(3·4·6·7번) → `client` 병합·push 완료. 백엔드 `fix/visitlog-oneline-clear`(1번) + `feat/refresh-token-rotation`(5번) → `server` 병합·push 완료. 둘 다 `./gradlew test` 전체 통과 확인(worktree에서 작업 후 정리). `npx tsc --noEmit` 통과. **이번 라운드로 `client`/`server`가 다시 `dev`보다 앞서게 됨** — 다음 통합 시점에 같이 반영 필요. 사용자가 이 커밋들 기준으로 실기기 테스트 예정
+
+---
+
+## 2026-09-06 | 스키마 추가: visit_log_photo 테이블 (방문 기록 여러 장 사진 지원)
+
+- **결정**: `visit_log.photo_url`(단일 TEXT 컬럼)을 없애고, `place_image`와 동일한 패턴(부모 테이블 + `sort_order`)의 `visit_log_photo` 테이블로 대체. 백엔드 `VisitLogCreateRequest.photoUrls`(목록, 최대 10장)로 받아 목록 순서를 그대로 `sort_order`로 저장, `VisitLogDetail/Summary/MapItem` 응답도 `photo_urls`(배열)로 변경
+- **이유**: "기록 작성 시 사진 여러 장 선택 가능하게 해달라"는 요청 — 단일 컬럼으로는 애초에 여러 장을 저장할 수 없어서 스키마 확장이 필수. 새 테이블 대신 배열 컬럼(`photo_urls TEXT[]`)도 검토했으나, `place_image` 등 기존 다대일 사진 관계가 전부 부모 테이블 패턴이라 일관성 위해 테이블 방식 채택(2026-09-06 사용자 확인)
+- **영향**: `visit_log.photo_url` 컬럼 삭제(당시 실제 데이터 0건이라 무손실 마이그레이션), `visit_log_photo(id, visit_log_id, photo_url, sort_order)` 신규. `SimilarLogItem`(유사 사용자 탐색, `GET /explore/similar-logs`)은 범위 밖 — 대표 사진 1장만 계속 노출(`VisitLog.mainPhotoUrl` = sort_order 최상위 사진). `schema.sql`/`schema.dbml`/`api_1.3.1v.yaml` 갱신, 통합 테스트 갱신, `server` 병합·push·프로덕션 배포 완료. **`api_1.3.1v.yaml`이 이번에 보니 7/23 이후로 `title`/`weather`/`rating`/`avg_rating` 등 여러 필드가 통째로 안 갱신돼 있었음을 발견** — 이번 변경분(`photo_url`→`photo_urls`)만 맞춰뒀고, 나머지 누락분은 범위 밖이라 별도 정리 필요(다음 세션 후보)
+
+---
+
+## 2026-09-06 | Android 갤러리 접근: `expo-image-picker`에 `legacy: true` 적용
+
+- **결정**: `JournalLogCreateModal`/`VisitLogCreateScreen`의 `ImagePicker.launchImageLibraryAsync` 호출에 `legacy: true` 옵션 추가
+- **이유**: 사용자가 "구글 포토에 있는 사진만 업로드되고 폰 로컬 갤러리 사진은 안 올라가는 것 같다"고 리포트. 원인은 기본값(`legacy: false`)이 Android "포토 라이브러리" 범위로만 스캔하는 최신 시스템 피커를 쓰기 때문 — `expo-image-picker` 문서상 `legacy: true`가 "포토 라이브러리 밖" 미디어도 선택 가능하게 함. 실기기(갤럭시 S22)로 확인해보니 `legacy:true` 적용 후 데스크 사진·캘린더 스크린샷·다른 앱이 저장한 이미지 등 로컬 사진이 정상적으로 보임
+- **영향**: 같은 커밋에서 `allowsMultipleSelection`+`selectionLimit`(최대 5장)도 같이 추가해 여러 장 선택 가능하게 함(위 `visit_log_photo` 결정과 세트). `client` 병합·push 완료, 실기기로 로컬 갤러리 접근+여러 장 선택+캐러셀 표시까지 end-to-end 확인함
