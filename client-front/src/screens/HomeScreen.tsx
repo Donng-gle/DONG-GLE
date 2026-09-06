@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Dimensions, Image, Modal, Pressable, Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Animated, Dimensions, Image, Modal, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { UserProfile, authApi } from '../api/auth';
@@ -153,9 +153,11 @@ export function HomeScreen({ profile: initialProfile, onLogout, onRequireLogin, 
     openOverlay(item.key);
   }
 
-  function handleShare() {
-    Share.share({ message: '안동 여행, 동글과 함께 떠나보세요 🌿' }).catch(() => {});
-  }
+  // FloatingNav 중앙 "일정 생성" 바텀시트의 두 옵션 — 드로어 항목(course-flow/course-manual)과
+  // 동일한 게스트 가드(handleDrawerItemPress)를 그대로 재사용(2026-09-06 추가, decision-log 참고)
+  const openCreateManual = () => handleDrawerItemPress({ key: 'course-manual', authRequired: true });
+  const openCreateAI = () => handleDrawerItemPress({ key: 'course-flow', authRequired: true });
+  const openProfile = () => (profile ? openOverlay('profile') : requireLogin());
 
   switch (overlay) {
     case 'course-flow':
@@ -163,7 +165,14 @@ export function HomeScreen({ profile: initialProfile, onLogout, onRequireLogin, 
     case 'course-manual':
       return <CourseManualBuilderScreen onSaved={closeOverlay} onExit={closeOverlay} />;
     case 'scrapbook':
-      return <ScrapbookScreen onExit={closeOverlay} />;
+      return (
+        <ScrapbookScreen
+          onExit={closeOverlay}
+          onCreateManual={openCreateManual}
+          onCreateAI={openCreateAI}
+          onProfile={openProfile}
+        />
+      );
     case 'places':
       return <PlaceListScreen onExit={closeOverlay} />;
     case 'my-logs':
@@ -186,6 +195,8 @@ export function HomeScreen({ profile: initialProfile, onLogout, onRequireLogin, 
           onWithdrawn={onLogout}
           onExit={closeOverlay}
           onRetakeOnboarding={onRetakeOnboarding}
+          onCreateManual={openCreateManual}
+          onCreateAI={openCreateAI}
         />
       ) : null;
   }
@@ -225,7 +236,12 @@ export function HomeScreen({ profile: initialProfile, onLogout, onRequireLogin, 
         {tab === 'street' && <StreetTab />}
       </View>
 
-      <FloatingNav onHome={() => setTab('journal')} onShare={handleShare} />
+      <FloatingNav
+        onHome={() => setTab('journal')}
+        onCreateManual={openCreateManual}
+        onCreateAI={openCreateAI}
+        onProfile={openProfile}
+      />
 
       <Modal visible={drawerVisible} transparent animationType="none" onRequestClose={closeDrawer}>
         <View style={styles.drawerBackdropWrap}>
