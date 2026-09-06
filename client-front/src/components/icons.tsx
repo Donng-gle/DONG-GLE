@@ -57,3 +57,26 @@ const plusIconStyles = StyleSheet.create({
   horizontalBar: { position: 'absolute', width: 14, height: 1.6, borderRadius: 1, backgroundColor: colors.black },
   verticalBar: { position: 'absolute', width: 1.6, height: 14, borderRadius: 1, backgroundColor: colors.black },
 });
+
+// Figma "화살표_오른쪽"(마이페이지 문의 목록 등, 20x20) — 테두리 두 변을 45도 회전시켜 ">" 모양을
+// 만드는 흔한 방식(2026-09-06 추가)
+export function ChevronRightIcon() {
+  return (
+    <View style={chevronRightStyles.container}>
+      <View style={chevronRightStyles.chevron} />
+    </View>
+  );
+}
+
+const chevronRightStyles = StyleSheet.create({
+  container: { width: 20, height: 20, alignItems: 'center', justifyContent: 'center' },
+  chevron: {
+    width: 7,
+    height: 7,
+    borderTopWidth: 1.5,
+    borderRightWidth: 1.5,
+    borderColor: colors.gray500,
+    transform: [{ rotate: '45deg' }],
+    marginLeft: -2,
+  },
+});

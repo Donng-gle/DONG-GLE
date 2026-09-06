@@ -6,7 +6,7 @@ import { UserPreferenceTag, userApi } from '../api/user';
 import { tokenStorage } from '../auth/tokenStorage';
 import { AppHeader } from '../components/AppHeader';
 import { FloatingNav } from '../components/FloatingNav';
-import { ProfileIcon } from '../components/icons';
+import { ChevronRightIcon, ProfileIcon } from '../components/icons';
 import { RadarChart } from '../components/RadarChart';
 import { colors } from '../theme/colors';
 import { fonts } from '../theme/fonts';
@@ -27,6 +27,12 @@ const PROVIDER_LABEL: Record<UserProfile['oauth_provider'], string> = {
   kakao: '카카오 사용자',
   google: '구글 사용자',
 };
+
+// Figma "마이페이지"(598:13735, 2026-09-06 새로 확인) — 그래프+재검사 버튼 아래 "문의" 박스가
+// 항목 1개(고객센터)에서 4개로 늘어남. 넷 다 실제 연결할 화면/API가 아직 없어서(ssot.md 기능
+// 목록에도 없음 — 쇼핑몰 UI 키트에서 그대로 가져온 문구로 보임, "상품 문의 내역" 등 이 서비스와
+// 안 맞는 항목도 있어서 사용자에게 알려둠) 탭하면 "준비 중" 안내만 뜨게 해둠
+const INQUIRY_ITEMS = ['고객센터', '1:1 문의 내역', '상품 문의 내역', '공지사항'];
 
 // Figma "메인 페이지-마이페이지" 프레임 반영 — 프로필 카드 + 취향 레이더 차트(7각형) + 취향 재검사
 // 버튼. 헤더/하단 네비는 다른 "메인 페이지-*" 화면들과 동일한 걸 그대로 씀(AppHeader/FloatingNav
@@ -86,6 +92,10 @@ export function ProfileScreen({ profile, onProfileUpdated, onWithdrawn, onExit, 
       { text: '취소', style: 'cancel' },
       { text: '다시 검사', onPress: onRetakeOnboarding },
     ]);
+  }
+
+  function handleInquiryPress(label: string) {
+    Alert.alert(label, '아직 준비 중인 기능이에요.');
   }
 
   if (subScreen === 'likes') {
@@ -159,6 +169,20 @@ export function ProfileScreen({ profile, onProfileUpdated, onWithdrawn, onExit, 
               {withdrawing ? '탈퇴 처리 중...' : '회원 탈퇴'}
             </Text>
           </TouchableOpacity>
+        </View>
+
+        <View style={styles.inquiryCard}>
+          <Text style={styles.inquiryTitle}>문의</Text>
+          {INQUIRY_ITEMS.map((label, index) => (
+            <TouchableOpacity
+              key={label}
+              style={[styles.inquiryRow, index < INQUIRY_ITEMS.length - 1 && styles.inquiryRowDivider]}
+              onPress={() => handleInquiryPress(label)}
+            >
+              <Text style={styles.inquiryRowText}>{label}</Text>
+              <ChevronRightIcon />
+            </TouchableOpacity>
+          ))}
         </View>
       </ScrollView>
 
@@ -236,4 +260,25 @@ const styles = StyleSheet.create({
   menuItemText: { fontFamily: fonts.medium, fontSize: 15, letterSpacing: -0.4, color: colors.black },
   dangerText: { color: colors.danger },
   menuDivider: { height: 1, backgroundColor: colors.divider, marginHorizontal: 20 },
+  // Figma "마이페이지"(598:13735) "문의" 박스 실측값 그대로 — 이 앱의 다른 카드(radarCard/
+  // menuList)와 달리 radius8+테두리(e5e5ec) 스타일이라 그대로 반영(2026-09-06 추가)
+  inquiryCard: {
+    backgroundColor: colors.white,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 10,
+    marginTop: 28,
+  },
+  inquiryTitle: { fontFamily: fonts.semiBold, fontSize: 16, letterSpacing: -0.4, color: colors.black, marginBottom: 10 },
+  inquiryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 15,
+  },
+  inquiryRowDivider: { borderBottomWidth: 1, borderBottomColor: colors.border },
+  inquiryRowText: { fontFamily: fonts.regular, fontSize: 14, letterSpacing: -0.35, color: colors.black },
 });
