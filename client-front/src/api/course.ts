@@ -54,6 +54,9 @@ export interface CourseSaveRequest {
 export interface CourseManualRequest {
   title: string;
   travel_date?: string | null;
+  // 여러 날 범위 지원(2026-09-06 결정, decision-log 참고) — "직접 코스 만들기"에서만 사용.
+  // travel_date보다 이전이면 서버가 400(INVALID_COURSE_DATE_RANGE)
+  end_date?: string | null;
   transport?: SwipeTransport | null;
   places: CoursePlaceRequest[];
 }
@@ -72,6 +75,7 @@ export interface CourseDetail {
   id: number;
   title: string;
   travel_date: string | null;
+  end_date: string | null; // 여러 날 범위 지원(2026-09-06 결정, decision-log 참고). 직접 코스에서만 채워짐
   source: string;
   places: CoursePlaceItem[];
   total_distance_km: number | null;
@@ -84,6 +88,7 @@ export interface CourseListItem {
   id: number;
   title: string;
   travel_date: string | null;
+  end_date: string | null; // 여러 날 범위 지원(2026-09-06 결정, decision-log 참고). 직접 코스에서만 채워짐
   source: string;
   place_count: number;
   thumbnail_url: string | null;
