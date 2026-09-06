@@ -17,6 +17,7 @@ import { uploadApi } from '../api/upload';
 import { visitLogApi } from '../api/visitLog';
 import { CalendarPicker } from '../components/CalendarPicker';
 import { PlusIcon } from '../components/icons';
+import { MOCK_ENABLED } from '../mocks/config';
 import { colors } from '../theme/colors';
 import { fonts } from '../theme/fonts';
 import { PlaceListScreen } from './PlaceListScreen';
@@ -78,6 +79,14 @@ export function JournalLogCreateModal({ visible, onClose, onCreated }: Props) {
 
   async function uploadPhoto(): Promise<string> {
     if (!asset) throw new Error('사진이 선택되지 않았어요.');
+    // 목업 모드(EXPO_PUBLIC_USE_MOCK=true)에선 presigned URL 발급/S3 업로드 자체가 아직 목업
+    // 처리가 안 돼 있음(mocks/handlers.ts 상단 주석 "아직 목업 안 된 것: ... 업로드" 참고).
+    // uploadApi.uploadFile은 apiClient를 안 거치고 fetch를 직접 호출해서 MOCK_ENABLED여도
+    // 항상 실제 네트워크로 나가버려 실패함(2026-09-06 사용자 리포트로 발견) — 로컬 사진 uri를
+    // 그대로 photo_url로 써서 업로드 자체를 건너뜀(Image가 로컬 uri도 그대로 렌더링하므로
+    // 화면상 차이 없음)
+    if (MOCK_ENABLED) return asset.uri;
+
     const contentType = asset.mimeType ?? 'image/jpeg';
     const filename = asset.fileName ?? `visit-log-${Date.now()}.jpg`;
     const presigned = await uploadApi.getPresignedUrl({ filename, content_type: contentType, purpose: 'visit_log' });

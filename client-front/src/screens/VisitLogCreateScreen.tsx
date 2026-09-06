@@ -4,6 +4,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { uploadApi } from '../api/upload';
 import { visitLogApi } from '../api/visitLog';
 import { StarRating } from '../components/StarRating';
+import { MOCK_ENABLED } from '../mocks/config';
 
 interface Props {
   placeId: number;
@@ -38,6 +39,12 @@ export function VisitLogCreateScreen({ placeId, placeName, onDone, onCancel }: P
 
   async function uploadPhoto(): Promise<string> {
     if (!asset) throw new Error('사진이 선택되지 않았어요.');
+
+    // 목업 모드에선 업로드 자체가 아직 목업 처리가 안 돼 있고(mocks/handlers.ts 상단 주석 참고),
+    // uploadApi.uploadFile은 apiClient를 안 거치고 fetch를 직접 호출해서 MOCK_ENABLED여도 항상
+    // 실제 네트워크로 나가버려 실패함(2026-09-06 발견, JournalLogCreateModal과 동일 버그) —
+    // 로컬 사진 uri를 그대로 photo_url로 씀
+    if (MOCK_ENABLED) return asset.uri;
 
     const contentType = asset.mimeType ?? 'image/jpeg';
     const filename = asset.fileName ?? `visit-log-${Date.now()}.jpg`;
