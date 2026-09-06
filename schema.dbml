@@ -219,8 +219,9 @@ Table course_place {
   id           bigint [pk, increment]
   course_id    bigint [not null, ref: > course.id]
   place_id     bigint [not null, ref: > place.id]
-  visit_order  int    [not null, note: '1 이상']
+  visit_order  int    [not null, note: '1 이상, 코스 전체를 통틀은 전역 순서']
   planned_time time
+  visit_date   date   [note: '며칠째 방문지인지, 여러 날 코스 지원(2026-09-06). 직접 코스 만들기만 채움']
 
   indexes {
     (course_id, visit_order) [unique]

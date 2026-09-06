@@ -36,6 +36,7 @@ import org.springframework.data.domain.PageRequest
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import tools.jackson.databind.ObjectMapper
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.util.UUID
@@ -84,6 +85,15 @@ class CourseService(
     fun saveManual(userId: Long, request: CourseManualRequest): CourseSaveResponse {
         if (request.endDate != null && request.travelDate != null && request.endDate < request.travelDate) {
             throw InvalidCourseDateRangeException()
+        }
+        // 여러 날 코스 지원(2026-09-06 결정, decision-log 참고) — 장소별 visitDate가 있으면
+        // travelDate~endDate(하루짜리면 travelDate 하루) 범위 안인지 검증
+        if (request.travelDate != null) {
+            val rangeEnd = request.endDate ?: request.travelDate
+            request.places.forEach { p ->
+                val visitDate = p.visitDate?.let { LocalDate.parse(it) } ?: return@forEach
+                if (visitDate < request.travelDate || visitDate > rangeEnd) throw InvalidCourseDateRangeException()
+            }
         }
         val course = Course(
             user = userRepository.getReferenceById(userId),
@@ -168,6 +178,7 @@ class CourseService(
                     place = place,
                     visitOrder = requireNotNull(item.visitOrder),
                     plannedTime = item.plannedTime?.let { LocalTime.parse(it) },
+                    visitDate = item.visitDate?.let { LocalDate.parse(it) },
                 )
             )
         }
@@ -252,6 +263,7 @@ class CourseService(
                 mainImageUrl = place?.mainImageUrl,
                 distanceFromPrevKm = leg?.distanceMeters?.let { it / 1000.0 },
                 durationFromPrevMin = leg?.durationSeconds?.let { Math.round(it / 60.0).toInt() },
+                visitDate = null, // AI 코스 생성은 계속 단일 날짜 전제(날짜별 구분 없음)
             )
         }
         return CourseCandidateResponse(
@@ -326,6 +338,7 @@ private fun Course.toDetailResponse(sortedPlaces: List<CoursePlace>, route: Rout
             mainImageUrl = cp.place.mainImageUrl,
             distanceFromPrevKm = leg?.distanceMeters?.let { it / 1000.0 },
             durationFromPrevMin = leg?.durationSeconds?.let { Math.round(it / 60.0).toInt() },
+            visitDate = cp.visitDate?.toString(),
         )
     },
     totalDistanceKm = route?.totalDistanceMeters?.let { it / 1000.0 },

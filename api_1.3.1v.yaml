@@ -851,6 +851,13 @@ components:
           type: integer
           nullable: true
           description: 직전 장소로부터의 이동 시간(분). 첫 번째 장소는 null.
+        visit_date:
+          type: string
+          format: date
+          nullable: true
+          description: |
+            [2026-09-06 추가] 이 장소가 코스의 며칠째 방문지인지(YYYY-MM-DD). "직접 코스 만들기"로
+            여러 날 코스를 만들 때만 채워짐. AI 코스 생성은 계속 단일 날짜 전제라 항상 null.
 
     CourseCandidate:
       type: object
@@ -938,6 +945,11 @@ components:
               planned_time:
                 type: string
                 nullable: true
+              visit_date:
+                type: string
+                format: date
+                nullable: true
+                description: '[2026-09-06 추가] 며칠째 방문지인지. POST /courses/manual에서만 실제 검증됨(CourseDetail.end_date 참고).'
 
     CourseSaveResponse:
       type: object
@@ -1051,6 +1063,11 @@ components:
               planned_time:
                 type: string
                 nullable: true
+              visit_date:
+                type: string
+                format: date
+                nullable: true
+                description: '[2026-09-06 추가] 며칠째 방문지인지. 코스가 여러 날 범위(end_date 있음)면 그 범위 안이어야 함(안 지키면 400).'
 
     VisitLogDetail:
       type: object
@@ -2569,10 +2586,15 @@ paths:
         구글맵 경로 계산은 GET /courses/:courseId 조회 시 동일하게 재계산됨.
 
         여러 날 범위 지원(2026-09-06 추가, decision-log 참고): end_date를 같이 보내면 여행
-        기간(travel_date~end_date)으로 저장·표시됨. 장소 목록 자체는 날짜별로 나뉘지 않고
-        계속 하나의 순서 리스트(visit_order)임 — end_date는 표시/저장 용도만이고, AI 코스
-        짜기(POST /courses/generate)는 이 필드를 지원하지 않음(course_optimizer가 단일 날짜
-        전제). end_date가 travel_date보다 이전이면 400(INVALID_COURSE_DATE_RANGE).
+        기간(travel_date~end_date)으로 저장·표시됨. AI 코스 짜기(POST /courses/generate)는
+        이 필드를 지원하지 않음(course_optimizer가 단일 날짜 전제). end_date가 travel_date보다
+        이전이면 400(INVALID_COURSE_DATE_RANGE).
+
+        여러 날 코스의 장소별 날짜 배정(2026-09-06 추가, decision-log 참고): 장소마다
+        visit_date를 같이 보내면 그 장소가 코스의 며칠째 방문지인지 저장됨(N박N일 여러 날
+        코스). visit_date가 travel_date~end_date 범위를 벗어나면 400(INVALID_COURSE_DATE_RANGE).
+        visit_order는 날짜와 무관하게 코스 전체를 통틀은 전역 순서(하루짜리 코스면 날짜
+        구분 없이 기존과 동일하게 동작 — visit_date를 안 보내도 됨).
       requestBody:
         required: true
         content:
@@ -2618,6 +2640,12 @@ paths:
                         type: string
                         nullable: true
                         example: '10:00'
+                      visit_date:
+                        type: string
+                        format: date
+                        nullable: true
+                        description: 이 장소가 며칠째 방문지인지. travel_date~end_date 범위를 벗어나면 400
+                        example: '2025-11-10'
       responses:
         '201':
           description: 코스 저장 성공
