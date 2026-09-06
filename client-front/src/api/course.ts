@@ -14,6 +14,9 @@ export interface CoursePlaceItem {
   // 구글맵 Directions 계산 실패 시(좌표 없는 장소 포함 등) null로 폴백됨
   distance_from_prev_km: number | null;
   duration_from_prev_min: number | null;
+  // 여러 날 코스 지원(2026-09-06 결정, decision-log 참고) — 이 장소가 코스의 며칠째 방문지인지.
+  // "직접 코스 만들기"에서만 채워짐, AI 코스는 항상 null(단일 날짜 전제)
+  visit_date: string | null;
 }
 
 export interface CourseGenerateRequest {
@@ -40,6 +43,9 @@ export interface CoursePlaceRequest {
   place_id: number;
   visit_order: number;
   planned_time?: string | null;
+  // 여러 날 코스 지원(2026-09-06 결정, decision-log 참고) — 이 장소가 코스의 며칠째 방문지인지.
+  // travel_date~end_date 범위를 벗어나면 서버가 400(INVALID_COURSE_DATE_RANGE)
+  visit_date?: string | null;
 }
 
 export interface CourseSaveRequest {

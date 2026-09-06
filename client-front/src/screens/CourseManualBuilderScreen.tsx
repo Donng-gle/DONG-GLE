@@ -15,7 +15,7 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { CourseManualRequest, courseApi } from '../api/course';
+import { CoursePlaceRequest, CourseManualRequest, courseApi } from '../api/course';
 import { PlaceListItem } from '../api/place';
 import { SwipeTransport } from '../api/swipe';
 import { CalendarPicker } from '../components/CalendarPicker';
@@ -32,7 +32,8 @@ interface Props {
   onProfile: () => void;
 }
 
-type Step = 'form' | 'picking';
+type Step = 'date' | 'form' | 'picking';
+type DateTab = { dateKey: string; day: number; weekday: string };
 
 const TODAY = new Date().toISOString().slice(0, 10);
 const ANDONG_REGION = { latitude: 36.5684, longitude: 128.7294, latitudeDelta: 0.15, longitudeDelta: 0.15 };
@@ -52,13 +53,11 @@ function toDateKey(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-// start~end 사이 모든 날짜를 하루 단위로 나열(end 없으면 하루짜리). 날짜 탭은 UI 표시 전용이고
-// 장소 목록은 날짜별로 나뉘지 않음(2026-09-06 사용자 확인, course_place에 날짜 필드 추가하는
-// 백엔드 변경은 이번 범위 밖 — 오늘 이미 결정한 "하나의 순서 리스트" 방침 유지)
-function buildDateTabs(start: string, end: string | null) {
+// start~end 사이 모든 날짜를 하루 단위로 나열(end 없으면 하루짜리)
+function buildDateTabs(start: string, end: string | null): DateTab[] {
   const startDate = new Date(start + 'T00:00:00');
   const endDate = end ? new Date(end + 'T00:00:00') : startDate;
-  const tabs: { dateKey: string; day: number; weekday: string }[] = [];
+  const tabs: DateTab[] = [];
   const cursor = new Date(startDate);
   while (cursor <= endDate) {
     tabs.push({ dateKey: toDateKey(cursor), day: cursor.getDate(), weekday: WEEKDAY_LABELS[cursor.getDay()] });
@@ -83,39 +82,63 @@ function haversineKm(a: { lat: number; lng: number }, b: { lat: number; lng: num
   return R * 2 * Math.asin(Math.sqrt(h));
 }
 
+// 날짜 범위가 바뀌었을 때 기존에 채워둔 장소를 최대한 살림 — 그대로 남아있는 날짜는 유지,
+// 범위 밖으로 밀려난 날짜의 장소는 버림, 새로 늘어난 날짜는 빈 배열로 시작
+function reconcilePlacesByDate(
+  prev: Record<string, PlaceListItem[]>,
+  tabs: DateTab[],
+): Record<string, PlaceListItem[]> {
+  const next: Record<string, PlaceListItem[]> = {};
+  tabs.forEach((tab) => {
+    next[tab.dateKey] = prev[tab.dateKey] ?? [];
+  });
+  return next;
+}
+
 // decision-log 2026-07-17: 코스 생성 진입점 2가지(AI 코스 / 직접 코스) 중 직접 코스 쪽.
 // POST /courses/manual — course_optimizer를 거치지 않고 사용자가 장소·순서를 직접 정해서 저장
 //
-// Figma 501:12543("...기본화면", 빈 상태)/501:12088(장소 있는 상태) 반영(2026-09-06, 사용자가
-// 스크린샷 6장 첨부하며 "디자인 동일하게" 요청) — 기존 단순 폼(제목 입력창+날짜 필드+이동수단
-// 라디오+평평한 장소 리스트)을 날짜 탭+지도+장소 리스트가 있는 "여행" 화면으로 전면 교체.
-// 시안엔 없지만 실제로 필요한 것들을 사용자 확인 하에 이렇게 채워 넣음:
+// Figma 501:12543("...기본화면", 빈 상태)/501:12088(장소 있는 상태)/316:4643·598:13849(날짜 선택)
+// 반영. 2026-09-06 재검토(사용자 확인, decision-log 참고) — "직접 일정 만들기"를 누르면 날짜
+// 선택이 먼저 나오고, 그 다음 선택한 날짜들마다 장소를 다르게 추가해서 N박N일 코스 하나를
+// 구성하는 방식으로 확정. 날짜 탭이 실제로 장소 목록을 갈라줌(이전엔 UI 표시 전용이었다가
+// 백엔드에 course_place.visitDate 추가하면서 진짜로 날짜별 분리로 바꿈).
 // - 제목 수정·이동 수단 선택: 시안엔 해당 컨트롤이 안 보여서 연필 아이콘 뒤 편집 모달로 뺌
-// - 장소 카드 순서 변경(▲▼)·삭제(✕): 시안엔 없지만 기존 CourseBuilderPlaceList에 있던 기능이라
-//   빼면 퇴보라 작게 유지
+//   (날짜도 이 모달에서 다시 바꿀 수 있음 — 처음 고른 날짜가 마음에 안 들 때를 위해)
+// - 장소 카드 순서 변경(▲▼)·삭제(✕): 시안엔 없지만 기존 기능이라 퇴보 안 되게 작게 유지
 // - 저장 버튼: 시안엔 화면 하단이 플로팅 네비에 가려 안 보이는데, 스크롤 맨 아래에 배치
 // - 하트/북마크 헤더 아이콘: 시안엔 있지만 대응 기능(찜/공유 등)이 없어서 현재는 장식만(터치 불가)
 export function CourseManualBuilderScreen({ onSaved, onExit, onCreateManual, onCreateAI, onProfile }: Props) {
   const insets = useSafeAreaInsets();
-  const [step, setStep] = useState<Step>('form');
+  const [step, setStep] = useState<Step>('date');
   const [title, setTitle] = useState('안동 여행');
-  const [travelDate, setTravelDate] = useState(TODAY);
+  const [travelDate, setTravelDate] = useState<string | null>(null);
   const [endDate, setEndDate] = useState<string | null>(null);
   const [transport, setTransport] = useState<SwipeTransport>('walk');
   const [showCalendar, setShowCalendar] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [places, setPlaces] = useState<PlaceListItem[]>([]);
-  const [selectedDateTab, setSelectedDateTab] = useState(travelDate);
+  // 날짜(YYYY-MM-DD)별 장소 목록 — 이게 실제 저장 단위. 날짜 탭을 눌러도 이 맵 자체는 안 바뀌고
+  // "현재 어느 날짜를 보고 있는지"만 selectedDateTab으로 바뀜
+  const [placesByDate, setPlacesByDate] = useState<Record<string, PlaceListItem[]>>({});
+  const [selectedDateTab, setSelectedDateTab] = useState('');
   const [saving, setSaving] = useState(false);
 
-  const dateTabs = useMemo(() => buildDateTabs(travelDate, endDate), [travelDate, endDate]);
+  const dateTabs = useMemo(
+    () => (travelDate ? buildDateTabs(travelDate, endDate) : []),
+    [travelDate, endDate],
+  );
+  const places = placesByDate[selectedDateTab] ?? [];
+
+  function setPlacesForSelectedDate(next: PlaceListItem[]) {
+    setPlacesByDate({ ...placesByDate, [selectedDateTab]: next });
+  }
 
   function addPlace(place: PlaceListItem) {
     if (places.some((p) => p.id === place.id)) {
       Alert.alert('이미 추가된 장소예요');
       return;
     }
-    setPlaces([...places, place]);
+    setPlacesForSelectedDate([...places, place]);
     setStep('form');
   }
 
@@ -123,22 +146,31 @@ export function CourseManualBuilderScreen({ onSaved, onExit, onCreateManual, onC
     if (index === 0) return;
     const next = [...places];
     [next[index - 1], next[index]] = [next[index], next[index - 1]];
-    setPlaces(next);
+    setPlacesForSelectedDate(next);
   }
 
   function moveDown(index: number) {
     if (index === places.length - 1) return;
     const next = [...places];
     [next[index], next[index + 1]] = [next[index + 1], next[index]];
-    setPlaces(next);
+    setPlacesForSelectedDate(next);
   }
 
   function removePlace(index: number) {
-    setPlaces(places.filter((_, i) => i !== index));
+    setPlacesForSelectedDate(places.filter((_, i) => i !== index));
   }
 
   async function handleSave() {
-    if (places.length === 0) {
+    if (!travelDate) return; // 'form' 단계에선 항상 있음(가드)
+    // 날짜 순서대로, 그 안에서 리스트 순서대로 이어붙여서 코스 전체를 통틀은 전역 visit_order를
+    // 매김(course_place.visitOrder는 날짜와 무관하게 전역 순서, visitDate로 날짜만 구분)
+    const flatPlaces: CoursePlaceRequest[] = [];
+    dateTabs.forEach((tab) => {
+      (placesByDate[tab.dateKey] ?? []).forEach((place) => {
+        flatPlaces.push({ place_id: place.id, visit_order: flatPlaces.length + 1, visit_date: tab.dateKey });
+      });
+    });
+    if (flatPlaces.length === 0) {
       Alert.alert('장소를 1곳 이상 추가해주세요');
       return;
     }
@@ -147,9 +179,9 @@ export function CourseManualBuilderScreen({ onSaved, onExit, onCreateManual, onC
       const request: CourseManualRequest = {
         title: title.trim() || '안동 여행',
         travel_date: travelDate,
-        end_date: endDate && endDate !== travelDate ? endDate : null,
+        end_date: endDate,
         transport,
-        places: places.map((place, index) => ({ place_id: place.id, visit_order: index + 1 })),
+        places: flatPlaces,
       };
       await courseApi.saveManual(request);
       Alert.alert('코스가 저장됐어요', undefined, [{ text: '확인', onPress: onSaved }]);
@@ -158,6 +190,39 @@ export function CourseManualBuilderScreen({ onSaved, onExit, onCreateManual, onC
     } finally {
       setSaving(false);
     }
+  }
+
+  // "직접 일정 만들기"의 필수 첫 단계 — 날짜(하루 또는 범위)를 고르기 전엔 다른 화면을 안 보여줌.
+  // 뒤로가기/바깥 탭으로 취소하면 전체 흐름을 나감(onExit) — 날짜 없이는 다음 단계로 못 감
+  if (step === 'date') {
+    return (
+      <View style={styles.container}>
+        <StatusBar style="dark" />
+        <CalendarPicker
+          visible
+          mode="range"
+          value={TODAY}
+          minDate={TODAY}
+          onClose={onExit}
+          onConfirm={(date) => {
+            setTravelDate(date);
+            setEndDate(null);
+            setSelectedDateTab(date);
+            setPlacesByDate({ [date]: [] });
+            setStep('form');
+          }}
+          onConfirmRange={(start, end) => {
+            const normalizedEnd = end !== start ? end : null;
+            const tabs = buildDateTabs(start, normalizedEnd);
+            setTravelDate(start);
+            setEndDate(normalizedEnd);
+            setSelectedDateTab(start);
+            setPlacesByDate(Object.fromEntries(tabs.map((t) => [t.dateKey, []])));
+            setStep('form');
+          }}
+        />
+      </View>
+    );
   }
 
   if (step === 'picking') {
@@ -296,7 +361,7 @@ export function CourseManualBuilderScreen({ onSaved, onExit, onCreateManual, onC
 
       <FloatingNav onHome={onExit} onCreateManual={onCreateManual} onCreateAI={onCreateAI} onProfile={onProfile} />
 
-      {/* 시안엔 없는 컨트롤(제목 수정/날짜/이동 수단)을 연필 아이콘 뒤 편집 모달로 모아둠 */}
+      {/* 시안엔 없는 컨트롤(제목 수정/날짜 재선택/이동 수단)을 연필 아이콘 뒤 편집 모달로 모아둠 */}
       <Modal visible={showEditModal} transparent animationType="fade" onRequestClose={() => setShowEditModal(false)}>
         <Pressable style={styles.editBackdrop} onPress={() => setShowEditModal(false)}>
           <Pressable style={[styles.editSheet, { paddingBottom: Math.max(24, insets.bottom + 16) }]} onPress={() => {}}>
@@ -318,7 +383,7 @@ export function CourseManualBuilderScreen({ onSaved, onExit, onCreateManual, onC
               }}
             >
               <Text style={styles.editFieldText}>
-                {formatShortDateLabel(travelDate)}
+                {travelDate ? formatShortDateLabel(travelDate) : ''}
                 {endDate && endDate !== travelDate ? ` ~ ${formatShortDateLabel(endDate)}` : ''}
               </Text>
             </TouchableOpacity>
@@ -347,26 +412,32 @@ export function CourseManualBuilderScreen({ onSaved, onExit, onCreateManual, onC
         </Pressable>
       </Modal>
 
-      <CalendarPicker
-        visible={showCalendar}
-        mode="range"
-        value={travelDate}
-        rangeEnd={endDate ?? undefined}
-        minDate={TODAY}
-        onClose={() => setShowCalendar(false)}
-        onConfirm={(date) => {
-          setTravelDate(date);
-          setEndDate(null);
-          setSelectedDateTab(date);
-          setShowCalendar(false);
-        }}
-        onConfirmRange={(start, end) => {
-          setTravelDate(start);
-          setEndDate(end !== start ? end : null);
-          setSelectedDateTab(start);
-          setShowCalendar(false);
-        }}
-      />
+      {travelDate && (
+        <CalendarPicker
+          visible={showCalendar}
+          mode="range"
+          value={travelDate}
+          rangeEnd={endDate ?? undefined}
+          minDate={TODAY}
+          onClose={() => setShowCalendar(false)}
+          onConfirm={(date) => {
+            setTravelDate(date);
+            setEndDate(null);
+            setPlacesByDate((prev) => reconcilePlacesByDate(prev, buildDateTabs(date, null)));
+            setSelectedDateTab(date);
+            setShowCalendar(false);
+          }}
+          onConfirmRange={(start, end) => {
+            const normalizedEnd = end !== start ? end : null;
+            const tabs = buildDateTabs(start, normalizedEnd);
+            setTravelDate(start);
+            setEndDate(normalizedEnd);
+            setPlacesByDate((prev) => reconcilePlacesByDate(prev, tabs));
+            setSelectedDateTab(tabs.some((t) => t.dateKey === selectedDateTab) ? selectedDateTab : start);
+            setShowCalendar(false);
+          }}
+        />
+      )}
     </View>
   );
 }
