@@ -20,6 +20,7 @@ import { NotificationSettingsScreen } from './NotificationSettingsScreen';
 import { PlaceListScreen } from './PlaceListScreen';
 import { ProfileScreen } from './ProfileScreen';
 import { ScrapbookScreen } from './ScrapbookScreen';
+import { SearchScreen } from './SearchScreen';
 import { TagsScreen } from './TagsScreen';
 
 interface Props {
@@ -40,6 +41,7 @@ type Overlay =
   | 'course-flow'
   | 'course-manual'
   | 'scrapbook'
+  | 'search'
   | 'places'
   | 'my-logs'
   | 'events'
@@ -183,6 +185,8 @@ export function HomeScreen({ profile: initialProfile, onLogout, onRequireLogin, 
           onProfile={openProfile}
         />
       );
+    case 'search':
+      return <SearchScreen onExit={closeOverlay} />;
     case 'places':
       return <PlaceListScreen onExit={closeOverlay} />;
     case 'my-logs':
@@ -217,7 +221,7 @@ export function HomeScreen({ profile: initialProfile, onLogout, onRequireLogin, 
 
       <AppHeader
         onMenuPress={openDrawer}
-        onSearchPress={() => openOverlay('places')}
+        onSearchPress={() => openOverlay('search')}
         onProfilePress={() => (profile ? openOverlay('profile') : requireLogin())}
       />
 

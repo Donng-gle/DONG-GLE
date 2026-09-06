@@ -1,4 +1,4 @@
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { colors } from '../theme/colors';
 
 // HomeScreen.tsx에 있던 걸 AppHeader.tsx(마이페이지 등 다른 화면에서도 같은 헤더 재사용)와
@@ -113,3 +113,82 @@ const cameraIconStyles = StyleSheet.create({
   },
   lens: { width: 5, height: 5, borderRadius: 2.5, borderWidth: 1.2, borderColor: colors.black },
 });
+
+// Figma "돋보기"(225:24476, 검색창 안 20x20 / 메인 GNB 28x28 두 크기로 재사용) 실측 비율 그대로
+// 재현(2026-09-07 추가) — 원 실측: 20 기준 지름 10.83@(3.33,3.33), 손잡이 지름4.17 대각선.
+// 다른 아이콘들과 다르게 size를 prop으로 받아야 해서(검색창/헤더 두 곳에서 다른 크기로 씀)
+// StyleSheet 대신 인라인 스타일 사용
+export function SearchIcon({ size = 20, color = colors.black }: { size?: number; color?: string }) {
+  const circleSize = size * 0.54;
+  const strokeWidth = Math.max(1.4, size * 0.1);
+  const circleOffset = size * 0.15;
+  const handleLength = size * 0.32;
+  return (
+    <View style={{ width: size, height: size }}>
+      <View
+        style={{
+          position: 'absolute',
+          top: circleOffset,
+          left: circleOffset,
+          width: circleSize,
+          height: circleSize,
+          borderRadius: circleSize / 2,
+          borderWidth: strokeWidth,
+          borderColor: color,
+        }}
+      />
+      <View
+        style={{
+          position: 'absolute',
+          top: circleOffset + circleSize * 0.76,
+          left: circleOffset + circleSize * 0.76,
+          width: handleLength,
+          height: strokeWidth,
+          borderRadius: strokeWidth / 2,
+          backgroundColor: color,
+          transform: [{ rotate: '45deg' }],
+        }}
+      />
+    </View>
+  );
+}
+
+// Figma "mingcute:location-fill"(검색 자동완성 행, 16x16) — 흔한 CSS 핀 모양 트릭(둥근 사각형을
+// 45도 회전해서 한쪽 모서리만 뾰족하게)으로 재현(2026-09-07 추가, SearchScreen.tsx 참고)
+export function LocationPinIcon({ size = 16, color = colors.gray500 }: { size?: number; color?: string }) {
+  const pinSize = size * 0.72;
+  return (
+    <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+      <View
+        style={{
+          width: pinSize,
+          height: pinSize,
+          borderTopLeftRadius: pinSize / 2,
+          borderTopRightRadius: pinSize / 2,
+          borderBottomRightRadius: pinSize / 2,
+          borderBottomLeftRadius: 0,
+          backgroundColor: color,
+          transform: [{ rotate: '-45deg' }],
+        }}
+      />
+    </View>
+  );
+}
+
+// Figma "원형_닫기"(검색창 지우기 버튼, 20x20) — 검색어 입력 중 지우기 버튼용(2026-09-07 추가)
+export function CircleCloseIcon({ size = 20 }: { size?: number }) {
+  return (
+    <View
+      style={{
+        width: size,
+        height: size,
+        borderRadius: size / 2,
+        backgroundColor: colors.border,
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <Text style={{ fontSize: size * 0.55, lineHeight: size * 0.62, color: colors.gray700 }}>×</Text>
+    </View>
+  );
+}

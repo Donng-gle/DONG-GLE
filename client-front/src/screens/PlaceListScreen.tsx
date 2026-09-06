@@ -12,17 +12,21 @@ interface Props {
   onExit: () => void;
   // 지정하면 장소를 눌렀을 때 상세화면 대신 이 콜백으로 선택 결과를 돌려줌 (코스 직접 만들기/수정 화면에서 재사용)
   onSelectPlace?: (place: PlaceListItem) => void;
+  // SearchScreen(검색창, 2026-09-07 추가)에서 인기 검색어/자동완성 중 하나를 골랐을 때 그 검색어로
+  // 바로 결과를 보여주기 위한 값 — query state 초기값으로만 쓰고 이후엔 이 화면 자체 검색창으로 이어감
+  initialQuery?: string;
 }
 
 const CATEGORIES: PlaceCategory[] = ['관광지', '식당', '카페', '액티비티', '문화공간', '축제행사'];
 const PAGE_SIZE = 20;
 
-// Figma 노드 362:3724("검색창") 색/형태 반영 — 자동완성 추천어 목록은 대응 데이터가 없어서
-// (인기 검색어 API 없음) 제외, 기존 카테고리+검색 통합 화면 구조는 유지
-export function PlaceListScreen({ onExit, onSelectPlace }: Props) {
+// Figma 노드 362:3724("검색창") 색/형태 반영. 인기 검색어/자동완성은 이 화면 자체엔 없고 진입
+// 지점인 SearchScreen에서 처리(2026-09-07 결정, decision-log 참고) — 여기는 그 검색어로 넘어온
+// 실제 결과 목록(+카테고리 필터)만 담당
+export function PlaceListScreen({ onExit, onSelectPlace, initialQuery }: Props) {
   const insets = useSafeAreaInsets();
   const [category, setCategory] = useState<PlaceCategory | null>(null);
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(initialQuery ?? '');
   const [places, setPlaces] = useState<PlaceListItem[] | null>(null);
   const [page, setPage] = useState(1);
   const [hasNext, setHasNext] = useState(false);
