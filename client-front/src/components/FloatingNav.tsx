@@ -175,11 +175,14 @@ const styles = StyleSheet.create({
   },
   sideButton: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
   centerSpacer: { width: 52 },
+  // left:'50%' + marginLeft(-26)로 가운데 정렬하던 걸 고정 dp값으로 교체(2026-09-06) —
+  // 실기기에서 uiautomator로 실측해보니 paddingHorizontal(24)만큼 왼쪽으로 밀려서 렌더링됐음
+  // (absolute 자식의 left:'50%'가 padding 뺀 content-box 기준으로 계산되는 것으로 보임).
+  // (floatingNav.width - width) / 2 = (209-52)/2 = 78.5를 직접 넣어서 퍼센트 계산 자체를 피함
   centerButton: {
     position: 'absolute',
     top: -14,
-    left: '50%',
-    marginLeft: -26,
+    left: 78.5,
     width: 52,
     height: 52,
   },
