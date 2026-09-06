@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Modal, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useRef, useState } from 'react';
+import { Animated, Modal, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Line, Path, Rect } from 'react-native-svg';
@@ -30,12 +30,33 @@ interface Props {
 // 미묘하게 어긋났음 — scan_nodes_by_types로 아이콘 내부 벡터 자식들의 실제 bbox 좌표(28x28
 // 기준)를 직접 읽어서 react-native-svg(RadarChart.tsx에서 이미 쓰던 라이브러리, 추가 설치 없음)
 // viewBox="0 0 28 28"에 그 좌표 그대로 옮김 — 대략적 트릭 대신 실측 좌표 기반 재현
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
 export function FloatingNav({ onHome, onCreateManual, onCreateAI, onProfile }: Props) {
   const insets = useSafeAreaInsets();
+  // Modal이 실제로 마운트돼있는지(닫힘 애니메이션이 끝난 뒤에야 언마운트)
   const [scheduleSheetVisible, setScheduleSheetVisible] = useState(false);
+  // 0=닫힘, 1=완전히 열림 — 배경 어둡기와 시트 위치를 같은 값 하나로 묶어서 항상 같은 속도로
+  // 움직이게 함. 이전엔 Modal의 기본 animationType="slide"를 썼는데, 배경(반투명 검정
+  // Pressable)이 시트와 같은 트리 안에 있는데도 검정이 먼저 꽉 차 보이고 흰 시트만 뒤늦게
+  // 올라오는 것처럼 보인다는 지적(2026-09-06) — 커스텀 Animated로 시트가 다 올라온 시점에
+  // 맞춰 배경이 최종 어둡기(0.5, Figma 601:15382 실측)에 도달하도록 명시적으로 동기화
+  const sheetProgress = useRef(new Animated.Value(0)).current;
+
+  function openSheet() {
+    setScheduleSheetVisible(true);
+    sheetProgress.setValue(0);
+    Animated.timing(sheetProgress, { toValue: 1, duration: 260, useNativeDriver: true }).start();
+  }
+
+  function closeSheet() {
+    Animated.timing(sheetProgress, { toValue: 0, duration: 220, useNativeDriver: true }).start(({ finished }) => {
+      if (finished) setScheduleSheetVisible(false);
+    });
+  }
 
   function pick(action: () => void) {
-    setScheduleSheetVisible(false);
+    closeSheet();
     action();
   }
 
@@ -49,7 +70,7 @@ export function FloatingNav({ onHome, onCreateManual, onCreateAI, onProfile }: P
         <TouchableOpacity style={styles.sideButton} onPress={onProfile} hitSlop={6}>
           <PersonIcon />
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => setScheduleSheetVisible(true)} hitSlop={6} style={styles.centerButton}>
+        <TouchableOpacity onPress={openSheet} hitSlop={6} style={styles.centerButton}>
           <LinearGradient
             colors={['#005eff', '#0049c7']}
             style={styles.centerGradient}
@@ -62,15 +83,27 @@ export function FloatingNav({ onHome, onCreateManual, onCreateAI, onProfile }: P
       </View>
 
       {/* Figma 601:15506 "일정 생성" 실측: 흰 바텀시트(둥근 위 모서리 없이 화면 하단에 딱 붙음,
-          반투명 검정 배경 위) + 작은 회색 라벨 + 항목 2개(구분선/아이콘 없이 텍스트만) */}
-      <Modal
-        visible={scheduleSheetVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setScheduleSheetVisible(false)}
-      >
-        <Pressable style={styles.sheetBackdrop} onPress={() => setScheduleSheetVisible(false)}>
-          <Pressable style={[styles.sheet, { paddingBottom: Math.max(24, insets.bottom + 12) }]} onPress={() => {}}>
+          반투명 검정 배경 위) + 작은 회색 라벨 + 항목 2개(구분선/아이콘 없이 텍스트만).
+          animationType="none"으로 Modal 자체의 슬라이드는 끄고, 배경 opacity와 시트 translateY를
+          sheetProgress 하나로 같이 구동 */}
+      <Modal visible={scheduleSheetVisible} transparent animationType="none" onRequestClose={closeSheet}>
+        <View style={styles.sheetRoot}>
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              StyleSheet.absoluteFill,
+              { backgroundColor: colors.black, opacity: sheetProgress.interpolate({ inputRange: [0, 1], outputRange: [0, 0.5] }) },
+            ]}
+          />
+          <Pressable style={StyleSheet.absoluteFill} onPress={closeSheet} />
+          <AnimatedPressable
+            onPress={() => {}}
+            style={[
+              styles.sheet,
+              { paddingBottom: Math.max(24, insets.bottom + 12) },
+              { transform: [{ translateY: sheetProgress.interpolate({ inputRange: [0, 1], outputRange: [400, 0] }) }] },
+            ]}
+          >
             <Text style={styles.sheetLabel}>일정 생성</Text>
             <TouchableOpacity style={styles.sheetItem} onPress={() => pick(onCreateManual)}>
               <Text style={styles.sheetItemText}>직접 일정 만들기</Text>
@@ -78,8 +111,8 @@ export function FloatingNav({ onHome, onCreateManual, onCreateAI, onProfile }: P
             <TouchableOpacity style={styles.sheetItem} onPress={() => pick(onCreateAI)}>
               <Text style={styles.sheetItemText}>AI 일정 추천받기</Text>
             </TouchableOpacity>
-          </Pressable>
-        </Pressable>
+          </AnimatedPressable>
+        </View>
       </Modal>
     </>
   );
@@ -193,7 +226,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  sheetBackdrop: { flex: 1, backgroundColor: 'rgba(17,17,17,0.5)', justifyContent: 'flex-end' },
+  sheetRoot: { flex: 1, justifyContent: 'flex-end' },
   sheet: { backgroundColor: colors.white, paddingHorizontal: 28, paddingTop: 28 },
   sheetLabel: { fontFamily: fonts.medium, fontSize: 12, letterSpacing: -0.3, color: colors.gray500, marginBottom: 28 },
   sheetItem: { paddingVertical: 14 },
