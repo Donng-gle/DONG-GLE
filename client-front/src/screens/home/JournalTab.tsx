@@ -213,10 +213,15 @@ function JournalLogCard({ log }: { log: VisitLogMapItem }) {
         </ScrollView>
       )}
       {/* 사진 여러 장 지원(2026-09-06, decision-log 참고) — photos 배열 길이만큼 점이 늘어나고
-          현재 스와이프 위치(activePhoto)에 맞는 점만 활성 스타일로 표시 */}
-      {photos.length > 1 && (
+          현재 스와이프 위치(activePhoto)에 맞는 점만 활성 스타일로 표시.
+          조건을 photos.length > 1로 좁혀서 사진 1장일 땐 이 View 자체를 안 그렸더니, 이미지-본문
+          사이 간격(marginTop 8 + marginBottom 12)이 이 View에만 붙어있어서 사진 1장인 카드(3번째
+          카드부터 대부분 여기 해당)는 사진과 글 사이 간격이 통째로 사라져 버렸음(2026-09-06 사용자
+          피드백 "세 번째 카드부터 글이랑 사진 간격이 너무 가깝다"). 사진이 있으면 이 View 자체는
+          항상 그리고(간격 유지), 점 표시만 2장 이상일 때로 제한 */}
+      {photos.length > 0 && (
         <View style={styles.cardDotsRow}>
-          {photos.map((_, i) => (
+          {photos.length > 1 && photos.map((_, i) => (
             <View key={i} style={[styles.cardDot, i === activePhoto && styles.cardDotActive]} />
           ))}
         </View>
@@ -312,6 +317,10 @@ const styles = StyleSheet.create({
     paddingTop: 4,
     paddingHorizontal: 4,
     paddingBottom: 16,
+    // marginBottom:12 — Figma 실측 카드 사이 간격(2026-09-06 사용자 확인: 헤더→첫 카드 간격과
+    // 다르게 카드-카드 간격 자체는 원래 시안값대로 유지). 한때 이 값을 없앤 적 있었는데(같은 날
+    // "간격이 안 맞다" 피드백을 카드 사이 간격 문제로 잘못 짚어서) 사용자가 실제 문제는 카드
+    // "안"의 사진↔글 간격이라고 정정해줘서 되돌림 — 카드 사이 간격은 그대로 Figma값 유지
     marginBottom: 12,
     shadowColor: '#000',
     shadowOpacity: 0.06,

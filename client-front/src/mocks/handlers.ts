@@ -324,7 +324,12 @@ export function resolveMock<T>(method: string, path: string, body: unknown): Moc
 
   // POST /courses, POST /courses/manual (저장)
   if (method === 'POST' && (pathname === '/courses' || pathname === '/courses/manual')) {
-    const req = (body ?? {}) as { title?: string; travel_date?: string | null; places?: unknown[] };
+    const req = (body ?? {}) as {
+      title?: string;
+      travel_date?: string | null;
+      end_date?: string | null;
+      places?: unknown[];
+    };
     const id = nextCourseId++;
     const title = req.title ?? '새 코스';
     courseList = [
@@ -332,6 +337,8 @@ export function resolveMock<T>(method: string, path: string, body: unknown): Moc
         id,
         title,
         travel_date: req.travel_date ?? null,
+        // 여러 날 범위 지원(2026-09-06 추가) — /courses(AI 저장)는 이 필드를 안 보내니 자연히 null
+        end_date: req.end_date ?? null,
         source: pathname === '/courses/manual' ? 'user' : 'ai',
         place_count: req.places?.length ?? 0,
         thumbnail_url: MOCK_PLACES[0]?.main_image_url ?? null,

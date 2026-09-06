@@ -13,6 +13,8 @@ function toCoursePlaceItem(
   plannedTime: string | null,
   distanceFromPrevKm: number | null,
   durationFromPrevMin: number | null,
+  // 여러 날 코스 지원(2026-09-06 결정, decision-log 참고) — 하루짜리 코스는 안 넘기면 null
+  visitDate: string | null = null,
 ): CoursePlaceItem {
   const p = place(placeId);
   return {
@@ -25,6 +27,7 @@ function toCoursePlaceItem(
     main_image_url: p.main_image_url,
     distance_from_prev_km: distanceFromPrevKm,
     duration_from_prev_min: durationFromPrevMin,
+    visit_date: visitDate,
   };
 }
 
@@ -36,6 +39,7 @@ export const MOCK_COURSE_LIST: CourseListItem[] = [
     id: 5001,
     title: '전통 안동 하루 코스',
     travel_date: '2026-09-10',
+    end_date: null, // AI 코스는 여러 날 범위 미지원(2026-09-06 결정, decision-log 참고)
     source: 'ai',
     place_count: 4,
     thumbnail_url: place(1).main_image_url,
@@ -49,6 +53,8 @@ export const MOCK_COURSE_LIST: CourseListItem[] = [
     id: 5002,
     title: '감성 카페 + 야경 코스',
     travel_date: '2026-09-12',
+    // 직접 코스는 여러 날 범위 선택 가능(2026-09-06 추가) — 목업 데이터로 화면 확인용
+    end_date: '2026-09-14',
     source: 'user',
     place_count: 3,
     thumbnail_url: place(11).main_image_url,
@@ -68,11 +74,12 @@ const COURSE_5001_PLACES: CoursePlaceItem[] = [
   toCoursePlaceItem(9, 4, '16:30', 12.1, 20),
 ];
 
-// courseApi.getDetail(5002)
+// courseApi.getDetail(5002) — 3일짜리(9/12~9/14) 직접 코스라 장소마다 visit_date로 날짜 구분
+// (2026-09-06 결정, decision-log 참고). 1일차 1곳, 2일차 1곳, 3일차 1곳으로 목업 구성
 const COURSE_5002_PLACES: CoursePlaceItem[] = [
-  toCoursePlaceItem(11, 1, '15:00', null, null),
-  toCoursePlaceItem(6, 2, '18:00', 1.8, 6),
-  toCoursePlaceItem(5, 3, '19:30', 0.9, 3),
+  toCoursePlaceItem(11, 1, '15:00', null, null, '2026-09-12'),
+  toCoursePlaceItem(6, 2, '11:00', null, null, '2026-09-13'),
+  toCoursePlaceItem(5, 3, '19:30', null, null, '2026-09-14'),
 ];
 
 export const MOCK_COURSE_DETAILS: Record<number, CourseDetail> = {
@@ -80,6 +87,7 @@ export const MOCK_COURSE_DETAILS: Record<number, CourseDetail> = {
     id: 5001,
     title: '전통 안동 하루 코스',
     travel_date: '2026-09-10',
+    end_date: null,
     source: 'ai',
     places: COURSE_5001_PLACES,
     total_distance_km: 24.9,
@@ -91,6 +99,7 @@ export const MOCK_COURSE_DETAILS: Record<number, CourseDetail> = {
     id: 5002,
     title: '감성 카페 + 야경 코스',
     travel_date: '2026-09-12',
+    end_date: '2026-09-14',
     source: 'user',
     places: COURSE_5002_PLACES,
     total_distance_km: 2.7,
