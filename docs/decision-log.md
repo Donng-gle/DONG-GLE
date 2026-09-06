@@ -711,3 +711,12 @@
 - **결정**: `JournalLogCreateModal`/`VisitLogCreateScreen`의 `ImagePicker.launchImageLibraryAsync` 호출에 `legacy: true` 옵션 추가
 - **이유**: 사용자가 "구글 포토에 있는 사진만 업로드되고 폰 로컬 갤러리 사진은 안 올라가는 것 같다"고 리포트. 원인은 기본값(`legacy: false`)이 Android "포토 라이브러리" 범위로만 스캔하는 최신 시스템 피커를 쓰기 때문 — `expo-image-picker` 문서상 `legacy: true`가 "포토 라이브러리 밖" 미디어도 선택 가능하게 함. 실기기(갤럭시 S22)로 확인해보니 `legacy:true` 적용 후 데스크 사진·캘린더 스크린샷·다른 앱이 저장한 이미지 등 로컬 사진이 정상적으로 보임
 - **영향**: 같은 커밋에서 `allowsMultipleSelection`+`selectionLimit`(최대 5장)도 같이 추가해 여러 장 선택 가능하게 함(위 `visit_log_photo` 결정과 세트). `client` 병합·push 완료, 실기기로 로컬 갤러리 접근+여러 장 선택+캐러셀 표시까지 end-to-end 확인함
+
+---
+
+## 2026-09-06 | `client`/`server` → `dev` 통합 완료 (2026-09-03 이후 계속 대기 중이던 결정)
+
+- **결정**: `client`(76 커밋 앞섬)와 `server`(13 커밋 앞섬) 둘 다 `dev`에 병합. 안동 지구본, 프론트 목업 데이터 레이어, 마이페이지(레이더 차트), 장소 상세/목록 버그 수정 여러 건, 방문기록 별점+코스 카드 썸네일, 스크랩북 재검토, 나의 일지 바텀시트+카드+기록하기 모달(title/weather), 리프레시 토큰 회전, 방문기록 사진 여러 장 지원(visit_log_photo)+로컬 갤러리 접근까지 이번 통합으로 전부 `dev`에 반영됨
+- **병합 전 확인**: `git diff`로 `dev`가 merge-base 이후 `client-front/`는 전혀 안 건드렸고 `server-back/`도 전혀 안 건드린 것 확인(둘 다 diff 0건) — `api_1.3.1v.yaml`만 양쪽이 서로 다른 섹션(`dev`는 온보딩 카드 다중선택 방식 deprecated 스펙 제거, `server`는 방문기록 스펙 갱신)을 건드려서 충돌 없이 자동 병합됨
+- **검증**: 병합 후 `npx tsc --noEmit`(프론트) 통과, `./gradlew compileKotlin compileTestKotlin` 통과, `./gradlew test` 전체 실행 결과 96개 중 91개 통과·`SwipeApiIntegrationTest` 5개만 실패 — 원인이 이번 병합과 무관한 기존 known 이슈(공용 Supabase pooler 커넥션 한도, 2026-08-30/09-04에 이미 관찰된 현상)임을 해당 테스트 클래스만 단독 재실행해서 통과 확인함으로써 검증
+- **영향**: `dev`가 `a9ded9a`까지 push됨. `client`/`server` 각자 원래 브랜치는 그대로 유지(체크아웃/삭제 안 함, 계속 파트별 작업 브랜치로 사용). 다음 통합 시점까지 `client`/`server`에 새로 쌓이는 커밋은 다시 이 목록에 쌓이는 구조이므로, 너무 오래 미루지 않는 게 병합 리스크를 낮게 유지하는 핵심(이번엔 76+13 커밋이 쌓였는데도 무충돌이었던 건 파트가 명확히 분리돼 있었던 덕분)
