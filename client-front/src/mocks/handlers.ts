@@ -8,7 +8,7 @@
 // 업로드(upload) — 필요해지면 이 파일에 핸들러만 추가하면 됨(패턴은 아래 것들과 동일).
 import { PaginationMeta } from '../api/place';
 import { CourseCandidate, CourseDetail, CourseListItem } from '../api/course';
-import { VisitLogDetail, VisitLogMapItem, VisitLogSummary } from '../api/visitLog';
+import { VisitLogDetail, VisitLogMapItem, VisitLogPhoto, VisitLogSummary } from '../api/visitLog';
 import { SimilarLogItem } from '../api/explore';
 import { MOCK_PLACES, toPlaceDetail } from './fixtures/places';
 import { MOCK_VISIT_LOGS, MockVisitLog, findMockAuthorForLog } from './fixtures/visitLogs';
@@ -40,6 +40,12 @@ function paginate<T>(items: T[], page: number, size: number): { items: T[]; meta
   };
 }
 
+// MockVisitLogPhoto({url, caption?}) -> VisitLogPhoto({url, caption: string|null}) 계약 맞춤
+// (2026-09-07 결정, decision-log 참고) — caption 없으면 undefined가 아니라 null로 정규화
+function toPhotos(log: MockVisitLog): VisitLogPhoto[] {
+  return log.photos.map((p) => ({ url: p.url, caption: p.caption ?? null }));
+}
+
 function toMapItem(log: MockVisitLog): VisitLogMapItem {
   const place = MOCK_PLACES.find((p) => p.id === log.placeId)!;
   return {
@@ -48,7 +54,7 @@ function toMapItem(log: MockVisitLog): VisitLogMapItem {
     place_name: place.name,
     lat: place.lat,
     lng: place.lng,
-    photo_urls: log.photoUrls,
+    photos: toPhotos(log),
     title: log.title ?? null,
     one_line: log.oneLine,
     weather: log.weather ?? null,
@@ -61,7 +67,7 @@ function toMapItem(log: MockVisitLog): VisitLogMapItem {
 function toSummary(log: MockVisitLog): VisitLogSummary {
   return {
     id: log.id,
-    photo_urls: log.photoUrls,
+    photos: toPhotos(log),
     title: log.title ?? null,
     one_line: log.oneLine,
     weather: log.weather ?? null,
@@ -77,7 +83,7 @@ function toDetail(log: MockVisitLog): VisitLogDetail {
     id: log.id,
     place_id: place.id,
     place_name: place.name,
-    photo_urls: log.photoUrls,
+    photos: toPhotos(log),
     title: log.title ?? null,
     one_line: log.oneLine,
     weather: log.weather ?? null,
@@ -96,9 +102,10 @@ function toSimilarLogItem(log: MockVisitLog): SimilarLogItem {
     place_name: place.name,
     lat: place.lat,
     lng: place.lng,
-    // SimilarLogItem은 여러 장 지원 범위 밖(2026-09-06 결정, decision-log 참고) — 대표 사진
-    // 1장만 계속 노출(백엔드 VisitLog.mainPhotoUrl과 동일한 취급)
-    photo_url: log.photoUrls[0] ?? null,
+    // 여러 장 사진 확장은 처음엔 범위 밖이었는데(2026-09-06 결정), "취향 맞춤 코스" 카드에서
+    // 사진을 넘기면 그 사진에 달린 글로 바뀌어야 해서(2026-09-07 결정, decision-log 참고)
+    // 대표 사진 1장(mainPhotoUrl)에서 전체 목록+캡션(photos)으로 확장
+    photos: toPhotos(log),
     one_line: log.oneLine,
     rating: log.rating,
     tags: log.tags,
@@ -226,7 +233,7 @@ export function resolveMock<T>(method: string, path: string, body: unknown): Moc
     const place = MOCK_PLACES.find((p) => p.id === placeId);
     if (!place) return NOT_MATCHED;
     const req = (body ?? {}) as {
-      photo_urls?: string[];
+      photos?: { url: string; caption?: string }[];
       title?: string;
       one_line?: string;
       weather?: string;
@@ -238,7 +245,7 @@ export function resolveMock<T>(method: string, path: string, body: unknown): Moc
       placeId,
       mine: true,
       authorId: null,
-      photoUrls: req.photo_urls ?? [],
+      photos: req.photos ?? [],
       title: req.title ?? null,
       oneLine: req.one_line ?? null,
       weather: req.weather ?? null,

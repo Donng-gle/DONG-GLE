@@ -35,8 +35,8 @@ export function RecommendedTab() {
       ListEmptyComponent={<Text style={styles.emptyText}>아직 취향이 겹치는 유저의 공개 기록이 없어요</Text>}
       renderItem={({ item }) => (
         <View style={styles.card}>
-          {item.photo_url ? (
-            <Image source={{ uri: item.photo_url }} style={styles.cardImage} resizeMode="cover" />
+          {item.photos[0] ? (
+            <Image source={{ uri: item.photos[0].url }} style={styles.cardImage} resizeMode="cover" />
           ) : (
             <View style={[styles.cardImage, styles.cardImagePlaceholder]} />
           )}

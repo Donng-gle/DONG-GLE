@@ -16,8 +16,10 @@ interface Props {
 // 지도 SDK가 아직 없어서 뷰포트(bounds) 필터 없이 전체 목록으로 보여준다.
 //
 // 원본 디자인과 다르게 뺀 것:
-// - 사진 여러 장 + 점 인디케이터 + 사진 우상단 좋아요 버튼: SimilarLogItem엔 사진이 photo_url 1장뿐이고
-//   "방문 기록 좋아요" 개념 자체가 스키마에 없음(PLACE_LIKE만 존재) → 사진 1장만, 버튼 없이 표시
+// - 사진 여러 장 + 점 인디케이터 + 사진 우상단 좋아요 버튼: SimilarLogItem은 이제 여러 장(photos)을
+//   내려주지만(2026-09-07 결정, "취향 맞춤 코스" 탭용으로 확장, decision-log 참고) 이 화면은 아직
+//   대표 사진 1장만 표시 — 캐러셀은 이 화면 범위 밖(필요해지면 나중에 추가). "방문 기록 좋아요"
+//   개념 자체는 여전히 스키마에 없음(PLACE_LIKE만 존재) → 좋아요 버튼은 계속 생략
 // - 카드에 있던 별점(예: ★★★★ 4.0): 같은 디자인 문서 안에서도 카드마다 있다 없다 해서(507:10963엔
 //   없음, 316:4122의 두 번째 카드에만 있음) 확정된 요소로 보기 어렵고, 대응 데이터도 없어서 생략
 export function ExploreScreen({ onExit }: Props) {
@@ -132,8 +134,8 @@ function SimilarLogCard({ item, onSelectPlace }: { item: SimilarLogItem; onSelec
         </Text>
       )}
 
-      {item.photo_url ? (
-        <Image source={{ uri: item.photo_url }} style={styles.photo} resizeMode="cover" />
+      {item.photos[0] ? (
+        <Image source={{ uri: item.photos[0].url }} style={styles.photo} resizeMode="cover" />
       ) : (
         <View style={[styles.photo, styles.photoPlaceholder]} />
       )}

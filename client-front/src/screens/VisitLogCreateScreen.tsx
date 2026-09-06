@@ -91,7 +91,9 @@ export function VisitLogCreateScreen({ placeId, placeName, onDone, onCancel }: P
     try {
       const photoUrls = assets.length > 0 ? await uploadPhotos() : undefined;
       await visitLogApi.create(placeId, {
-        photo_urls: photoUrls,
+        // 사진별 캡션 지원(2026-09-07 결정, decision-log 참고)으로 photo_urls -> photos로 계약
+        // 변경 — 이 화면엔 아직 캡션 입력 UI가 없어서 caption 없이 url만 보냄
+        photos: photoUrls?.map((url) => ({ url })),
         one_line: oneLine.trim() || undefined,
         rating: rating > 0 ? rating : undefined,
       });

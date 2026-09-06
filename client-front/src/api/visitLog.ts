@@ -1,10 +1,18 @@
 import { apiClient } from './client';
 import { PaginationMeta } from './place';
 
+// 사진 1장 + 캡션(선택). 사진별 캡션 지원(2026-09-07 결정, decision-log 참고) — VisitLog 자신의
+// 응답(Detail/Summary/MapItem)과 explore의 SimilarLogItem이 공통으로 사용. 이전엔 URL 문자열이었음
+export interface VisitLogPhoto {
+  url: string;
+  caption: string | null;
+}
+
 export interface VisitLogCreateRequest {
-  // 여러 장 지원(2026-09-06 결정, decision-log 참고) — 목록 순서 그대로 sort_order로 저장됨.
-  // 사진 없이 한줄리뷰만으로도 기록 작성이 가능해서 옵셔널 (server VisitLogCreateRequest.kt 참고)
-  photo_urls?: string[];
+  // 여러 장 지원(2026-09-06 결정)+사진별 캡션(2026-09-07 결정, decision-log 참고) — 목록 순서
+  // 그대로 sort_order로 저장됨. 사진 없이 한줄리뷰만으로도 기록 작성이 가능해서 옵셔널
+  // (server VisitLogCreateRequest.kt 참고)
+  photos?: { url: string; caption?: string }[];
   title?: string; // 최대 50자 (2026-09-05 추가 — Figma "메인 페이지-나의 일지-기록하기" 시안, decision-log 참고)
   one_line?: string; // 최대 100자
   weather?: string; // 최대 20자, 자유 입력 텍스트 (2026-09-05 추가, decision-log 참고)
@@ -26,7 +34,7 @@ export interface VisitLogDetail {
   id: number;
   place_id: number;
   place_name: string;
-  photo_urls: string[]; // 여러 장 지원(2026-09-06 결정, decision-log 참고). 없으면 빈 배열
+  photos: VisitLogPhoto[]; // 여러 장 지원(2026-09-06)+사진별 캡션(2026-09-07, decision-log 참고). 없으면 빈 배열
   title: string | null;
   one_line: string | null;
   weather: string | null;
@@ -38,7 +46,7 @@ export interface VisitLogDetail {
 
 export interface VisitLogSummary {
   id: number;
-  photo_urls: string[]; // 여러 장 지원(2026-09-06 결정, decision-log 참고). 없으면 빈 배열
+  photos: VisitLogPhoto[]; // 여러 장 지원(2026-09-06)+사진별 캡션(2026-09-07, decision-log 참고). 없으면 빈 배열
   title: string | null;
   one_line: string | null;
   weather: string | null;
@@ -53,7 +61,7 @@ export interface VisitLogMapItem {
   place_name: string;
   lat: number | null;
   lng: number | null;
-  photo_urls: string[]; // 여러 장 지원(2026-09-06 결정, decision-log 참고). 없으면 빈 배열
+  photos: VisitLogPhoto[]; // 여러 장 지원(2026-09-06)+사진별 캡션(2026-09-07, decision-log 참고). 없으면 빈 배열
   title: string | null;
   one_line: string | null;
   weather: string | null;
