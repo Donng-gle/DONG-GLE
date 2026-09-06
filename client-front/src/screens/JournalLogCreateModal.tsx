@@ -36,6 +36,11 @@ const ONE_LINE_MAX = 100;
 const TITLE_MAX = 50;
 const WEATHER_MAX = 20;
 
+// 여러 장 지원(2026-09-06 결정, decision-log 참고). 백엔드 VisitLogCreateRequest.photoUrls는
+// @Size(max=10)까지 받지만, 한 번에 고를 사진 개수를 UX상 적당히 제한하려고 5로 둠(Figma 시안엔
+// 여러 장 선택 자체가 없어서 임의 값 — 필요하면 나중에 조정)
+const MAX_PHOTOS = 5;
+
 function toDateOnly(iso: string) {
   return iso.slice(0, 10); // YYYY-MM-DD
 }
@@ -52,7 +57,7 @@ export function JournalLogCreateModal({ visible, onClose, onCreated }: Props) {
   const [weather, setWeather] = useState('');
   const [visitedAt, setVisitedAt] = useState(''); // YYYY-MM-DD, 빈 값이면 미선택
   const [place, setPlace] = useState<PlaceListItem | null>(null);
-  const [asset, setAsset] = useState<ImagePicker.ImagePickerAsset | null>(null);
+  const [assets, setAssets] = useState<ImagePicker.ImagePickerAsset[]>([]);
   const [saving, setSaving] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
   const [showPlacePicker, setShowPlacePicker] = useState(false);
@@ -63,27 +68,47 @@ export function JournalLogCreateModal({ visible, onClose, onCreated }: Props) {
     setWeather('');
     setVisitedAt('');
     setPlace(null);
-    setAsset(null);
+    setAssets([]);
     onClose();
   }
 
+  // legacy:true — 기본(legacy:false) Android 피커는 "포토 라이브러리" 범위로만 스캔해서 기기
+  // 로컬 갤러리(다운로드, 다른 앱이 저장한 사진 등)가 안 보이던 문제가 있었음(2026-09-06 사용자
+  // 리포트, expo-image-picker 문서: legacy는 "포토 라이브러리 밖" 미디어도 선택 가능하게 함)
   async function pickImage() {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
       Alert.alert('사진 접근 권한이 필요해요', '설정에서 사진 보관함 접근을 허용해주세요.');
       return;
     }
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.7 });
-    if (!result.canceled && result.assets.length > 0) setAsset(result.assets[0]);
+    const remaining = MAX_PHOTOS - assets.length;
+    if (remaining <= 0) {
+      Alert.alert(`사진은 최대 ${MAX_PHOTOS}장까지 첨부할 수 있어요.`);
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 0.7,
+      legacy: true,
+      allowsMultipleSelection: true,
+      selectionLimit: remaining,
+    });
+    if (!result.canceled && result.assets.length > 0) {
+      // 이미 골라둔 사진에 이어서 추가(다시 열 때마다 전체를 다시 고를 필요 없게)
+      setAssets((prev) => [...prev, ...result.assets].slice(0, MAX_PHOTOS));
+    }
   }
 
-  async function uploadPhoto(): Promise<string> {
-    if (!asset) throw new Error('사진이 선택되지 않았어요.');
+  function removeAsset(index: number) {
+    setAssets((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  async function uploadPhoto(asset: ImagePicker.ImagePickerAsset): Promise<string> {
     // 목업 모드(EXPO_PUBLIC_USE_MOCK=true)에선 presigned URL 발급/S3 업로드 자체가 아직 목업
     // 처리가 안 돼 있음(mocks/handlers.ts 상단 주석 "아직 목업 안 된 것: ... 업로드" 참고).
     // uploadApi.uploadFile은 apiClient를 안 거치고 fetch를 직접 호출해서 MOCK_ENABLED여도
     // 항상 실제 네트워크로 나가버려 실패함(2026-09-06 사용자 리포트로 발견) — 로컬 사진 uri를
-    // 그대로 photo_url로 써서 업로드 자체를 건너뜀(Image가 로컬 uri도 그대로 렌더링하므로
+    // 그대로 photo_urls 항목으로 써서 업로드 자체를 건너뜀(Image가 로컬 uri도 그대로 렌더링하므로
     // 화면상 차이 없음)
     if (MOCK_ENABLED) return asset.uri;
 
@@ -95,6 +120,16 @@ export function JournalLogCreateModal({ visible, onClose, onCreated }: Props) {
     return presigned.file_url;
   }
 
+  // 여러 장을 선택한 순서 그대로 업로드해서 photo_urls 배열 순서(=노출 순서, 2026-09-06 결정,
+  // decision-log 참고)를 지킴 — Promise.all은 병렬이라 완료 순서가 뒤섞일 수 있어서 순차 처리
+  async function uploadPhotos(): Promise<string[]> {
+    const urls: string[] = [];
+    for (const asset of assets) {
+      urls.push(await uploadPhoto(asset));
+    }
+    return urls;
+  }
+
   async function handleConfirm() {
     if (!place) {
       Alert.alert('장소를 선택해주세요');
@@ -102,9 +137,9 @@ export function JournalLogCreateModal({ visible, onClose, onCreated }: Props) {
     }
     setSaving(true);
     try {
-      const photoUrl = asset ? await uploadPhoto() : undefined;
+      const photoUrls = assets.length > 0 ? await uploadPhotos() : undefined;
       await visitLogApi.create(place.id, {
-        photo_url: photoUrl,
+        photo_urls: photoUrls,
         title: title.trim() || undefined,
         one_line: oneLine.trim() || undefined,
         weather: weather.trim() || undefined,
@@ -150,13 +185,38 @@ export function JournalLogCreateModal({ visible, onClose, onCreated }: Props) {
               <Text style={styles.pencilIcon}>✏️</Text>
             </View>
 
-            <TouchableOpacity style={styles.photoBox} onPress={pickImage} activeOpacity={0.8}>
-              {asset ? (
-                <Image source={{ uri: asset.uri }} style={styles.photoPreview} resizeMode="cover" />
-              ) : (
+            {/* 여러 장 지원(2026-09-06 결정, decision-log 참고) — 사진이 없으면 기존과 동일한
+                점선 박스 하나, 있으면 가로 스크롤 썸네일 목록 + 남은 자리가 있을 때만 추가 타일 */}
+            {assets.length === 0 ? (
+              <TouchableOpacity style={styles.photoBox} onPress={pickImage} activeOpacity={0.8}>
                 <PlusIcon />
-              )}
-            </TouchableOpacity>
+              </TouchableOpacity>
+            ) : (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.photoRow}
+                contentContainerStyle={styles.photoRowContent}
+              >
+                {assets.map((a, index) => (
+                  <View key={a.assetId ?? a.uri} style={styles.photoThumbBox}>
+                    <Image source={{ uri: a.uri }} style={styles.photoPreview} resizeMode="cover" />
+                    <TouchableOpacity
+                      style={styles.photoRemoveBadge}
+                      onPress={() => removeAsset(index)}
+                      hitSlop={6}
+                    >
+                      <Text style={styles.photoRemoveIcon}>×</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+                {assets.length < MAX_PHOTOS && (
+                  <TouchableOpacity style={styles.photoAddTile} onPress={pickImage} activeOpacity={0.8}>
+                    <PlusIcon />
+                  </TouchableOpacity>
+                )}
+              </ScrollView>
+            )}
 
             <View style={styles.textarea}>
               <TextInput
@@ -261,6 +321,39 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   photoPreview: { width: '100%', height: '100%' },
+  // 여러 장 지원(2026-09-06 결정, decision-log 참고) — photoBox와 같은 높이(144)를 유지해서
+  // 사진 있음/없음 전환 시 카드 전체 높이가 흔들리지 않게 함
+  photoRow: { height: 144, marginBottom: 12 },
+  photoRowContent: { gap: 8 },
+  photoThumbBox: {
+    width: 144,
+    height: 144,
+    borderRadius: 8,
+    overflow: 'hidden',
+    backgroundColor: colors.border,
+  },
+  photoRemoveBadge: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: 'rgba(17,17,17,0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  photoRemoveIcon: { color: colors.white, fontSize: 14, lineHeight: 16 },
+  photoAddTile: {
+    width: 144,
+    height: 144,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: colors.border,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   textarea: {
     height: 144,
     borderWidth: 1,

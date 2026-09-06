@@ -10,7 +10,7 @@ export interface PresignedUrlRequest {
 
 export interface PresignedUrlResponse {
   upload_url: string; // 이 주소로 파일 바이너리를 PUT하면 S3에 업로드됨
-  file_url: string; // 업로드 완료 후 실제 접근 가능한 URL — VisitLogCreateRequest.photo_url 등에 사용
+  file_url: string; // 업로드 완료 후 실제 접근 가능한 URL — VisitLogCreateRequest.photo_urls 등에 사용
   expires_in: number; // upload_url 유효 시간(초)
 }
 
