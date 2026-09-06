@@ -29,4 +29,11 @@ class VisitLogPhoto(
 
     @Column(name = "sort_order", nullable = false)
     val sortOrder: Int = 0,
+
+    // 사진별 캡션 (2026-09-07 결정, decision-log 참고). "취향 맞춤 코스" 탭에서 다른 사용자의
+    // 기록을 사진 캐러셀로 넘기면 그 사진에 달린 글로 바뀌게 하기 위해 추가 — 기존 one_line은
+    // 로그 전체 기준 1개뿐이라 사진별로 다른 글을 담을 수 없었음. 실제 데이터 0건이라 무손실
+    // 컬럼 추가(이전 사진 여러 장 지원 때와 동일한 패턴)
+    @Column(name = "caption")
+    val caption: String? = null,
 )

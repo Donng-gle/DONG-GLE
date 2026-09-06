@@ -9,6 +9,7 @@ import com.dongle.server.visitlog.dto.PlaceLogsResponse
 import com.dongle.server.visitlog.dto.VisitLogCreateRequest
 import com.dongle.server.visitlog.dto.VisitLogDetailResponse
 import com.dongle.server.visitlog.dto.VisitLogMapItemResponse
+import com.dongle.server.visitlog.dto.VisitLogPhotoResponse
 import com.dongle.server.visitlog.dto.VisitLogSummaryResponse
 import com.dongle.server.visitlog.dto.VisitLogUpdateRequest
 import org.springframework.data.domain.PageRequest
@@ -46,9 +47,10 @@ class VisitLogService(
             )
         )
         // 요청 목록 순서를 그대로 sort_order로 저장(2026-09-06 결정, decision-log 참고) — cascade
-        // ALL이라 log 저장 시(트랜잭션 커밋 시) 같이 insert됨, 별도 save 호출 불필요
-        request.photoUrls?.forEachIndexed { index, url ->
-            log.photos.add(VisitLogPhoto(visitLog = log, photoUrl = url, sortOrder = index))
+        // ALL이라 log 저장 시(트랜잭션 커밋 시) 같이 insert됨, 별도 save 호출 불필요.
+        // 사진별 캡션(2026-09-07 결정)도 같이 저장
+        request.photos?.forEachIndexed { index, photo ->
+            log.photos.add(VisitLogPhoto(visitLog = log, photoUrl = photo.url, caption = photo.caption, sortOrder = index))
         }
         place.visitLogCount += 1
 
@@ -128,7 +130,7 @@ class VisitLogService(
 
 private fun VisitLog.toSummaryResponse() = VisitLogSummaryResponse(
     id = id,
-    photoUrls = photos.map { it.photoUrl },
+    photos = photos.map { it.toResponse() },
     title = title,
     oneLine = oneLine,
     weather = weather,
@@ -141,7 +143,7 @@ private fun VisitLog.toDetailResponse() = VisitLogDetailResponse(
     id = id,
     placeId = place.id,
     placeName = place.name,
-    photoUrls = photos.map { it.photoUrl },
+    photos = photos.map { it.toResponse() },
     title = title,
     oneLine = oneLine,
     weather = weather,
@@ -156,7 +158,7 @@ private fun VisitLog.toMapItemResponse() = VisitLogMapItemResponse(
     placeName = place.name,
     lat = place.lat,
     lng = place.lng,
-    photoUrls = photos.map { it.photoUrl },
+    photos = photos.map { it.toResponse() },
     title = title,
     oneLine = oneLine,
     weather = weather,
@@ -164,3 +166,5 @@ private fun VisitLog.toMapItemResponse() = VisitLogMapItemResponse(
     visitedAt = visitedAt,
     tags = emotionTags.map { it.tag },
 )
+
+private fun VisitLogPhoto.toResponse() = VisitLogPhotoResponse(url = photoUrl, caption = caption)

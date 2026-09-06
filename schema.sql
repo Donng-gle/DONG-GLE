@@ -165,11 +165,14 @@ CREATE INDEX idx_visit_log_visited ON visit_log (visited_at);
 
 -- 방문 기록 사진 (여러 장). 이전엔 visit_log.photo_url 단일 컬럼이었는데(사진 1장만 가능),
 -- place_image와 동일한 패턴(부모 테이블 + sort_order)으로 확장 (2026-09-06 결정, decision-log 참고)
+-- caption: 사진별 캡션(선택). "취향 맞춤 코스" 카드가 사진을 넘기면 그 사진에 달린 글로 바뀌게
+-- 하기 위해 추가 (2026-09-07 결정, decision-log 참고)
 CREATE TABLE visit_log_photo (
     id           BIGSERIAL PRIMARY KEY,
     visit_log_id BIGINT    NOT NULL REFERENCES visit_log (id) ON DELETE CASCADE,
     photo_url    TEXT      NOT NULL,
-    sort_order   INT       NOT NULL DEFAULT 0 CHECK (sort_order >= 0)
+    sort_order   INT       NOT NULL DEFAULT 0 CHECK (sort_order >= 0),
+    caption      TEXT
 );
 
 CREATE INDEX idx_visit_log_photo_log ON visit_log_photo (visit_log_id);

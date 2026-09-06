@@ -4,7 +4,7 @@ import java.time.LocalDateTime
 
 data class VisitLogSummaryResponse(
     val id: Long,
-    val photoUrls: List<String>,
+    val photos: List<VisitLogPhotoResponse>,
     val title: String?,
     val oneLine: String?,
     val weather: String?,
