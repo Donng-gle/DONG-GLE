@@ -1,5 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View, Image } from 'react-native';
+import {
+  ActivityIndicator,
+  Animated,
+  FlatList,
+  PanResponder,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+  Image,
+} from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -19,16 +30,22 @@ type Tab = 'all' | 'saved';
 
 const ANDONG_REGION = { latitude: 36.5684, longitude: 128.7294, latitudeDelta: 0.15, longitudeDelta: 0.15 };
 const PAGE_SIZE = 20;
+// 시트가 열려있을 때 화면 높이의 이 비율만큼을 차지 — "지금 현재 켜져있는 위치"(2026-09-06
+// 사용자 요청)가 곧 이 값. 드래그로 이보다 더 펼쳐지지는 않고, 접었다 다시 폈을 때도 이
+// 위치까지만 돌아옴
+const SHEET_OPEN_RATIO = 0.55;
+// 접었을 때 화면에 남기는 손잡이+탭 줄만큼의 높이(리스트는 그 아래로 숨음)
+const SHEET_PEEK_HEIGHT = 80;
 
-// Figma 600:13996(기본)/600:14306(선택 상태) 반영. 2026-09-06 사용자 재지적으로 두 가지 크게
-// 고침(처음엔 "비슷하게"로 잘못 단순화했었음):
-// 1) "지도가 배경 전체를 차지하고 그 위에 검색창/리스트가 뜨는 진짜 오버레이" 구조로 변경 —
-//    지도를 화면 전체에 깔고(StyleSheet.absoluteFill), 검색창은 지도 위 플로팅, 장소 리스트는
-//    화면 하단에 뜨는 팝업(고정 높이 카드, 둥근 위 모서리)으로 지도 위에 겹치게 함
-//    (드래그로 늘어나는 진짜 바텀시트는 이 프로젝트에 라이브러리가 없어서 고정 높이로 근사)
-// 2) 다중 선택 지원 — "선택"을 누르면 그 장소가 즉시 코스에 더해지고 화면은 안 닫힘(계속
-//    골라 담을 수 있음), 이미 선택된 걸 다시 누르면 "취소"(제거)됨. 선택된 장소는 전부
-//    지도에 핀으로 남아있고, 방금 누른 장소로만 카메라가 이동함(다른 핀은 그대로 유지)
+// Figma 600:13996(기본)/600:14306(선택 상태) 반영. 2026-09-06 사용자가 두 차례 재지적하며
+// 다듬음:
+// 1차) "지도가 배경 전체를 차지하고 그 위에 검색창/리스트가 뜨는 진짜 오버레이" 구조로 변경,
+//   다중 선택 지원(선택=즉시 코스에 더해지고 화면 유지, 이미 선택된 건 "취소"로 뺌, 선택된
+//   장소는 전부 지도에 핀으로 남고 방금 누른 장소로만 카메라 이동)
+// 2차) 이번 라운드: (a) 리스트 팝업을 손잡이로 드래그해서 접었다 펼 수 있게(단, 펼쳐도
+//   SHEET_OPEN_RATIO까지만 — 화면을 다 덮진 않음), (b) 카메라 이동 시 핀이 팝업에 가려
+//   안 보이던 문제 — 지도 전체의 정중앙이 아니라 팝업이 안 가리는 위쪽 영역의 중앙에
+//   핀이 오도록 region 중심 좌표를 보정
 export function PlaceMapPickerScreen({ onExit, selectedPlaces, onTogglePlace }: Props) {
   const insets = useSafeAreaInsets();
   const mapRef = useRef<MapView>(null);
@@ -38,6 +55,38 @@ export function PlaceMapPickerScreen({ onExit, selectedPlaces, onTogglePlace }: 
   const [page, setPage] = useState(1);
   const [hasNext, setHasNext] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+
+  // 시트 드래그 — 0(열림, SHEET_OPEN_RATIO 위치)~collapsedOffset(접힘, 손잡이만 보임) 사이를
+  // 오감. sheetHeight는 onLayout으로 실측(화면 크기마다 % 높이의 실제 px가 다르므로)
+  const [sheetHeight, setSheetHeight] = useState(0);
+  const translateY = useRef(new Animated.Value(0)).current;
+  const openOffset = useRef(0);
+  const isOpen = useRef(true);
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gesture) => Math.abs(gesture.dy) > 4,
+      onPanResponderGrant: () => {
+        translateY.stopAnimation();
+      },
+      onPanResponderMove: (_, gesture) => {
+        // openOffset.current는 항상 "마지막으로 멈춘 절대 위치"(0 또는 collapsedOffset) —
+        // 거기에 이번 제스처의 상대 이동량(gesture.dy)만 더해서 절대 좌표로 클램프
+        const collapsedOffset = Math.max(sheetHeight - SHEET_PEEK_HEIGHT, 0);
+        const next = openOffset.current + gesture.dy;
+        translateY.setValue(Math.min(Math.max(next, 0), collapsedOffset));
+      },
+      onPanResponderRelease: (_, gesture) => {
+        const collapsedOffset = Math.max(sheetHeight - SHEET_PEEK_HEIGHT, 0);
+        const current = Math.min(Math.max(openOffset.current + gesture.dy, 0), collapsedOffset);
+        const shouldCollapse = current > collapsedOffset / 2;
+        const target = shouldCollapse ? collapsedOffset : 0;
+        openOffset.current = target;
+        isOpen.current = target === 0;
+        Animated.spring(translateY, { toValue: target, useNativeDriver: true, bounciness: 2 }).start();
+      },
+    }),
+  ).current;
 
   useEffect(() => {
     load(1);
@@ -72,14 +121,28 @@ export function PlaceMapPickerScreen({ onExit, selectedPlaces, onTogglePlace }: 
   }
 
   // 토글(선택/취소) 둘 다 "방금 누른 장소"로 카메라를 옮김 — 안동 시내 기준 지도(초기
-  // delta 0.15)에 하회마을처럼 범위 밖인 장소가 많아서, 그냥 두면 핀이 화면 밖이라 안 보임
+  // delta 0.15)에 하회마을처럼 범위 밖인 장소가 많아서, 그냥 두면 핀이 화면 밖이라 안 보임.
+  // 핀을 지도 정중앙이 아니라 팝업(하단 SHEET_OPEN_RATIO)이 안 가리는 위쪽 영역의 중앙에
+  // 오도록 region 중심 위도를 보정(2026-09-06 사용자 지적) — region의 중심은 항상 뷰포트
+  // 정중앙(50%)에 렌더링되니, 목표 지점이 "가려지지 않는 영역(위쪽 (1-비율)만큼)의 중앙"에
+  // 오도록 하려면 중심을 목표보다 남쪽으로 당겨야 함
   function handleTap(place: PlaceListItem) {
     onTogglePlace(place);
     if (place.lat != null && place.lng != null) {
+      const delta = 0.03;
+      const visibleFraction = 1 - SHEET_OPEN_RATIO; // 팝업에 안 가리는 위쪽 비율
+      const targetFractionFromTop = visibleFraction / 2; // 그 영역의 중앙
+      const centerLat = place.lat + delta * (targetFractionFromTop - 0.5);
       mapRef.current?.animateToRegion(
-        { latitude: place.lat, longitude: place.lng, latitudeDelta: 0.03, longitudeDelta: 0.03 },
+        { latitude: centerLat, longitude: place.lng, latitudeDelta: delta, longitudeDelta: delta },
         400,
       );
+      // 카메라 이동 결과를 바로 볼 수 있게 시트가 접혀있었으면 다시 열어줌
+      if (!isOpen.current) {
+        openOffset.current = 0;
+        isOpen.current = true;
+        Animated.spring(translateY, { toValue: 0, useNativeDriver: true, bounciness: 2 }).start();
+      }
     }
   }
 
@@ -113,16 +176,21 @@ export function PlaceMapPickerScreen({ onExit, selectedPlaces, onTogglePlace }: 
         </TouchableOpacity>
       </View>
 
-      <View style={[styles.sheet, { paddingBottom: Math.max(20, insets.bottom + 16) }]}>
-        <View style={styles.handle} />
+      <Animated.View
+        style={[styles.sheet, { paddingBottom: Math.max(20, insets.bottom + 16), transform: [{ translateY }] }]}
+        onLayout={(e) => setSheetHeight(e.nativeEvent.layout.height)}
+      >
+        <View {...panResponder.panHandlers}>
+          <View style={styles.handle} />
 
-        <View style={styles.tabRow}>
-          <TouchableOpacity style={[styles.tab, tab === 'all' && styles.tabSelected]} onPress={() => setTab('all')}>
-            <Text style={[styles.tabText, tab === 'all' && styles.tabTextSelected]}>전체보기</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.tab, tab === 'saved' && styles.tabSelected]} onPress={() => setTab('saved')}>
-            <Text style={[styles.tabText, tab === 'saved' && styles.tabTextSelected]}>저장된 장소</Text>
-          </TouchableOpacity>
+          <View style={styles.tabRow}>
+            <TouchableOpacity style={[styles.tab, tab === 'all' && styles.tabSelected]} onPress={() => setTab('all')}>
+              <Text style={[styles.tabText, tab === 'all' && styles.tabTextSelected]}>전체보기</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.tab, tab === 'saved' && styles.tabSelected]} onPress={() => setTab('saved')}>
+              <Text style={[styles.tabText, tab === 'saved' && styles.tabTextSelected]}>저장된 장소</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {places === null ? (
@@ -165,7 +233,7 @@ export function PlaceMapPickerScreen({ onExit, selectedPlaces, onTogglePlace }: 
             }}
           />
         )}
-      </View>
+      </Animated.View>
     </View>
   );
 }
@@ -196,14 +264,14 @@ const styles = StyleSheet.create({
   backIcon: { fontSize: 18, color: colors.black },
   searchInput: { flex: 1, fontFamily: fonts.regular, fontSize: 16, letterSpacing: -0.4, color: colors.black, padding: 0 },
   searchIcon: { fontSize: 16 },
-  // 리스트를 지도 위에 뜨는 팝업으로 취급(2026-09-06 요청) — 화면 하단에 고정 높이로 겹쳐 올림.
-  // 드래그로 늘어나는 진짜 바텀시트 라이브러리가 없어서 고정 55% 높이로 근사
+  // 리스트를 지도 위에 뜨는 팝업으로 취급 — 화면 하단에 SHEET_OPEN_RATIO 높이로 겹쳐 올리고,
+  // 손잡이를 드래그하면 SHEET_PEEK_HEIGHT까지 접힘(2026-09-06 요청)
   sheet: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
-    height: '55%',
+    height: `${SHEET_OPEN_RATIO * 100}%`,
     backgroundColor: colors.white,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
