@@ -236,9 +236,22 @@ const styles = StyleSheet.create({
   divider: { height: 1, backgroundColor: colors.divider, marginVertical: 8 },
   weekRow: { flexDirection: 'row' },
   dayCell: { flex: 1, aspectRatio: 1, alignItems: 'center', justifyContent: 'center' },
-  // 단일 선택(원) — 이전엔 검정 채우기였는데 시안대로 파란 아웃라인으로 변경(2026-09-06)
-  dayCircle: { width: '80%', aspectRatio: 1, borderRadius: 100, alignItems: 'center', justifyContent: 'center' },
-  dayCircleSelected: { borderWidth: 1.5, borderColor: colors.accentBlue },
+  // 단일 선택(원) — 이전엔 검정 채우기였는데 시안대로 파란 아웃라인으로 변경(2026-09-06).
+  // borderWidth를 기본 0으로 항상 갖고 있다가 선택 시 넓히는 방식(대신 색만 바꿈) — RN
+  // Android에서 이미 마운트된 View에 borderWidth를 나중에 추가하면 borderRadius가 같이
+  // 적용 안 되고 각진 사각형으로 그려지는 문제가 있어서(처음부터 선택된 채로 마운트될 땐
+  // 정상, 탭해서 동적으로 선택될 때만 깨짐 — 2026-09-06 실기기에서 재현 확인), 폭 자체는
+  // 항상 갖고 색만 투명↔파랑으로 바꿔서 그 버그를 피함
+  dayCircle: {
+    width: '80%',
+    aspectRatio: 1,
+    borderRadius: 100,
+    borderWidth: 1.5,
+    borderColor: 'transparent',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dayCircleSelected: { borderColor: colors.accentBlue },
   // range 모드에서 시작일~종료일을 하나로 이어 보이게 하는 막대 — 칸 전체 폭을 씀(원과 달리
   // 80% 인셋 없음). 위/아래 테두리는 항상, 좌/우 테두리+둥근 모서리는 그 줄에서 범위가
   // 실제로 시작/끝나는 칸에만 줘서 여러 칸이 이어진 하나의 알약처럼 보이게 함
