@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View, Image } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
@@ -36,6 +36,7 @@ const PAGE_SIZE = 20;
 // "미리보기" 상태가 됨(600:14306) — 실제 코스에 추가되는 건 "선택" 버튼을 눌렀을 때(onSelectPlace)
 export function PlaceMapPickerScreen({ onExit, onSelectPlace }: Props) {
   const insets = useSafeAreaInsets();
+  const mapRef = useRef<MapView>(null);
   const [tab, setTab] = useState<Tab>('all');
   const [query, setQuery] = useState('');
   const [places, setPlaces] = useState<PlaceListItem[] | null>(null);
@@ -53,6 +54,7 @@ export function PlaceMapPickerScreen({ onExit, onSelectPlace }: Props) {
     if (pageToLoad === 1) {
       setPlaces(null);
       setPreviewId(null);
+      mapRef.current?.animateToRegion(ANDONG_REGION, 300);
     } else {
       setLoadingMore(true);
     }
@@ -75,6 +77,19 @@ export function PlaceMapPickerScreen({ onExit, onSelectPlace }: Props) {
 
   function loadMore() {
     if (!loadingMore && hasNext) load(page + 1);
+  }
+
+  // 안동 시내 기준 지도(초기 delta 0.15)에 안 들어오는 장소도 많아서(예: 하회마을은 중심에서
+  // 서쪽으로 한참 떨어짐) 미리보기 시 그냥 핀만 찍으면 화면 밖이라 안 보이는 문제가 있었음
+  // (2026-09-06 실기기 확인) — 카드를 누르면 지도가 그 장소로 애니메이션 이동하도록 추가
+  function previewOnMap(place: PlaceListItem) {
+    setPreviewId(place.id);
+    if (place.lat != null && place.lng != null) {
+      mapRef.current?.animateToRegion(
+        { latitude: place.lat, longitude: place.lng, latitudeDelta: 0.03, longitudeDelta: 0.03 },
+        400,
+      );
+    }
   }
 
   const previewPlace = places?.find((p) => p.id === previewId) ?? null;
@@ -101,7 +116,7 @@ export function PlaceMapPickerScreen({ onExit, onSelectPlace }: Props) {
         </TouchableOpacity>
       </View>
 
-      <MapView provider={PROVIDER_GOOGLE} style={styles.map} initialRegion={ANDONG_REGION}>
+      <MapView ref={mapRef} provider={PROVIDER_GOOGLE} style={styles.map} initialRegion={ANDONG_REGION}>
         {previewPlace?.lat != null && previewPlace?.lng != null && (
           <Marker
             coordinate={{ latitude: previewPlace.lat, longitude: previewPlace.lng }}
@@ -137,7 +152,7 @@ export function PlaceMapPickerScreen({ onExit, onSelectPlace }: Props) {
             renderItem={({ item }) => {
               const isPreviewed = item.id === previewId;
               return (
-                <TouchableOpacity style={styles.row} onPress={() => setPreviewId(item.id)}>
+                <TouchableOpacity style={styles.row} onPress={() => previewOnMap(item)}>
                   {item.main_image_url ? (
                     <Image source={{ uri: item.main_image_url }} style={styles.thumbnail} resizeMode="cover" />
                   ) : (
