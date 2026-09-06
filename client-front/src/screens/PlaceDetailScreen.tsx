@@ -248,8 +248,8 @@ export function PlaceDetailScreen({ placeId, onExit }: Props) {
               {log.one_line && <Text style={styles.reviewText}>{log.one_line}</Text>}
               {/* 여러 장 지원(2026-09-06, decision-log 참고)돼도 이 리뷰 카드는 Figma 확정
                   레이아웃(작은 썸네일 1장)을 그대로 유지 — 대표 사진(첫 장)만 표시 */}
-              {log.photo_urls[0] && (
-                <Image source={{ uri: log.photo_urls[0] }} style={styles.reviewThumb} resizeMode="cover" />
+              {log.photos[0] && (
+                <Image source={{ uri: log.photos[0].url }} style={styles.reviewThumb} resizeMode="cover" />
               )}
               <View style={styles.reviewFooterRow}>
                 {log.tags.length > 0 && <Text style={styles.reviewTags}>{log.tags.join(' · ')}</Text>}

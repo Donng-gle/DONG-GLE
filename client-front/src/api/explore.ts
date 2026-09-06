@@ -1,4 +1,5 @@
 import { apiClient } from './client';
+import { VisitLogPhoto } from './visitLog';
 
 export interface SimilarLogItem {
   log_id: number;
@@ -6,7 +7,10 @@ export interface SimilarLogItem {
   place_name: string;
   lat: number | null;
   lng: number | null;
-  photo_url: string | null;
+  // 여러 장 사진 확장은 처음엔 범위 밖이었는데(2026-09-06 결정), "취향 맞춤 코스" 카드에서
+  // 사진을 넘기면 그 사진에 달린 글로 바뀌어야 해서(2026-09-07 결정, decision-log 참고)
+  // 대표 사진 1장(photo_url)에서 전체 목록+캡션(photos)으로 확장. 없으면 빈 배열
+  photos: VisitLogPhoto[];
   one_line: string | null;
   rating: number | null; // 1~5, 선택 입력이라 없을 수 있음 (2026-09-05 추가, decision-log 참고)
   tags: string[];

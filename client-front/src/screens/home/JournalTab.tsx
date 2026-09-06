@@ -193,7 +193,10 @@ export function JournalTab(_props: Props) {
 // DB에 데이터가 없어서 계속 생략(사용자 확인) — 날짜/장소 2개만 하나의 회색 바 안에 표시.
 // 별점(rating)은 시안에 아예 없는 요소라 이 카드에선 제외(장소 상세 등 다른 화면에서 계속 노출).
 function JournalLogCard({ log }: { log: VisitLogMapItem }) {
-  const photos = log.photo_urls;
+  // 사진별 캡션 지원(2026-09-07 결정, decision-log 참고)으로 photo_urls(문자열 배열)에서
+  // photos({url,caption}[])로 바뀜 — 나의 일지 카드는 캡션을 안 쓰고 계속 one_line만 표시(장소
+  // 상세 리뷰와 동일한 경계 판단)이라 url만 꺼내서 씀
+  const photos = log.photos;
   const [activePhoto, setActivePhoto] = useState(0);
   return (
     <View style={styles.card}>
@@ -207,8 +210,8 @@ function JournalLogCard({ log }: { log: VisitLogMapItem }) {
             setActivePhoto(Math.round(e.nativeEvent.contentOffset.x / CARD_IMAGE_WIDTH))
           }
         >
-          {photos.map((url, idx) => (
-            <Image key={idx} source={{ uri: url }} style={styles.cardImage} resizeMode="cover" />
+          {photos.map((p, idx) => (
+            <Image key={idx} source={{ uri: p.url }} style={styles.cardImage} resizeMode="cover" />
           ))}
         </ScrollView>
       )}
