@@ -14,7 +14,9 @@ export interface PresignedUrlResponse {
   expires_in: number; // upload_url 유효 시간(초)
 }
 
-// expo-image-picker로 "사진 선택 → 업로드" 흐름 완성됨 — VisitLogCreateScreen이 실제로 호출함
+// expo-image-picker로 "사진 선택 → 업로드" 흐름 완성됨 — JournalLogCreateModal(메인 페이지 "나의
+// 일지" 기록하기)이 실제로 호출함. 방문 기록 작성은 메인 페이지에서만 하는 걸로 정리되면서
+// PlaceDetailScreen이 쓰던 VisitLogCreateScreen은 호출부가 없어져서 삭제함(2026-09-07, decision-log 참고)
 export const uploadApi = {
   getPresignedUrl: (request: PresignedUrlRequest) =>
     apiClient.post<PresignedUrlResponse>('/uploads/presigned-url', request, true),
