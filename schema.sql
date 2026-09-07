@@ -63,7 +63,9 @@ CREATE INDEX idx_place_hours_place ON place_hours (place_id);
 
 -- 장소별 VLM(GPT Vision) semantic 분석 raw score (장소 공식 사진 기반, 정적 기준선)
 -- 장소당 최신 분석 결과 1행만 유지. model_name/prompt_version/tag_schema_version이 바뀌면 재분석 대상.
--- 아래 place_image_semantic_vector(이미지별 원본 점수)를 평균 낸 장소 단위 집계값 — 백엔드/코스추천/Qdrant는 이 집계 테이블만 읽음
+-- 아래 place_image_semantic_vector(이미지별 원본 점수)를 평균 낸 장소 단위 집계값.
+-- 백엔드(코스 후보 major_scores 등)는 이 집계 테이블을 읽음.
+-- Qdrant 추천/대체 검색은 이미지 단위 point를 사용한다(장소 집계 벡터는 Qdrant에 올리지 않음).
 -- log_emotion_tag(방문 로그 누적, 조회 시점에 직접 집계함 — 2026-09-02 결정)와는 별개 신호,
 -- 하나가 다른 하나를 대체하지 않음 (decision-log 2026-08-21 참고)
 -- 데이터 파트 배치 스크립트(data/pipeline/semantic_vector_sync.py)로만 적재됨, 백엔드는 읽기 전용
@@ -78,7 +80,7 @@ CREATE TABLE place_semantic_vector (
     model_name               TEXT        NOT NULL,
     prompt_version           TEXT        NOT NULL,
     tag_schema_version       TEXT        NOT NULL,
-    qdrant_point_id          TEXT        NOT NULL,  -- Qdrant place_semantic_vectors 컬렉션의 벡터 검색용 point id
+    qdrant_point_id          TEXT        NOT NULL,  -- 대표 이미지 Qdrant point id (이미지 단위 색인 기준)
     analyzed_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -88,7 +90,8 @@ CREATE INDEX idx_place_semantic_vector_analyzed_at ON place_semantic_vector (ana
 
 -- 장소 이미지별 VLM(GPT Vision) semantic 분석 raw score (이미지 1장 단위)
 -- 위 place_semantic_vector(장소 단위 집계)의 원본 데이터. 온보딩 카드 대표 사진 선정처럼 이미지별 원본 점수가 필요한 곳에 사용
--- 재분석 시 (place_id, image_url) 기준으로 최신 버전만 유지(UPSERT). Qdrant는 이 테이블을 참조하지 않음(장소 단위 집계만 색인)
+-- 재분석 시 (place_id, image_url) 기준으로 최신 버전만 유지(UPSERT).
+-- Qdrant 추천 검색은 이 원본과 대응하는 이미지 point를 색인한다(장소 집계 point는 없음).
 -- 데이터 파트 배치 스크립트(data/pipeline/semantic_vector_sync.py)로만 적재됨, 백엔드는 읽지 않음
 CREATE TABLE place_image_semantic_vector (
     place_id             BIGINT      NOT NULL REFERENCES place (id) ON DELETE CASCADE,

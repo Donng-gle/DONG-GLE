@@ -13,6 +13,7 @@ from course_optimizer.places_client import fetch_operating_hours
 from semantic_vector.config import SemanticVectorConfig
 from semantic_vector.models import MajorScores
 from semantic_vector.qdrant_repository import (
+  dedupe_hits_by_place_id,
   get_detail_vector_by_place_id,
   search_similar_places_by_detail_vector,
 )
@@ -79,6 +80,8 @@ async def find_replacement_place(
     exclude_place_ids=excluded,
     limit=20,
   )
+  # 이미지 단위 검색이므로 같은 place_id의 중복 hit은 best(선두)만 사용
+  hits = dedupe_hits_by_place_id(hits)
 
   for hit in hits:
     payload = hit.payload

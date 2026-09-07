@@ -1,0 +1,29 @@
+{
+  "folders": [
+    {
+      "name": "ai",
+      "path": "ai"
+    },
+    {
+      "name": "data",
+      "path": "data"
+    },
+    {
+      "name": "docs",
+      "path": "docs"
+    },
+    {
+      "name": "scripts",
+      "path": "scripts"
+    },
+    {
+      "name": "client-front",
+      "path": "client-front"
+    },
+    {
+      "name": "server-back",
+      "path": "server-back"
+    }
+  ],
+  "settings": {}
+}

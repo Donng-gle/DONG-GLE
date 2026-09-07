@@ -681,17 +681,21 @@ async def build_travel_time_matrix(
 
 영업하지 않는 장소를 같은 category 내에서 대체한다. `ai/semantic_vector`의 Qdrant repository를 재사용한다.
 
+Qdrant는 **이미지 단위 point**이므로 같은 `place_id`가 여러 hit로 나올 수 있다.
+검색 직후 `dedupe_hits_by_place_id`로 place당 best(선두) hit만 남긴 뒤 후보를 순회한다.
+
 ```python
 async def find_replacement_place(
     original: CandidatePlace,
     exclude_place_ids: set[str],
     *,
+    visit_time: datetime,
     config: CourseOptimizerConfig,
-) -> CandidatePlace | None:
+) -> CandidatePlace:
     """
     ai.semantic_vector.qdrant_repository의 검색 함수를 사용해,
     동일 category 내에서 35차원 Detail Vector 기준
-    Cosine Similarity가 가장 높은 장소를 조회한다.
+    Cosine Similarity가 높은 이미지 hit를 조회한 뒤 place_id dedupe한다.
     자체적으로 Qdrant 클라이언트를 새로 만들지 않는다.
     """
     ...
@@ -704,8 +708,9 @@ async def find_replacement_place(
 
 ### `ai/semantic_vector/qdrant_repository.py` (재사용)
 
-- `get_detail_vector_by_place_id(place_id, *, config)` — place_id의 Detail Vector 조회
-- `search_similar_places_by_detail_vector(detail_vector, *, config, category, exclude_place_ids, limit)` — Cosine Similarity 검색
+- `get_detail_vector_by_place_id(place_id, *, config)` — place_id의 이미지 point 중 Detail Vector 1개 조회
+- `search_similar_places_by_detail_vector(...)` — Cosine Similarity 검색 (이미지 hit)
+- `dedupe_hits_by_place_id(hits)` — place당 best 이미지만 유지
 
 ---
 
