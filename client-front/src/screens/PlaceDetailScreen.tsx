@@ -22,7 +22,6 @@ import { StarRating } from '../components/StarRating';
 import { colors } from '../theme/colors';
 import { fonts } from '../theme/fonts';
 import { SearchScreen } from './SearchScreen';
-import { VisitLogCreateScreen } from './VisitLogCreateScreen';
 
 interface Props {
   placeId: number;
@@ -76,7 +75,6 @@ export function PlaceDetailScreen({ placeId, onExit }: Props) {
   const [place, setPlace] = useState<PlaceDetail | null>(null);
   const [logs, setLogs] = useState<PlaceLogsResponse | null>(null);
   const [likeBusy, setLikeBusy] = useState(false);
-  const [showCreateLog, setShowCreateLog] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [activePhoto, setActivePhoto] = useState(0);
 
@@ -121,20 +119,6 @@ export function PlaceDetailScreen({ placeId, onExit }: Props) {
     }
   }
 
-  if (showCreateLog && place) {
-    return (
-      <VisitLogCreateScreen
-        placeId={place.id}
-        placeName={place.name}
-        onDone={() => {
-          setShowCreateLog(false);
-          load();
-        }}
-        onCancel={() => setShowCreateLog(false)}
-      />
-    );
-  }
-
   if (!place) {
     return (
       <View style={styles.center}>
@@ -162,11 +146,16 @@ export function PlaceDetailScreen({ placeId, onExit }: Props) {
           2026-09-05엔 돋보기/북마크를 어디로 보낼지 애매해 뺐었는데, 돋보기는 이 화면 안에서 바로
           SearchScreen을 오버레이로 띄우는 걸로(호출부 콜백 스레딩 불필요), 북마크는 기존 찜과 같은
           상태로 연결해서 다시 넣음(2026-09-07 결정, decision-log 참고) */}
-      <View style={[styles.header, { paddingTop: insets.top }]}>
+      {/* paddingTop은 여기서 insets.top+8로 계산(styles.header 쪽엔 paddingBottom:8만 있음) —
+          이전에 header에 고정 height:40까지 같이 줬다가 상태바 높이만큼의 paddingTop이 그 고정
+          높이를 깎아먹어서 뒤로가기/타이틀/아이콘이 위로 밀려 잘리고 히어로 이미지 위로 겹쳐
+          보이는 버그가 있었음 — height 제약 없이 padding만으로 자연스럽게 늘어나게 정정
+          (2026-09-07 재수정) */}
+      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <TouchableOpacity onPress={onExit} hitSlop={8} style={styles.backButton}>
           <Text style={styles.backIcon}>←</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle} numberOfLines={1}>
+        <Text style={[styles.headerTitle, { top: insets.top + 8 }]} numberOfLines={1}>
           {place.name}
         </Text>
         <View style={styles.headerRight}>
@@ -269,12 +258,8 @@ export function PlaceDetailScreen({ placeId, onExit }: Props) {
         </View>
 
         <View style={styles.section}>
-          <View style={styles.reviewHeaderRow}>
-            <Text style={styles.sectionTitle}>리뷰 {logs ? logs.meta.total : ''}</Text>
-            <TouchableOpacity onPress={() => setShowCreateLog(true)}>
-              <Text style={styles.reviewWriteLink}>기록 남기기 +</Text>
-            </TouchableOpacity>
-          </View>
+          {/* "기록 남기기"는 메인 페이지에서만 하는 걸로 정리 — 이 화면에서는 안 만듦(2026-09-07 결정) */}
+          <Text style={styles.sectionTitle}>리뷰 {logs ? logs.meta.total : ''}</Text>
 
           {logs && logs.logs.length === 0 && <Text style={styles.emptyText}>아직 방문 기록이 없어요</Text>}
 
@@ -322,13 +307,16 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.white },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.white },
-  // Figma 실측(458:2474 서브_GNB): 높이40, 좌우 패딩20. 타이틀은 좌우 버튼 폭이 서로 달라서(뒤로
-  // 가기 24 vs 돋보기+북마크 그룹 64) flex 정렬로는 프레임 정중앙에 못 맞춰서 절대배치로 처리
+  // Figma 실측(458:2474 서브_GNB): 아이콘(24) 위아래로 8씩 패딩 = 40 높이. 고정 height를 쓰면
+  // 상태바만큼의 paddingTop(inline, insets.top+8)이 그 고정 높이를 깎아먹어 내용이 잘리는 버그가
+  // 있었어서(2026-09-07 발견/수정) height는 안 주고 paddingBottom만으로 자연스럽게 늘어나게 함.
+  // 타이틀은 좌우 버튼 폭이 서로 달라서(뒤로가기 24 vs 돋보기+북마크 그룹 64) flex 정렬로는 프레임
+  // 정중앙에 못 맞춰서 절대배치로 처리
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    height: 40,
     paddingHorizontal: 20,
+    paddingBottom: 8,
     backgroundColor: colors.white,
   },
   backButton: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
@@ -395,8 +383,6 @@ const styles = StyleSheet.create({
   infoRow: { flexDirection: 'row' },
   infoLabel: { width: 64, fontFamily: fonts.medium, fontSize: 12, letterSpacing: -0.3, color: colors.black },
   infoValue: { flex: 1, fontFamily: fonts.regular, fontSize: 12, letterSpacing: -0.3, lineHeight: 17, color: colors.gray500 },
-  reviewHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
-  reviewWriteLink: { fontFamily: fonts.medium, fontSize: 13, letterSpacing: -0.3, color: colors.gray700, marginBottom: 16 },
   emptyText: { fontFamily: fonts.regular, fontSize: 14, color: colors.gray500 },
   // Figma 실측(458:2474 "Frame 2147227174" 등): 2열 그리드, 열 간격/행 간격 둘 다 8
   reviewGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: REVIEW_GRID_GAP },
