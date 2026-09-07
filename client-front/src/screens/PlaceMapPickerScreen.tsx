@@ -163,29 +163,21 @@ export function PlaceMapPickerScreen({ onExit, selectedPlaces, onTogglePlace }: 
           ))}
       </MapView>
 
-      <View style={[styles.topBar, { marginTop: insets.top + 8 }]}>
-        <View style={styles.searchBar}>
-          <TouchableOpacity onPress={onExit} hitSlop={8}>
-            <Text style={styles.backIcon}>←</Text>
-          </TouchableOpacity>
-          <TextInput
-            style={styles.searchInput}
-            value={query}
-            onChangeText={setQuery}
-            placeholder="안동의 명소 검색"
-            placeholderTextColor={colors.gray500}
-            onSubmitEditing={() => load(1)}
-            returnKeyType="search"
-          />
-          <TouchableOpacity onPress={() => load(1)} hitSlop={8}>
-            <Text style={styles.searchIcon}>🔍</Text>
-          </TouchableOpacity>
-        </View>
-        {/* 뒤로가기(←)를 누르면 그 날짜 장소 선택이 끝나는 흐름인데, 이게 잘 안 알려져 있어서
-            우상단에 명시적인 "완료" 버튼을 따로 둠(2026-09-08 사용자 요청) — 동작은 뒤로가기와
-            완전히 동일(onExit), 발견 가능성만 높이는 용도 */}
-        <TouchableOpacity onPress={onExit} hitSlop={8} style={styles.doneButton}>
-          <Text style={styles.doneButtonText}>완료</Text>
+      <View style={[styles.searchBar, { marginTop: insets.top + 8 }]}>
+        <TouchableOpacity onPress={onExit} hitSlop={8}>
+          <Text style={styles.backIcon}>←</Text>
+        </TouchableOpacity>
+        <TextInput
+          style={styles.searchInput}
+          value={query}
+          onChangeText={setQuery}
+          placeholder="안동의 명소 검색"
+          placeholderTextColor={colors.gray500}
+          onSubmitEditing={() => load(1)}
+          returnKeyType="search"
+        />
+        <TouchableOpacity onPress={() => load(1)} hitSlop={8}>
+          <Text style={styles.searchIcon}>🔍</Text>
         </TouchableOpacity>
       </View>
 
@@ -204,6 +196,12 @@ export function PlaceMapPickerScreen({ onExit, selectedPlaces, onTogglePlace }: 
             </TouchableOpacity>
             <TouchableOpacity style={[styles.tab, tab === 'saved' && styles.tabSelected]} onPress={() => setTab('saved')}>
               <Text style={[styles.tabText, tab === 'saved' && styles.tabTextSelected]}>저장된 장소</Text>
+            </TouchableOpacity>
+            {/* 뒤로가기(←)를 누르면 그 날짜 장소 선택이 끝나는 흐름인데 잘 안 알려져 있어서, "전체보기/
+                저장된 장소" 탭 줄 오른쪽 끝에 명시적인 "완료" 버튼을 둠(2026-09-08 사용자 요청 —
+                처음엔 검색바 옆에 뒀다가 이 탭 줄 자리로 정정). 동작은 뒤로가기와 완전히 동일(onExit) */}
+            <TouchableOpacity onPress={onExit} hitSlop={8} style={styles.doneButton}>
+              <Text style={styles.doneButtonText}>완료</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -255,12 +253,11 @@ export function PlaceMapPickerScreen({ onExit, selectedPlaces, onTogglePlace }: 
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.white },
-  // 검색바+완료 버튼을 한 줄에 나란히 — 이전엔 검색바 자체가 absolute(top:0,left:20,right:20)로
-  // 화면 폭을 다 차지했는데, 완료 버튼 자리를 만들려고 이 바깥 줄이 그 위치를 갖고 검색바는
-  // flex:1로 줄임(2026-09-08 추가)
-  topBar: { position: 'absolute', top: 0, left: 20, right: 20, flexDirection: 'row', alignItems: 'center', gap: 8 },
   searchBar: {
-    flex: 1,
+    position: 'absolute',
+    top: 0,
+    left: 20,
+    right: 20,
     flexDirection: 'row',
     alignItems: 'center',
     height: 48,
@@ -277,21 +274,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     elevation: 3,
   },
-  // 뒤로가기와 동작은 같지만(onExit) "이 날짜 장소 선택 완료" 흐름을 명시적으로 보여주는 버튼
-  doneButton: {
-    height: 48,
-    paddingHorizontal: 16,
-    borderRadius: 100,
-    backgroundColor: colors.accentBlue,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: colors.black,
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 3,
-  },
-  doneButtonText: { fontFamily: fonts.semiBold, fontSize: 14, letterSpacing: -0.35, color: colors.white },
   backIcon: { fontSize: 18, color: colors.black },
   searchInput: { flex: 1, fontFamily: fonts.regular, fontSize: 16, letterSpacing: -0.4, color: colors.black, padding: 0 },
   searchIcon: { fontSize: 16 },
@@ -315,6 +297,7 @@ const styles = StyleSheet.create({
   handle: { alignSelf: 'center', width: 54, height: 5, borderRadius: 100, backgroundColor: colors.gray700, marginTop: 10 },
   tabRow: {
     flexDirection: 'row',
+    alignItems: 'center',
     gap: 8,
     paddingHorizontal: 20,
     paddingVertical: 8,
@@ -325,6 +308,18 @@ const styles = StyleSheet.create({
   tabSelected: { backgroundColor: 'rgba(0,102,255,0.1)', borderColor: colors.accentBlue },
   tabText: { fontFamily: fonts.medium, fontSize: 12, color: colors.gray700 },
   tabTextSelected: { color: colors.accentBlue },
+  // 뒤로가기와 동작은 같지만(onExit) "이 날짜 장소 선택 완료" 흐름을 명시적으로 보여주는 버튼 —
+  // marginLeft:'auto'로 탭 줄 오른쪽 끝에 붙임(2026-09-08 추가)
+  doneButton: {
+    marginLeft: 'auto',
+    paddingHorizontal: 14,
+    height: 40,
+    borderRadius: 100,
+    backgroundColor: colors.accentBlue,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  doneButtonText: { fontFamily: fonts.semiBold, fontSize: 12, letterSpacing: -0.3, color: colors.white },
   loading: { marginTop: 40 },
   footerLoading: { marginVertical: 16 },
   listContent: { paddingHorizontal: 20, paddingTop: 12, flexGrow: 1 },
