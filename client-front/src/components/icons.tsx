@@ -1,4 +1,5 @@
 import { StyleSheet, Text, View } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
 import { colors } from '../theme/colors';
 
 // HomeScreen.tsx에 있던 걸 AppHeader.tsx(마이페이지 등 다른 화면에서도 같은 헤더 재사용)와
@@ -156,24 +157,27 @@ export function SearchIcon({ size = 20, color = colors.black }: { size?: number;
   );
 }
 
-// Figma "mingcute:location-fill"(검색 자동완성 행, 16x16) — 흔한 CSS 핀 모양 트릭(둥근 사각형을
-// 45도 회전해서 한쪽 모서리만 뾰족하게)으로 재현(2026-09-07 추가, SearchScreen.tsx 참고)
+// Figma "mingcute:location-fill"(검색 자동완성 행, 컨테이너 16x16 안에 실제 도형은
+// 12x13.44@(2,1.33) — 가로세로 정사각형이 아니라 세로가 12% 더 긴 통통한 핀 모양이고, 가운데에
+// 구멍이 뚫려있음(2026-09-07 정밀화). 이전엔 회전된 둥근 사각형(구멍 없음)으로 근사했었는데
+// 실측해보니 실제 도형과 꽤 달라서(구멍 없음, 정사각 비율) react-native-svg(RadarChart.tsx에서
+// 이미 쓰던 라이브러리, 추가 설치 없음)로 다시 그림 — 원(반지름=폭의 절반)+짧은 꼬리+가운데
+// 구멍(evenodd)의 실측 비율 그대로. 정확한 벡터 path 자체는 Figma에서 못 받아와서(플러그인 호출
+// 타임아웃) 실측 bbox에 맞춘 근사 곡선.
 export function LocationPinIcon({ size = 16, color = colors.gray500 }: { size?: number; color?: string }) {
-  const pinSize = size * 0.72;
+  const w = size * 0.75; // 12/16
+  const h = size * 0.84; // 13.44/16
+  const left = size * 0.125; // 2/16
+  const top = size * 0.0831; // 1.33/16
   return (
-    <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
-      <View
-        style={{
-          width: pinSize,
-          height: pinSize,
-          borderTopLeftRadius: pinSize / 2,
-          borderTopRightRadius: pinSize / 2,
-          borderBottomRightRadius: pinSize / 2,
-          borderBottomLeftRadius: 0,
-          backgroundColor: color,
-          transform: [{ rotate: '-45deg' }],
-        }}
-      />
+    <View style={{ width: size, height: size }}>
+      <Svg style={{ position: 'absolute', left, top }} width={w} height={h} viewBox="0 0 12 13.44">
+        <Path
+          fillRule="evenodd"
+          fill={color}
+          d="M6 13.44C3.5 11.2 0 9.5 0 6a6 6 0 1 1 12 0c0 3.5-3.5 5.2-6 7.44Z M6 3.8a2.2 2.2 0 1 0 0 4.4 2.2 2.2 0 0 0 0-4.4Z"
+        />
+      </Svg>
     </View>
   );
 }

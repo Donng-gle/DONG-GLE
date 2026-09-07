@@ -1,5 +1,15 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PlaceListItem, placeApi } from '../api/place';
 import { CircleCloseIcon, LocationPinIcon, SearchIcon } from '../components/icons';
@@ -18,7 +28,7 @@ interface Props {
 // 패널만 겹쳐 보이는 구조였음(처음 구현 땐 이 부분을 놓치고 완전히 별개인 흰 화면으로 만들었었음)
 //
 // 두 상태: (1) 검색어 없음 — "인기 검색어" 칩 목록 (2) 검색어 있음 — 장소명 자동완성 목록(핀
-// 아이콘+일치 구간 굵게). 검색을 실행하면(칩/자동완성 선택 또는 키보드에서 검색 입력) 목록이
+// 아이콘+일치 구간 파란색). 검색을 실행하면(칩/자동완성 선택 또는 키보드에서 검색 입력) 목록이
 // 아니라 그 장소의 관광지 상세 페이지로 바로 이동함 — 이때는 패널이 아니라 화면 전체를 덮는
 // PlaceDetailScreen으로 전환(2026-09-07 결정, decision-log 참고)
 //
@@ -96,13 +106,13 @@ export function SearchScreen({ onExit }: Props) {
   }
 
   return (
-    <View style={styles.overlayRoot} pointerEvents="box-none">
+    <View style={styles.overlayRoot}>
+      {/* Figma 검색창(362:3204/3724)엔 뒤로가기 버튼이 없음 — 검색바가 패널 폭을 그대로 다 씀.
+          그래서 패널 바깥(지도 등 뒷화면 비치는 영역)을 탭하면 닫히는 걸로 대체 —
+          HomeScreen 드로어의 배경 Pressable과 같은 패턴(2026-09-07 정정) */}
+      <Pressable style={StyleSheet.absoluteFill} onPress={onExit} />
       <View style={[styles.panel, { paddingTop: insets.top + 12 }]}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={onExit} hitSlop={8} style={styles.backButton}>
-            <Text style={styles.backIcon}>←</Text>
-          </TouchableOpacity>
-
           <View style={styles.searchBar}>
             <SearchIcon size={20} />
             <TextInput
@@ -168,9 +178,11 @@ export function SearchScreen({ onExit }: Props) {
   );
 }
 
-// 검색어와 일치하는 앞부분만 진하게(black) 표시하고 나머지는 회색으로 — Figma 시안에서 "안동"
-// 부분만 다른 색으로 강조된 걸 재현(2026-09-07 추가). 대소문자 구분 없이 접두어만 검사(자동완성
-// 소스인 장소명이 대부분 검색어로 시작하므로 접두어 매칭으로 충분, decision-log 참고)
+// 검색어와 일치하는 앞부분만 파란색(accentBlue)으로, 나머지는 gray700으로 — Figma 실측
+// (362:4005 등 "Greeting" 텍스트, 6개 행 전부 확인) 재현. 두 구간 굵기는 같음(Regular 400 그대로,
+// 매칭 부분만 색이 다름 — 이전엔 굵기까지 다르게+검정/회색500으로 잘못 재현했었음, 2026-09-07 정정).
+// 대소문자 구분 없이 접두어만 검사(자동완성 소스인 장소명이 대부분 검색어로 시작하므로 접두어
+// 매칭으로 충분, decision-log 참고)
 function HighlightedText({ text, query }: { text: string; query: string }) {
   const matched = text.toLowerCase().startsWith(query.toLowerCase());
   if (!matched) {
@@ -200,9 +212,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     elevation: 6,
   },
-  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 12, gap: 12 },
-  backButton: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
-  backIcon: { fontSize: 18, color: colors.black },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 12 },
   // Figma 실측(362:3204/3205): 320x44 흰 배경+테두리 pill(채움 없음, PlaceListScreen의 회색 채움
   // 검색창과는 다른 스타일) — 아이콘 16px 안쪽, 아이콘-텍스트 간격 6
   searchBar: {
@@ -227,17 +237,18 @@ const styles = StyleSheet.create({
   },
   loading: { marginTop: 40 },
   content: { paddingBottom: 40 },
-  // Figma 실측(362:3213/3253): 제목→칩 간격 12
+  // Figma 실측(362:3213/3253): 제목→칩 간격 12. 좌우 패딩은 컨테이너 프레임 기준 25(20 아니었음,
+  // 2026-09-07 정정 — 패널 폭 360 안에서 키워드 프레임이 x=804 시작, 팬널 시작 x=779라 25)
   sectionTitle: {
     fontFamily: fonts.regular,
     fontSize: 12,
     letterSpacing: -0.3,
     color: colors.gray500,
-    paddingHorizontal: 20,
+    paddingHorizontal: 25,
     marginBottom: 12,
   },
   // 행 간격 8, 칩 간격 4 — Figma 실측(362:3253 키워드 컨테이너) 그대로
-  keywordRows: { paddingHorizontal: 20, gap: 8 },
+  keywordRows: { paddingHorizontal: 25, gap: 8 },
   keywordRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
   keywordChip: {
     height: 32,
@@ -250,9 +261,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   keywordChipText: { fontFamily: fonts.medium, fontSize: 12, letterSpacing: -0.3, color: colors.black },
-  // Figma 실측(362:4000 등 "Post Location Container"): 행 높이17, 행 간격 12(29-17), 아이콘-텍스트 간격4
-  suggestionList: { paddingHorizontal: 20, gap: 12 },
+  // Figma 실측(362:4000 등 "Post Location Container"): 행 높이17, 행 간격 12(29-17), 아이콘-텍스트
+  // 간격4, 좌우 패딩 25(키워드 컨테이너와 동일 기준, 2026-09-07 정정)
+  suggestionList: { paddingHorizontal: 25, gap: 12 },
   suggestionRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  suggestionTextMatch: { fontFamily: fonts.medium, fontSize: 12, color: colors.black },
-  suggestionTextRest: { fontFamily: fonts.regular, fontSize: 12, color: colors.gray500 },
+  // 매칭/비매칭 둘 다 굵기(Regular)는 같고 색만 다름 — accentBlue(파랑)/gray700, 2026-09-07 실측 정정
+  suggestionTextMatch: { fontFamily: fonts.regular, fontSize: 12, color: colors.accentBlue },
+  suggestionTextRest: { fontFamily: fonts.regular, fontSize: 12, color: colors.gray700 },
 });
