@@ -1,13 +1,27 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Dimensions, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Dimensions,
+  Image,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { LinearGradient } from 'expo-linear-gradient';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PlaceDetail, placeApi } from '../api/place';
 import { PlaceLogsResponse, visitLogApi } from '../api/visitLog';
+import { BookmarkIcon, SearchIcon } from '../components/icons';
 import { StarRating } from '../components/StarRating';
 import { colors } from '../theme/colors';
 import { fonts } from '../theme/fonts';
+import { SearchScreen } from './SearchScreen';
 import { VisitLogCreateScreen } from './VisitLogCreateScreen';
 
 interface Props {
@@ -22,6 +36,14 @@ const WEEKDAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
 // 스냅하기 때문에 실제 화면 폭이 360과 다르면(대부분의 안드로이드 기기가 그럼) 한 페이지 넘길 때마다
 // 어긋나서 다음 이미지 앞부분이 계속 붙어 보이는 문제가 있었음 (2026-09-05, decision-log 참고)
 const HERO_IMAGE_WIDTH = Dimensions.get('window').width;
+
+// 리뷰 2열 그리드 타일 너비 — Figma 실측(458:2474 "Frame 2147227174" 등): 좌우 패딩20+열 사이
+// 간격8인 320폭 안에 156짜리 타일 2개(320=156*2+8). 화면 폭이 360이 아닐 수 있어서(위 히어로
+// 이미지와 같은 이유) 하드코딩 대신 HERO_IMAGE_WIDTH 기준으로 역산 — 타일 높이는 실측 비율
+// 216/156을 그대로 곱함(2026-09-07 추가)
+const REVIEW_GRID_GAP = 8;
+const REVIEW_TILE_WIDTH = (HERO_IMAGE_WIDTH - 40 - REVIEW_GRID_GAP) / 2;
+const REVIEW_TILE_HEIGHT = REVIEW_TILE_WIDTH * (216 / 156);
 
 // Figma 리뷰 카드는 "2026년 6월 여행"처럼 일자 없이 연/월만 보여줌 — 실제 visited_at(정확한 날짜)을
 // 그 표기 그대로 가공한 것뿐, 없는 데이터를 지어낸 건 아님
@@ -39,20 +61,23 @@ function formatHours(hours: PlaceDetail['hours']) {
   });
 }
 
-// Figma 노드 354:1345/458:2474/358:5134("관광지 상세 페이지", 셋 다 동일 화면) 반영. 작성자
-// 프로필/좋아요·댓글 수/"가는 방법"은 대응하는 백엔드 데이터가 없어서 여전히 생략(place_like엔
-// 개수가 아니라 내 찜 여부만 있음) — 없는 데이터를 지어내지 않기 위한 선택 (2026-09-01 결정,
-// decision-log 참고). 2026-09-05 재검토: 헤더 타이틀 제거(원본은 사진 아래 title row에서만
-// 이름을 보여줌), 하트 옆 좋아요 수 자리에 실존 필드인 visit_log_count를 넣음, 리뷰 사진을
-// 텍스트 위 큰 히어로 이미지 대신 텍스트 아래 작은 썸네일로 옮기고 날짜를 "OOOO년 O월 여행"
-// 표기로 맞춤. 별점(rating/avg_rating)은 2026-09-05에 백엔드에 새로 추가돼서 더 이상 생략 대상이
-// 아님 — overview 아래 평균 별점, 리뷰 카드마다 개별 별점(있는 경우만) 표시
+// Figma 노드 354:1345/458:2474/358:5134("관광지 상세 페이지") 중 458:2474(가장 최신 버전 —
+// 358:5134 바로 옆에 붙어있는 리뷰 섹션 재설계본)를 기준으로 재실측(2026-09-07 정정, decision-log
+// 참고). 작성자 프로필/좋아요·댓글 수/"가는 방법"은 대응하는 백엔드 데이터가 없어서 여전히 생략
+// (place_like엔 개수가 아니라 내 찜 여부만 있음, VisitLogSummary엔 작성자 정보 자체가 없음) —
+// 없는 데이터를 지어내지 않기 위한 선택 (2026-09-01 결정, decision-log 참고). 2026-09-05 재검토
+// 때 뺐던 헤더 타이틀/돋보기·북마크 아이콘을 458:2474 기준으로 다시 추가(2026-09-07) — 돋보기는
+// SearchScreen을 이 화면 안에서 직접 오버레이로 띄우는 걸로(호출부마다 콜백 스레딩 안 해도 됨),
+// 북마크는 기존 찜(toggleLike)과 같은 상태에 연결. 하트 옆 좋아요 수 자리엔 실존 필드인
+// visit_log_count를 넣음. 별점(rating/avg_rating)은 2026-09-05에 백엔드에 새로 추가돼서 더 이상
+// 생략 대상이 아님 — overview 아래 평균 별점 표시
 export function PlaceDetailScreen({ placeId, onExit }: Props) {
   const insets = useSafeAreaInsets();
   const [place, setPlace] = useState<PlaceDetail | null>(null);
   const [logs, setLogs] = useState<PlaceLogsResponse | null>(null);
   const [likeBusy, setLikeBusy] = useState(false);
   const [showCreateLog, setShowCreateLog] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
   const [activePhoto, setActivePhoto] = useState(0);
 
   useEffect(() => {
@@ -132,15 +157,31 @@ export function PlaceDetailScreen({ placeId, onExit }: Props) {
     <View style={styles.container}>
       <StatusBar style="dark" />
 
-      {/* Figma엔 헤더에 이름이 없음(사진 아래 title row에서 크게 한 번만 보여줌) — 뒤로가기 버튼만
-          두는 게 오히려 원본과 더 가까움. 검색/프로필 아이콘도 있긴 한데 이 화면은 여러 곳(안동 거리
-          탭, 검색 화면, 스크랩북 등)에서 열려서 어디로 보낼지 애매해 장식용 버튼을 억지로 만드는
-          대신 뺐음(2026-09-05 결정, decision-log 참고) */}
+      {/* Figma 실측(458:2474 "서브_GNB"): 뒤로가기(좌)+타이틀(프레임 정중앙, 좌우 버튼 폭이 서로
+          달라서 flex space-between이 아니라 절대배치로 진짜 중앙 고정)+돋보기·북마크(우) —
+          2026-09-05엔 돋보기/북마크를 어디로 보낼지 애매해 뺐었는데, 돋보기는 이 화면 안에서 바로
+          SearchScreen을 오버레이로 띄우는 걸로(호출부 콜백 스레딩 불필요), 북마크는 기존 찜과 같은
+          상태로 연결해서 다시 넣음(2026-09-07 결정, decision-log 참고) */}
       <View style={[styles.header, { paddingTop: insets.top }]}>
         <TouchableOpacity onPress={onExit} hitSlop={8} style={styles.backButton}>
           <Text style={styles.backIcon}>←</Text>
         </TouchableOpacity>
+        <Text style={styles.headerTitle} numberOfLines={1}>
+          {place.name}
+        </Text>
+        <View style={styles.headerRight}>
+          <TouchableOpacity onPress={() => setShowSearch(true)} hitSlop={8}>
+            <SearchIcon size={24} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={toggleLike} disabled={likeBusy} hitSlop={8}>
+            <BookmarkIcon size={24} filled={!!place.is_liked} />
+          </TouchableOpacity>
+        </View>
       </View>
+
+      <Modal visible={showSearch} transparent animationType="none" onRequestClose={() => setShowSearch(false)}>
+        <SearchScreen onExit={() => setShowSearch(false)} />
+      </Modal>
 
       <ScrollView contentContainerStyle={styles.content}>
         {photos.length > 0 ? (
@@ -237,26 +278,32 @@ export function PlaceDetailScreen({ placeId, onExit }: Props) {
 
           {logs && logs.logs.length === 0 && <Text style={styles.emptyText}>아직 방문 기록이 없어요</Text>}
 
-          {/* Figma는 작성자 아바타+이름+좋아요/댓글 수까지 보여주는데, 장소별 방문기록 목록
-              (PlaceLogsResponse.VisitLogSummary)엔 작성자 정보 자체가 없고 좋아요/댓글 개수도
-              없음(explore.similarLogs만 작성자를 내려줌, api/visitLog.ts 참고) — 실제로 있는 필드
-              (사진 1장·한줄리뷰·별점·태그·방문월)만으로 재구성. 사진도 원본은 히어로 크기였는데
-              Figma 쪽은 리뷰 텍스트 아래 작은 썸네일이라 그 순서/크기로 맞춤 */}
-          {logs?.logs.map((log) => (
-            <View key={log.id} style={styles.reviewCard}>
-              {log.rating != null && <StarRating rating={log.rating} size={13} />}
-              {log.one_line && <Text style={styles.reviewText}>{log.one_line}</Text>}
-              {/* 여러 장 지원(2026-09-06, decision-log 참고)돼도 이 리뷰 카드는 Figma 확정
-                  레이아웃(작은 썸네일 1장)을 그대로 유지 — 대표 사진(첫 장)만 표시 */}
-              {log.photos[0] && (
-                <Image source={{ uri: log.photos[0].url }} style={styles.reviewThumb} resizeMode="cover" />
-              )}
-              <View style={styles.reviewFooterRow}>
-                {log.tags.length > 0 && <Text style={styles.reviewTags}>{log.tags.join(' · ')}</Text>}
-                <Text style={styles.reviewDate}>{formatVisitMonth(log.visited_at)}</Text>
+          {/* Figma(458:2474)는 사진 위주 2열 그리드(사진+그라데이션+작성자 아바타·이름+한줄리뷰
+              오버레이)로 재설계됐는데, 장소별 방문기록 목록(PlaceLogsResponse.VisitLogSummary)엔
+              작성자 정보 자체가 없음(explore.similarLogs만 작성자를 내려줌, api/visitLog.ts 참고)
+              — 아바타·이름은 없는 데이터라 생략하고, 실제로 있는 필드(대표 사진+한줄리뷰)만으로
+              같은 그리드 레이아웃을 재구성(2026-09-07 정정). 사진 없는 리뷰는 텍스트만 있는 타일로 */}
+          <View style={styles.reviewGrid}>
+            {logs?.logs.map((log) => (
+              <View key={log.id} style={styles.reviewTile}>
+                {log.photos[0] ? (
+                  <Image source={{ uri: log.photos[0].url }} style={styles.reviewTileImage} resizeMode="cover" />
+                ) : (
+                  <View style={[styles.reviewTileImage, styles.reviewTilePlaceholder]} />
+                )}
+                <LinearGradient colors={['#00000000', '#111111cc']} style={styles.reviewTileGradient} pointerEvents="none" />
+                <View style={styles.reviewTileOverlay}>
+                  {log.rating != null && <StarRating rating={log.rating} size={11} />}
+                  {log.one_line && (
+                    <Text style={styles.reviewTileText} numberOfLines={3}>
+                      {log.one_line}
+                    </Text>
+                  )}
+                  <Text style={styles.reviewTileDate}>{formatVisitMonth(log.visited_at)}</Text>
+                </View>
               </View>
-            </View>
-          ))}
+            ))}
+          </View>
         </View>
       </ScrollView>
     </View>
@@ -275,15 +322,28 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.white },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.white },
+  // Figma 실측(458:2474 서브_GNB): 높이40, 좌우 패딩20. 타이틀은 좌우 버튼 폭이 서로 달라서(뒤로
+  // 가기 24 vs 돋보기+북마크 그룹 64) flex 정렬로는 프레임 정중앙에 못 맞춰서 절대배치로 처리
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingBottom: 8,
+    height: 40,
+    paddingHorizontal: 20,
     backgroundColor: colors.white,
   },
-  backButton: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
+  backButton: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
   backIcon: { fontSize: 20, color: colors.black },
+  headerTitle: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    textAlign: 'center',
+    fontFamily: fonts.semiBold,
+    fontSize: 20,
+    letterSpacing: -0.5,
+    color: colors.black,
+  },
+  headerRight: { flexDirection: 'row', gap: 16, marginLeft: 'auto' },
   content: { paddingBottom: 40 },
   heroImage: { width: HERO_IMAGE_WIDTH, height: 234, borderRadius: 20 },
   heroImagePlaceholder: { width: '100%', backgroundColor: colors.border, marginHorizontal: 20 },
@@ -338,12 +398,23 @@ const styles = StyleSheet.create({
   reviewHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
   reviewWriteLink: { fontFamily: fonts.medium, fontSize: 13, letterSpacing: -0.3, color: colors.gray700, marginBottom: 16 },
   emptyText: { fontFamily: fonts.regular, fontSize: 14, color: colors.gray500 },
-  reviewCard: { paddingVertical: 16, borderTopWidth: 1, borderTopColor: colors.divider },
-  // Figma는 텍스트 아래 작은 사진 썸네일들이 옴(리뷰당 여러 장) — VisitLogSummary는 사진 1장뿐이라
-  // 그 1장을 같은 자리·같은 크기감으로 배치
-  reviewThumb: { width: 96, height: 96, borderRadius: 12, marginTop: 12 },
-  reviewText: { fontFamily: fonts.regular, fontSize: 15, lineHeight: 21, color: colors.black, marginTop: 6 },
-  reviewFooterRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
-  reviewTags: { fontFamily: fonts.regular, fontSize: 12, color: colors.gray500 },
-  reviewDate: { fontFamily: fonts.regular, fontSize: 12, color: colors.gray500 },
+  // Figma 실측(458:2474 "Frame 2147227174" 등): 2열 그리드, 열 간격/행 간격 둘 다 8
+  reviewGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: REVIEW_GRID_GAP },
+  reviewTile: {
+    width: REVIEW_TILE_WIDTH,
+    height: REVIEW_TILE_HEIGHT,
+    borderRadius: 8,
+    overflow: 'hidden',
+    backgroundColor: colors.backgroundMuted,
+  },
+  reviewTileImage: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 },
+  reviewTilePlaceholder: { backgroundColor: colors.border },
+  // Figma 그라데이션 스톱 그대로(투명→#111111, opacity 0.8) — 사진 위에 텍스트가 얹혀도 읽히게
+  reviewTileGradient: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '70%' },
+  reviewTileOverlay: { position: 'absolute', left: 10, right: 10, bottom: 10, gap: 4 },
+  // Figma는 이 자리에 작성자 이름도 같이 오는데(흰색, Medium) 이 데이터 소스엔 작성자 정보가 없어서
+  // 생략 — 한줄리뷰 텍스트만 표시. Figma 원문 폰트는 Light(300)인데 앱은 4종(Regular/Medium/
+  // SemiBold/Bold)만 번들해서 Regular로 대체(2026-08-31 기존 결정 재사용)
+  reviewTileText: { fontFamily: fonts.regular, fontSize: 11, lineHeight: 14, letterSpacing: -0.2, color: '#ffffff' },
+  reviewTileDate: { fontFamily: fonts.regular, fontSize: 10, color: '#ffffffcc' },
 });
