@@ -35,6 +35,8 @@ const SNAP_THRESHOLD_RATIO = 0.35;
 // 찍힌 자리)으로 고정해서, 커지고 작아져도 지도 위 실제 위치가 위아래로 밀리지 않게 함
 const SELECTED_SCALE = 1.35;
 const UNSELECTED_SCALE = 0.7;
+// 나머지 아이콘 흐리게(사용자 요청, 2026-09-07 추가)
+const UNSELECTED_OPACITY = 0.35;
 
 // Figma 노드 334:3255("메인 페이지-안동 거리") 실측 — 구글맵+칩+리스트였던 걸 전면 교체.
 // 실제론 인터랙티브 지도가 아니라 안동시 일러스트(360x360) 위에 카테고리별 3D 아이콘 6개를 정해진
@@ -237,6 +239,8 @@ export function StreetTab() {
           {CATEGORY_MARKERS.map((m) => {
             const isSelected = selectedCategory === m.category;
             const scale = selectedCategory == null ? 1 : isSelected ? SELECTED_SCALE : UNSELECTED_SCALE;
+            // 선택된 게 있으면 나머지는 흐리게(사용자 요청, 2026-09-07 추가) — 선택 없을 땐 전부 선명
+            const opacity = selectedCategory == null || isSelected ? 1 : UNSELECTED_OPACITY;
             const baseW = m.width * GLOBE_SIZE;
             const baseH = m.height * GLOBE_SIZE;
             const w = baseW * scale;
@@ -247,7 +251,7 @@ export function StreetTab() {
             return (
               <TouchableOpacity
                 key={m.category}
-                style={[styles.marker, { left: anchorX - w / 2, top: anchorY - h, width: w, height: h }]}
+                style={[styles.marker, { left: anchorX - w / 2, top: anchorY - h, width: w, height: h, opacity }]}
                 onPress={() => selectCategory(m.category)}
               >
                 <Image source={m.icon} style={styles.markerImage} resizeMode="contain" />
