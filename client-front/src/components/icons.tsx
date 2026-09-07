@@ -114,15 +114,18 @@ const cameraIconStyles = StyleSheet.create({
   lens: { width: 5, height: 5, borderRadius: 2.5, borderWidth: 1.2, borderColor: colors.black },
 });
 
-// Figma "돋보기"(225:24476, 검색창 안 20x20 / 메인 GNB 28x28 두 크기로 재사용) 실측 비율 그대로
-// 재현(2026-09-07 추가) — 원 실측: 20 기준 지름 10.83@(3.33,3.33), 손잡이 지름4.17 대각선.
+// Figma "돋보기"(225:24476, 검색창 안 20x20 / 메인 GNB 28x28 두 크기로 재사용) 실측 벡터 bbox
+// 그대로 재현(2026-09-07 추가/정밀화) — 원(렌즈) bbox: 10.83x10.83@(3.33,3.33)/20,
+// 손잡이 bbox: 4.17x4.17@(12.5,12.5)/20. 손잡이는 회전된 사각형이라 bbox만으론 실제 폭을
+// 못 구해서(45도 회전 시 bbox변 = (W+H)*cos45) 역산: W = 4.17/cos45 - strokeWidth ≈ 3.9.
 // 다른 아이콘들과 다르게 size를 prop으로 받아야 해서(검색창/헤더 두 곳에서 다른 크기로 씀)
 // StyleSheet 대신 인라인 스타일 사용
 export function SearchIcon({ size = 20, color = colors.black }: { size?: number; color?: string }) {
-  const circleSize = size * 0.54;
+  const circleSize = size * 0.5415; // 10.83/20
   const strokeWidth = Math.max(1.4, size * 0.1);
-  const circleOffset = size * 0.15;
-  const handleLength = size * 0.32;
+  const circleOffset = size * 0.1665; // 3.33/20
+  const handleLength = size * 0.195; // 역산한 손잡이 실제 폭(3.9/20)
+  const handlePos = size * 0.632; // 손잡이 bbox 중심(14.585/20) 기준 역산한 회전 전 좌상단
   return (
     <View style={{ width: size, height: size }}>
       <View
@@ -140,8 +143,8 @@ export function SearchIcon({ size = 20, color = colors.black }: { size?: number;
       <View
         style={{
           position: 'absolute',
-          top: circleOffset + circleSize * 0.76,
-          left: circleOffset + circleSize * 0.76,
+          top: handlePos,
+          left: handlePos,
           width: handleLength,
           height: strokeWidth,
           borderRadius: strokeWidth / 2,
