@@ -323,7 +323,11 @@ function PlaceCategoryCard({
           <Text style={styles.categoryBadgeText}>{place.category}</Text>
         </View>
         <TouchableOpacity style={styles.likeButton} onPress={onToggleLike} hitSlop={8}>
-          <Text style={styles.likeIcon}>{place.is_liked ? '♥' : '♡'}</Text>
+          {/* 찜 안 했을 때는 검정 테두리만, 찜했을 때만 빨갛게 채워짐 — 이전엔 두 상태 다 빨간색으로
+              고정해뒀던 실수 정정(2026-09-07, 스크린샷 대조로 발견) */}
+          <Text style={[styles.likeIcon, place.is_liked && styles.likeIconActive]}>
+            {place.is_liked ? '♥' : '♡'}
+          </Text>
         </TouchableOpacity>
       </View>
       <View style={styles.cardInfo}>
@@ -378,9 +382,12 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
     lineHeight: 28,
     color: colors.black,
-    paddingHorizontal: 20,
+    // Figma 실측(334:3255 "관광지 관련 명소" 텍스트, 프레임 기준 좌측 인셋 24) — 카드 리스트
+    // 패딩(18)이랑 값이 달라서 각자 따로 씀(2026-09-07 재실측 정정)
+    paddingHorizontal: 24,
   },
-  listContent: { paddingHorizontal: 20, paddingBottom: 100 },
+  // Figma 실측(334:3255 "장소 리스트" 프레임, 좌측 인셋 18) — 20으로 잘못 썼던 걸 정정(2026-09-07)
+  listContent: { paddingHorizontal: 18, paddingBottom: 100 },
   emptyText: { textAlign: 'center', color: colors.gray400, fontFamily: fonts.regular, fontSize: 13, marginTop: 40 },
   footerLoading: { marginVertical: 16 },
   card: {
@@ -423,9 +430,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  likeIcon: { fontSize: 18, color: '#ff4d4d' },
+  likeIcon: { fontSize: 18, color: colors.black },
+  likeIconActive: { color: '#ff4d4d' },
   cardInfo: { paddingTop: 12, paddingHorizontal: 4 },
   cardName: { fontFamily: fonts.semiBold, fontSize: 16, letterSpacing: -0.4, color: colors.black },
-  cardAddrRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
+  // Figma 실측(334:3255 이름행→주소행 간격 12) — 4로 잘못 썼던 걸 정정(2026-09-07)
+  cardAddrRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 12 },
   cardAddr: { fontFamily: fonts.regular, fontSize: 12, color: colors.gray500, flexShrink: 1 },
 });
