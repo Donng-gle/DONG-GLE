@@ -1,4 +1,4 @@
-"""place_semantic_vector 테이블에 raw semantic score를 저장한다."""
+"""place_semantic_vector / place_image_semantic_vector 테이블에 raw semantic score를 저장한다."""
 
 from __future__ import annotations
 
@@ -6,7 +6,9 @@ import json
 from collections.abc import Mapping, Sequence
 from typing import Any
 
+from semantic_vector.analyzer import PlaceAnalysisResult
 from semantic_vector.models import PlaceImageInput, SemanticVectorResult
+from semantic_vector.score_calculator import calculate_major_scores
 
 UPSERT_PLACE_SEMANTIC_VECTOR_SQL = """
 INSERT INTO place_semantic_vector (
@@ -50,6 +52,38 @@ ON CONFLICT (place_id) DO UPDATE SET
     analyzed_at = NOW();
 """
 
+UPSERT_PLACE_IMAGE_SEMANTIC_VECTOR_SQL = """
+INSERT INTO place_image_semantic_vector (
+    place_id,
+    image_url,
+    detail_scores,
+    major_scores,
+    summary,
+    model_name,
+    prompt_version,
+    tag_schema_version,
+    analyzed_at
+) VALUES (
+    %(place_id)s,
+    %(image_url)s,
+    %(detail_scores)s::jsonb,
+    %(major_scores)s::jsonb,
+    %(summary)s,
+    %(model_name)s,
+    %(prompt_version)s,
+    %(tag_schema_version)s,
+    NOW()
+)
+ON CONFLICT (place_id, image_url) DO UPDATE SET
+    detail_scores = EXCLUDED.detail_scores,
+    major_scores = EXCLUDED.major_scores,
+    summary = EXCLUDED.summary,
+    model_name = EXCLUDED.model_name,
+    prompt_version = EXCLUDED.prompt_version,
+    tag_schema_version = EXCLUDED.tag_schema_version,
+    analyzed_at = NOW();
+"""
+
 
 def build_semantic_score_row(
   result: SemanticVectorResult,
@@ -72,24 +106,65 @@ def build_semantic_score_row(
   }
 
 
+def build_image_semantic_score_rows(
+  place_analysis: PlaceAnalysisResult,
+  input_data: PlaceImageInput,
+) -> list[dict[str, Any]]:
+  """이미지별 DB upsert용 row dict 목록을 생성한다.
+
+  major_scores는 place_semantic_vector처럼 여러 이미지를 평균 낸 값이 아니라,
+  이 이미지 1장의 detail_scores만으로 계산한다 (score_calculator.calculate_major_scores).
+  """
+  image_urls = input_data.resolved_analysis_image_urls()
+  responses = place_analysis.per_image_responses
+  rows: list[dict[str, Any]] = []
+
+  for image_url, response in zip(image_urls, responses, strict=True):
+    rows.append(
+      {
+        "place_id": int(input_data.place_id),
+        "image_url": image_url,
+        "detail_scores": json.dumps(response.detail_scores.model_dump()),
+        "major_scores": json.dumps(
+          calculate_major_scores(response.detail_scores).model_dump()
+        ),
+        "summary": response.summary,
+        "model_name": place_analysis.result.model_name,
+        "prompt_version": place_analysis.result.prompt_version,
+        "tag_schema_version": place_analysis.result.tag_schema_version,
+      }
+    )
+
+  return rows
+
+
 def save_semantic_analysis_results(
   cur,
-  results: Sequence[SemanticVectorResult],
+  results: Sequence[PlaceAnalysisResult],
   inputs: Sequence[PlaceImageInput],
 ) -> int:
-  """분석 성공 결과를 place_semantic_vector에 저장한다."""
+  """분석 성공 결과를 place_semantic_vector(장소 단위 집계) +
+  place_image_semantic_vector(이미지 단위 원본)에 저장한다.
+
+  반환값은 place_semantic_vector에 저장된 장소 수(기존 동작과 동일)이다.
+  """
   input_by_place_id = {item.place_id: item for item in inputs}
   saved_count = 0
 
-  for result in results:
+  for place_analysis in results:
+    result = place_analysis.result
     input_data = input_by_place_id.get(result.place_id)
     if input_data is None:
       continue
+
     cur.execute(
       UPSERT_PLACE_SEMANTIC_VECTOR_SQL,
       build_semantic_score_row(result, input_data),
     )
     saved_count += 1
+
+    for image_row in build_image_semantic_score_rows(place_analysis, input_data):
+      cur.execute(UPSERT_PLACE_IMAGE_SEMANTIC_VECTOR_SQL, image_row)
 
   return saved_count
 

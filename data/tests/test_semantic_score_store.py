@@ -5,16 +5,19 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 from pipeline.semantic_score_store import (
+  build_image_semantic_score_rows,
   build_semantic_score_row,
   is_place_semantically_analyzed,
   save_semantic_analysis_results,
   summarize_place_batch_for_semantic,
 )
+from semantic_vector.analyzer import PlaceAnalysisResult
 from semantic_vector.models import (
   DetailScores,
   MajorScores,
   PlaceImageInput,
   SemanticVectorResult,
+  VisionAnalysisResponse,
 )
 
 
@@ -54,6 +57,17 @@ def _sample_input() -> PlaceImageInput:
   )
 
 
+def _sample_place_analysis() -> PlaceAnalysisResult:
+  per_image_detail = DetailScores.model_validate(
+    {tag: 0.1 for tag in DetailScores.model_fields}
+  )
+  responses = [
+    VisionAnalysisResponse(detail_scores=per_image_detail, summary="사진1 설명"),
+    VisionAnalysisResponse(detail_scores=per_image_detail, summary="사진2 설명"),
+  ]
+  return PlaceAnalysisResult(result=_sample_result(), per_image_responses=responses)
+
+
 def test_build_semantic_score_row_includes_version_metadata() -> None:
   row = build_semantic_score_row(_sample_result(), _sample_input())
 
@@ -65,15 +79,27 @@ def test_build_semantic_score_row_includes_version_metadata() -> None:
   assert '"quiet"' in row["detail_scores"]
 
 
-def test_save_semantic_analysis_results_executes_upsert() -> None:
+def test_build_image_semantic_score_rows_one_row_per_image() -> None:
+  rows = build_image_semantic_score_rows(_sample_place_analysis(), _sample_input())
+
+  assert len(rows) == 2
+  assert rows[0]["place_id"] == 1
+  assert rows[0]["image_url"] == "https://example.com/1.jpg"
+  assert rows[1]["image_url"] == "https://example.com/1-extra.jpg"
+  assert rows[0]["model_name"] == "gpt-test"
+  assert '"relaxing"' in rows[0]["major_scores"]
+
+
+def test_save_semantic_analysis_results_executes_upsert_per_place_and_image() -> None:
   cursor = MagicMock()
-  result = _sample_result()
+  place_analysis = _sample_place_analysis()
   input_data = _sample_input()
 
-  saved_count = save_semantic_analysis_results(cursor, [result], [input_data])
+  saved_count = save_semantic_analysis_results(cursor, [place_analysis], [input_data])
 
   assert saved_count == 1
-  cursor.execute.assert_called_once()
+  # place_semantic_vector 1행 + place_image_semantic_vector 2행(이미지 2장)
+  assert cursor.execute.call_count == 3
 
 
 def test_is_place_semantically_analyzed() -> None:

@@ -7,10 +7,11 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from semantic_vector.batch import analyze_places
+from semantic_vector.analyzer import PlaceAnalysisResult
+from semantic_vector.batch import analyze_places, analyze_places_with_details
 from semantic_vector.config import SemanticVectorConfig
 from semantic_vector.exceptions import InvalidVisionResponseError
-from semantic_vector.models import PlaceImageInput, SemanticVectorResult
+from semantic_vector.models import PlaceImageInput, SemanticVectorResult, VisionAnalysisResponse
 from semantic_vector.score_calculator import calculate_major_scores
 from semantic_vector.tests.conftest import make_detail_scores
 from semantic_vector.vector_builder import build_detail_vector, build_major_vector
@@ -47,6 +48,14 @@ def _make_place(place_id: str) -> PlaceImageInput:
   return PlaceImageInput(
     place_id=place_id,
     image_url=f"https://example.com/{place_id}.jpg",
+  )
+
+
+def _make_place_analysis(place_id: str) -> PlaceAnalysisResult:
+  detail_scores = make_detail_scores()
+  return PlaceAnalysisResult(
+    result=_make_result(place_id),
+    per_image_responses=[VisionAnalysisResponse(detail_scores=detail_scores)],
   )
 
 
@@ -138,3 +147,62 @@ async def test_analyze_places_respects_semaphore(config: SemanticVectorConfig) -
     await analyze_places(places, concurrency=2, config=config)
 
   assert max_active <= 2
+
+
+@pytest.mark.asyncio
+async def test_analyze_places_with_details_empty_input(config: SemanticVectorConfig) -> None:
+  result = await analyze_places_with_details([], config=config)
+  assert result.total_count == 0
+  assert result.success_count == 0
+  assert result.failed_count == 0
+  assert result.results == []
+
+
+@pytest.mark.asyncio
+async def test_analyze_places_with_details_all_success(config: SemanticVectorConfig) -> None:
+  places = [_make_place("p1"), _make_place("p2")]
+
+  with (
+    patch(
+      "semantic_vector.batch.ensure_collection_exists",
+      new=AsyncMock(),
+    ) as ensure_mock,
+    patch(
+      "semantic_vector.batch.analyze_place_with_details",
+      new=AsyncMock(
+        side_effect=[_make_place_analysis("p1"), _make_place_analysis("p2")]
+      ),
+    ),
+  ):
+    result = await analyze_places_with_details(places, config=config)
+
+  ensure_mock.assert_awaited_once()
+  assert result.total_count == 2
+  assert result.success_count == 2
+  assert result.failed_count == 0
+  assert all(item.per_image_responses for item in result.results)
+
+
+@pytest.mark.asyncio
+async def test_analyze_places_with_details_partial_failure(
+  config: SemanticVectorConfig,
+) -> None:
+  places = [_make_place("p1"), _make_place("p2")]
+
+  async def _analyze(place: PlaceImageInput, **kwargs) -> PlaceAnalysisResult:
+    if place.place_id == "p2":
+      raise InvalidVisionResponseError("failed")
+    return _make_place_analysis(place.place_id)
+
+  with (
+    patch("semantic_vector.batch.ensure_collection_exists", new=AsyncMock()),
+    patch(
+      "semantic_vector.batch.analyze_place_with_details",
+      new=AsyncMock(side_effect=_analyze),
+    ),
+  ):
+    result = await analyze_places_with_details(places, config=config)
+
+  assert result.success_count == 1
+  assert result.failed_count == 1
+  assert result.failures[0].place_id == "p2"

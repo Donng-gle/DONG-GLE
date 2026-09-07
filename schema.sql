@@ -63,6 +63,7 @@ CREATE INDEX idx_place_hours_place ON place_hours (place_id);
 
 -- 장소별 VLM(GPT Vision) semantic 분석 raw score (장소 공식 사진 기반, 정적 기준선)
 -- 장소당 최신 분석 결과 1행만 유지. model_name/prompt_version/tag_schema_version이 바뀌면 재분석 대상.
+-- 아래 place_image_semantic_vector(이미지별 원본 점수)를 평균 낸 장소 단위 집계값 — 백엔드/코스추천/Qdrant는 이 집계 테이블만 읽음
 -- log_emotion_tag(방문 로그 누적, 조회 시점에 직접 집계함 — 2026-09-02 결정)와는 별개 신호,
 -- 하나가 다른 하나를 대체하지 않음 (decision-log 2026-08-21 참고)
 -- 데이터 파트 배치 스크립트(data/pipeline/semantic_vector_sync.py)로만 적재됨, 백엔드는 읽기 전용
@@ -83,6 +84,26 @@ CREATE TABLE place_semantic_vector (
 
 CREATE INDEX idx_place_semantic_vector_prompt_version ON place_semantic_vector (prompt_version);
 CREATE INDEX idx_place_semantic_vector_analyzed_at ON place_semantic_vector (analyzed_at DESC);
+
+
+-- 장소 이미지별 VLM(GPT Vision) semantic 분석 raw score (이미지 1장 단위)
+-- 위 place_semantic_vector(장소 단위 집계)의 원본 데이터. 온보딩 카드 대표 사진 선정처럼 이미지별 원본 점수가 필요한 곳에 사용
+-- 재분석 시 (place_id, image_url) 기준으로 최신 버전만 유지(UPSERT). Qdrant는 이 테이블을 참조하지 않음(장소 단위 집계만 색인)
+-- 데이터 파트 배치 스크립트(data/pipeline/semantic_vector_sync.py)로만 적재됨, 백엔드는 읽지 않음
+CREATE TABLE place_image_semantic_vector (
+    place_id             BIGINT      NOT NULL REFERENCES place (id) ON DELETE CASCADE,
+    image_url            TEXT        NOT NULL,
+    detail_scores        JSONB       NOT NULL,  -- 35개 세부 태그 점수 (이 이미지 1장 기준)
+    major_scores         JSONB       NOT NULL,  -- 7개 대분류 태그 점수 (이 이미지 1장 기준)
+    summary               TEXT,
+    model_name            TEXT        NOT NULL,
+    prompt_version        TEXT        NOT NULL,
+    tag_schema_version    TEXT        NOT NULL,
+    analyzed_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (place_id, image_url)
+);
+
+CREATE INDEX idx_place_image_semantic_vector_place ON place_image_semantic_vector (place_id);
 
 
 -- (place_emotion_tag 테이블은 2026-09-02 제거됨 — 장소별 방문 로그 누적 감성 태그는 이제 저장된
