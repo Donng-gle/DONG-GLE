@@ -136,9 +136,28 @@ export function RecommendedTab() {
 
   const panelHeight = containerHeight != null ? Math.max(0, containerHeight - insets.bottom) : 0;
 
+  // "선택" 누르면 이미 시트가 접혀서(snapTo(false)) 지도가 보이게 되는데, 다시 "자세히 보기"를
+  // 누르려면 그 카드를 찾아 스크롤해야 해서 번거로움 — 선택한 카드를 리스트 맨 앞으로 옮겨서,
+  // 시트가 접힐 때 같이 실행되는 "리스트 맨 위로 스크롤"(snapTo 안의 scrollToOffset)과 맞물려
+  // 접힌 상태에서 보이는 첫 카드가 곧 방금 선택한 카드(이제 "자세히 보기")가 되게 함 — 별도
+  // "자세히 보기" 버튼을 새로 안 만들고 기존 카드를 재사용(2026-09-08 결정, decision-log 참고)
+  function moveSelectedToFront(key: string) {
+    setItems((prev) => {
+      if (!prev) return prev;
+      const idx = prev.findIndex((it) => itemKey(it) === key);
+      if (idx <= 0) return prev;
+      const next = [...prev];
+      const [selected] = next.splice(idx, 1);
+      next.unshift(selected);
+      return next;
+    });
+  }
+
   // "선택"(코스) — 코스 상세(좌표+경로)를 불러와서 지도 미리보기로 바꾸고, 지도가 보이도록 시트를 접음
   async function handleSelectCourse(course: SimilarCourseItem) {
-    setSelectedKey(itemKey({ kind: 'course', data: course }));
+    const key = itemKey({ kind: 'course', data: course });
+    setSelectedKey(key);
+    moveSelectedToFront(key);
     try {
       const detail = await exploreApi.getCourseDetail(course.course_id);
       const pinned = detail.places.filter((p) => p.lat != null && p.lng != null);
@@ -160,7 +179,9 @@ export function RecommendedTab() {
   // "선택"(개별 장소) — 이미 좌표를 들고 있어서(SimilarLogItem.lat/lng) 별도 조회 없이 바로 미리보기.
   // 좌표가 없는 장소면 미리보기만 못 보여줄 뿐 선택 자체는 막지 않음(자세히 보기는 계속 가능)
   function handleSelectPlace(log: SimilarLogItem) {
-    setSelectedKey(itemKey({ kind: 'place', data: log }));
+    const key = itemKey({ kind: 'place', data: log });
+    setSelectedKey(key);
+    moveSelectedToFront(key);
     if (log.lat != null && log.lng != null) {
       setPreviewPoints([{ id: String(log.place_id), lat: log.lat, lng: log.lng, label: log.place_name }]);
     } else {
