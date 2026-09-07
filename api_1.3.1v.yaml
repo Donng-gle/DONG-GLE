@@ -112,6 +112,19 @@ components:
           description: 소셜 플랫폼에서 발급받은 OAuth 인가 코드
           example: abc123xyz
 
+    GoogleOAuthRequest:
+      type: object
+      required: [id_token]
+      properties:
+        id_token:
+          type: string
+          description: |
+            앱이 기기 내 Google Sign-In(Play Services)으로 로그인해 발급받은 ID 토큰(JWT).
+            서버는 이 토큰의 서명·발급자·audience(Web 클라이언트 ID)만 검증하고, 클레임에서
+            사용자 정보를 바로 추출한다 (2026-08-26 결정: code→client_secret 교환 방식에서 전환,
+            decision-log 참고). 카카오는 기존 인가 코드 방식(OAuthRequest)을 그대로 유지.
+          example: eyJhbGciOiJSUzI1NiIsImtpZCI6IjEyMzQ1In0...
+
     OAuthResponse:
       type: object
       properties:
@@ -144,6 +157,11 @@ components:
         access_token:
           type: string
           description: 새로 발급된 JWT 액세스 토큰
+        refresh_token:
+          type: string
+          description: |
+            새로 발급된 JWT 리프레시 토큰(회전, 2026-09-04 도입). 기존 리프레시 토큰은 이 요청으로
+            즉시 폐기되므로, 클라이언트는 저장된 리프레시 토큰을 반드시 이 값으로 교체해야 함
 
     UserProfile:
       type: object
@@ -292,27 +310,6 @@ components:
           description: 시드 카드 여부. 온보딩 초반 7장은 태그별 대표 시드 카드로 구성됨.
           example: true
 
-    OnboardingPreferenceRequest:
-      type: object
-      required: [selected_card_ids]
-      properties:
-        selected_card_ids:
-          type: array
-          items:
-            type: string
-          description: 사용자가 선택한 온보딩 카드 ID 목록
-          example: [card_001, card_005, card_012]
-
-    OnboardingPreferenceResponse:
-      type: object
-      properties:
-        top_tags:
-          type: array
-          items:
-            type: string
-          description: 선택 결과에서 도출된 상위 감성 태그. 이후 스와이프 후보 추천의 기본값으로 사용됨.
-          example: [고즈넉한, 자연친화, 감성카페]
-
     UserPreferenceTag:
       type: object
       properties:
@@ -397,6 +394,29 @@ components:
           type: string
         sort_order:
           type: integer
+
+    PlaceHours:
+      type: object
+      description: 요일별 영업시간 한 구간. close_day/close_time이 null이면 open_day 당일 24시간 영업. 브레이크타임은 소스 데이터 부재로 미반영.
+      properties:
+        open_day:
+          type: integer
+          description: 0=일요일 ~ 6=토요일 (Google 기준)
+          example: 1
+        open_time:
+          type: string
+          format: time
+          example: "09:00:00"
+        close_day:
+          type: integer
+          nullable: true
+          description: 자정 넘어가는 영업(예 금 22:00~토 02:00) 표현용
+          example: 1
+        close_time:
+          type: string
+          format: time
+          nullable: true
+          example: "18:00:00"
 
 
     UserVector:
@@ -522,12 +542,28 @@ components:
         id:
           type: integer
           format: int64
-        photo_url:
+        photo_urls:
+          type: array
+          items:
+            type: string
+          description: 여러 장 지원(2026-09-06 추가, decision-log 참고). 사진이 없으면 빈 배열.
+        title:
           type: string
           nullable: true
+          description: 기록 제목. 2026-09-05 추가(메인 페이지-나의 일지-기록하기)
         one_line:
           type: string
           nullable: true
+        weather:
+          type: string
+          nullable: true
+          description: 자유 입력 텍스트(선택지 코드 없음). 2026-09-05 추가
+        rating:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 5
+          description: 별점(1~5), 선택 입력이라 없을 수 있음
         visited_at:
           type: string
           format: date-time
@@ -588,6 +624,11 @@ components:
           description: 장소 추가 이미지 목록 (관광공사 이미지정보 API 기반)
           items:
             $ref: '#/components/schemas/PlaceImage'
+        hours:
+          type: array
+          description: 요일별 영업시간 목록 (커버리지 미확보 장소는 빈 배열)
+          items:
+            $ref: '#/components/schemas/PlaceHours'
         top_tags:
           type: array
           description: 사용자 기록에서 AI 분석으로 누적된 감성 태그 상위 목록. 장소 분위기를 직관적으로 전달하는 핵심 데이터.
@@ -596,6 +637,11 @@ components:
         visit_log_count:
           type: integer
           description: 이 장소에 기록된 총 방문 로그 수. 숨은 장소 여부 판단 기준값으로도 활용됨.
+        avg_rating:
+          type: number
+          format: double
+          nullable: true
+          description: 방문 기록에 남긴 별점(1~5, 선택 입력)의 평균. 아무도 별점을 안 남겼으면 null.
         recent_logs:
           type: array
           description: |
@@ -784,6 +830,13 @@ components:
           type: integer
           nullable: true
           description: 직전 장소로부터의 이동 시간(분). 첫 번째 장소는 null.
+        visit_date:
+          type: string
+          format: date
+          nullable: true
+          description: |
+            [2026-09-06 추가] 이 장소가 코스의 며칠째 방문지인지(YYYY-MM-DD). "직접 코스 만들기"로
+            여러 날 코스를 만들 때만 채워짐. AI 코스 생성은 계속 단일 날짜 전제라 항상 null.
 
     CourseCandidate:
       type: object
@@ -816,6 +869,12 @@ components:
           description: |
             생성된 코스 후보 목록 (최대 3개).
             각 후보는 사용자 취향 태그, 장소 카테고리 균형, 이동 거리, must 장소 포함 여부를 달리 조합하여 생성됨.
+
+            [구현 현황 2026-08-30] ai/course_optimizer가 아직 경로 1개만 반환할 수 있어(백트래킹이
+            k별 최고점 1개만 유지) 현재는 항상 1개만 채워짐. must 장소도 강제 포함이 안 돼서 스와이프에서
+            like/must로 표시한 장소만 후보 풀로 좁혀 넘기는 근사치로 처리 중 (완전히 시간에 다 들어가면
+            전부 포함되지만, 부족하면 어느 것이 빠질지는 보장 못 함). 둘 다 course_optimizer 알고리즘
+            자체의 확장이 필요해 별도 논의 대상 (decision-log 참고).
           items:
             $ref: '#/components/schemas/CourseCandidate'
 
@@ -836,6 +895,13 @@ components:
           format: date
           nullable: true
           description: 여행 예정일. 이 날짜를 기준으로 course_reminder 알림이 발송됨.
+        transport:
+          type: string
+          enum: [car, walk, public]
+          nullable: true
+          description: |
+            [2026-08-30 추가] 구글맵 경로 재계산(GET /courses/{courseId})에 사용할 이동수단.
+            AI 생성 코스는 보통 /swipe/candidates에서 쓴 값을 그대로 전달. 비어있으면 조회 시 walk로 계산.
         source:
           type: string
           enum: [ai, ai_edited, user]
@@ -858,6 +924,11 @@ components:
               planned_time:
                 type: string
                 nullable: true
+              visit_date:
+                type: string
+                format: date
+                nullable: true
+                description: '[2026-09-06 추가] 며칠째 방문지인지. POST /courses/manual에서만 실제 검증됨(CourseDetail.end_date 참고).'
 
     CourseSaveResponse:
       type: object
@@ -880,6 +951,11 @@ components:
           type: string
           format: date
           nullable: true
+        end_date:
+          type: string
+          format: date
+          nullable: true
+          description: 여러 날 범위 지원(2026-09-06 추가). "직접 코스 만들기"에서만 채워짐.
         source:
           type: string
           enum: [ai, ai_edited, user]
@@ -890,6 +966,13 @@ components:
           type: string
           nullable: true
           description: 코스 대표 썸네일. 첫 번째 장소의 main_image_url 사용.
+        place_thumbnails:
+          type: array
+          items:
+            type: string
+          description: |
+            스크랩북 카드의 썸네일 스트립용. 방문 순서 기준 최대 3장의 main_image_url.
+            place_count가 이 배열 길이보다 크면 그 차이를 "N+" 배지로 표시. (2026-09-05 추가)
         created_at:
           type: string
           format: date-time
@@ -907,6 +990,11 @@ components:
           type: string
           format: date
           nullable: true
+        end_date:
+          type: string
+          format: date
+          nullable: true
+          description: 여러 날 범위 지원(2026-09-06 추가). "직접 코스 만들기"에서만 채워짐.
         source:
           type: string
           enum: [ai, ai_edited, user]
@@ -954,6 +1042,11 @@ components:
               planned_time:
                 type: string
                 nullable: true
+              visit_date:
+                type: string
+                format: date
+                nullable: true
+                description: '[2026-09-06 추가] 며칠째 방문지인지. 코스가 여러 날 범위(end_date 있음)면 그 범위 안이어야 함(안 지키면 400).'
 
     VisitLogDetail:
       type: object
@@ -967,12 +1060,28 @@ components:
           format: int64
         place_name:
           type: string
-        photo_url:
+        photo_urls:
+          type: array
+          items:
+            type: string
+          description: 여러 장 지원(2026-09-06 추가, decision-log 참고). 사진이 없으면 빈 배열.
+        title:
           type: string
           nullable: true
+          description: 기록 제목. 2026-09-05 추가(메인 페이지-나의 일지-기록하기)
         one_line:
           type: string
           nullable: true
+        weather:
+          type: string
+          nullable: true
+          description: 자유 입력 텍스트(선택지 코드 없음). 2026-09-05 추가
+        rating:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 5
+          description: 별점(1~5), 선택 입력이라 없을 수 있음
         visited_at:
           type: string
           format: date-time
@@ -981,18 +1090,35 @@ components:
           items:
             type: string
           description: |
-            AI 이미지 분석으로 자동 부여된 감성 태그.
-            이 태그는 place_emotion_tag에도 누적되어 장소 분위기 데이터를 보강하며,
+            AI 이미지 분석으로 자동 부여된 감성 태그(비동기 배치, 작성 직후엔 빈 배열일 수 있음).
+            장소의 상위 태그(GET /places/:placeId의 top_tags)에도 조회 시점에 직접 집계되어 반영되며,
             user_preference 점수에도 반영됨.
 
     VisitLogUpdateRequest:
       type: object
-      description: 사진은 수정 불가. 한줄 리뷰와 방문 날짜만 수정 가능.
+      description: |
+        사진은 수정 불가. 제목·한줄 리뷰·날씨·별점·방문 날짜만 수정 가능.
+        title/one_line/weather를 빈 문자열("")로 보내면 해당 값이 삭제됨(null로 저장). 필드 자체를 생략하면 기존 값 유지.
+        rating은 이들과 달리 빈 값으로 지우는 기능이 없음 — 값을 보내면 갱신, 생략하면 기존 값 유지.
       properties:
+        title:
+          type: string
+          nullable: true
+          maxLength: 50
         one_line:
           type: string
           nullable: true
           maxLength: 100
+        weather:
+          type: string
+          nullable: true
+          maxLength: 20
+        rating:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 5
+          description: 별점(1~5)
         visited_at:
           type: string
           format: date-time
@@ -1016,12 +1142,28 @@ components:
         lng:
           type: number
           format: double
-        photo_url:
+        photo_urls:
+          type: array
+          items:
+            type: string
+          description: 여러 장 지원(2026-09-06 추가, decision-log 참고). 사진이 없으면 빈 배열.
+        title:
           type: string
           nullable: true
+          description: 기록 제목. 2026-09-05 추가(메인 페이지-나의 일지-기록하기)
         one_line:
           type: string
           nullable: true
+        weather:
+          type: string
+          nullable: true
+          description: 자유 입력 텍스트(선택지 코드 없음). 2026-09-05 추가
+        rating:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 5
+          description: 별점(1~5), 선택 입력이라 없을 수 있음
         visited_at:
           type: string
           format: date-time
@@ -1056,10 +1198,21 @@ components:
         one_line:
           type: string
           nullable: true
+        rating:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 5
+          description: 별점(1~5), 선택 입력이라 없을 수 있음
         tags:
           type: array
           items:
             type: string
+        nickname:
+          type: string
+        profile_image_url:
+          type: string
+          nullable: true
 
     PresignedUrlRequest:
       type: object
@@ -1154,20 +1307,45 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /auth/kakao/callback:
+    get:
+      tags: [Auth]
+      summary: 카카오 로그인 리다이렉트 중계 (앱이 직접 호출하지 않음)
+      description: |
+        카카오 개발자 콘솔의 Redirect URI가 커스텀 스킴(dongle://)을 거부해서(2026-08-27 확인,
+        decision-log 참고) 등록해둔 HTTPS 중계 엔드포인트. 카카오가 로그인 승인 후 이 주소로
+        code(또는 error) 쿼리스트링을 붙여 리다이렉트하면, 서버는 그 쿼리스트링을 그대로 유지한 채
+        앱의 커스텀 스킴(dongle://redirect)으로 302 리다이렉트만 해준다 — 실제 로그인 처리는
+        전혀 하지 않으며 POST /auth/oauth/kakao와는 무관하다.
+      security: []
+      parameters:
+        - name: code
+          in: query
+          required: false
+          schema:
+            type: string
+          description: 카카오가 붙여주는 인가 코드 (또는 실패 시 error/error_description)
+      responses:
+        '302':
+          description: dongle://redirect(+원본 쿼리스트링)로 리다이렉트
+
   /auth/oauth/google:
     post:
       tags: [Auth]
       summary: 구글 로그인
       description: |
-        구글 OAuth 인가 코드를 서버에 전달하여 서비스 JWT 토큰을 발급받는다.
-        동작 방식은 카카오 로그인과 동일하다.
+        앱이 기기 내 네이티브 Google Sign-In으로 로그인해 받은 ID 토큰을 서버에 전달하여
+        서비스 JWT 토큰을 발급받는다. 카카오와 달리 인가 코드 교환이 아니라 ID 토큰 검증 방식이다
+        (2026-08-26 결정, decision-log 참고) — Android OAuth 클라이언트(패키지명+SHA-1)로 로그인을
+        수행하고, Web 애플리케이션 OAuth 클라이언트의 ID를 audience(서버 클라이언트 ID)로 지정한다.
+        응답 형태·의미(is_new_user 등)는 카카오 로그인과 동일하다.
       security: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/OAuthRequest'
+              $ref: '#/components/schemas/GoogleOAuthRequest'
       responses:
         '200':
           description: 로그인 성공
@@ -1176,7 +1354,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/OAuthResponse'
         '400':
-          description: 잘못된 인가 코드
+          description: 유효하지 않은 ID 토큰 (서명/발급자/audience 불일치, 만료 등)
           content:
             application/json:
               schema:
@@ -1572,61 +1750,6 @@ paths:
                     label: Modern
                     description: 현대적인, 세련된, 트렌디한 분위기
                     criteria: [현대적인 분위기 있음, 도시적인 분위기 있음, 세련된 분위기 있음, 트렌디한 분위기 있음, 감각적인 분위기 있음]
-
-  /onboarding/cards:
-    get:
-      tags: [Onboarding]
-      summary: "[DEPRECATED 가능성] 온보딩 이미지 카드 목록 조회 (카드 다중 선택 방식)"
-      description: |
-        ⚠️ 확정된 온보딩 알고리즘(v2.0.0, Onboarding Algo.md, decision-log 2026-07-07)은
-        카드를 한 번에 여러 장 보여주고 선택받는 방식이 아니라, GET /onboarding/next로 한 장씩
-        스와이프하는 방식으로 결정되었다. 이 엔드포인트는 그 이전 설계의 흔적일 수 있어
-        실제 사용 여부를 팀에서 재확인 후 정리 필요. 최초 가입 후 취향 분석 단계에서
-        사용자에게 보여줄 감성 이미지 카드 목록을 반환한다.
-        각 카드에는 분위기, 활동 유형 등의 감성 태그가 부여되어 있으며,
-        사용자가 선택한 카드의 태그들이 집계되어 user_preference 초기값으로 저장된다.
-      security: []
-      responses:
-        '200':
-          description: 조회 성공
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  cards:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/OnboardingCard'
-
-  /onboarding/preferences:
-    post:
-      tags: [Onboarding]
-      summary: 온보딩 취향 선택 결과 제출
-      description: |
-        사용자가 선택한 온보딩 카드 ID 목록을 제출한다.
-        서버는 선택된 카드의 감성 태그를 집계하여 user_preference 테이블에 초기 점수로 저장한다.
-        처리 완료 후 users.has_onboarded를 true로 업데이트하므로, 이후 앱 재시작 시 온보딩을 건너뛰게 된다.
-        반환되는 top_tags는 이후 스와이프 화면의 기본 mood_tags로 사용된다.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/OnboardingPreferenceRequest'
-      responses:
-        '200':
-          description: 취향 프로필 생성 성공
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/OnboardingPreferenceResponse'
-        '401':
-          description: 인증 필요
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
 
   /onboarding/status:
     get:
@@ -2077,15 +2200,20 @@ paths:
       tags: [VisitLog]
       summary: 여행 기록 작성
       description: |
-        방문한 장소에 사진과 한줄 리뷰를 기록한다.
-        사진은 먼저 POST /uploads/presigned-url로 S3에 직접 업로드한 뒤,
-        반환된 file_url을 photo_url에 담아 요청해야 한다.
+        방문한 장소에 사진(여러 장 가능)과 한줄 리뷰를 기록한다.
+        사진마다 먼저 POST /uploads/presigned-url로 S3에 직접 업로드한 뒤,
+        반환된 file_url들을 photo_urls 배열에 담아 요청해야 한다(순서 = 노출 순서, 2026-09-06 결정).
 
-        서버는 업로드된 사진 URL을 기반으로 AI 이미지 분석을 수행하여 감성 태그를 자동 부여하며,
-        다음 세 가지 처리를 연쇄적으로 수행한다.
-          1. log_emotion_tag 생성 (이 기록에 부여된 태그 저장)
-          2. place_emotion_tag count 업데이트 (장소의 분위기 태그 누적)
-          3. place.visit_log_count +1 (방문 로그 수 증가 → 숨은 장소 판단 기준값)
+        이 API 자체는 이 엔드포인트 호출 시점에 다음 두 가지만 동기로 처리한다.
+          1. 여행 기록 생성 (사진 URL 목록, 제목, 한줄 리뷰, 날씨 저장)
+          2. place.visit_log_count +1 (방문 로그 수 증가 → 숨은 장소 판단 기준값)
+
+        업로드된 사진의 AI 감성 태그 자동 분석은 이 API와 별개로, AI 서버가 사진을 비동기(배치)로
+        분석해서 log_emotion_tag에 직접 적재하는 방식으로 동작한다(2026-08-31 결정) — 즉 이 응답의
+        tags는 방문 기록 작성 직후에는 아직 빈 배열일 수 있고, AI 분석이 끝나면 이후 GET 조회 시점에
+        자동으로 채워진다(별도 API 재호출 불필요). 장소의 상위 태그(GET /places/:placeId의 top_tags)도
+        저장된 카운터 없이 log_emotion_tag를 조회 시점에 직접 집계해서 계산하므로, AI가 태그를
+        적재하는 즉시 반영된다(2026-09-02 결정, decision-log 참고).
 
         응답으로 VisitLogDetail 전체를 반환하므로, 클라이언트가 별도의 GET /logs/:logId 호출 없이
         작성 직후 화면을 바로 렌더링할 수 있다.
@@ -2103,15 +2231,33 @@ paths:
             schema:
               type: object
               properties:
-                photo_url:
+                photo_urls:
+                  type: array
+                  items:
+                    type: string
+                  maxItems: 10
+                  description: Presigned URL로 S3 업로드 완료 후 받은 file_url 목록. 배열 순서대로 저장/노출됨(2026-09-06 추가)
+                title:
                   type: string
                   nullable: true
-                  description: Presigned URL로 S3 업로드 완료 후 받은 file_url
+                  maxLength: 50
+                  description: 기록 제목
                 one_line:
                   type: string
                   nullable: true
                   maxLength: 100
                   description: 한줄 리뷰
+                weather:
+                  type: string
+                  nullable: true
+                  maxLength: 20
+                  description: 날씨(자유 입력 텍스트)
+                rating:
+                  type: integer
+                  nullable: true
+                  minimum: 1
+                  maximum: 5
+                  description: 별점(1~5), 선택 입력
                 visited_at:
                   type: string
                   format: date-time
@@ -2362,6 +2508,17 @@ paths:
 
         직접 코스의 경우 source=user로 저장되며,
         구글맵 경로 계산은 GET /courses/:courseId 조회 시 동일하게 재계산됨.
+
+        여러 날 범위 지원(2026-09-06 추가, decision-log 참고): end_date를 같이 보내면 여행
+        기간(travel_date~end_date)으로 저장·표시됨. AI 코스 짜기(POST /courses/generate)는
+        이 필드를 지원하지 않음(course_optimizer가 단일 날짜 전제). end_date가 travel_date보다
+        이전이면 400(INVALID_COURSE_DATE_RANGE).
+
+        여러 날 코스의 장소별 날짜 배정(2026-09-06 추가, decision-log 참고): 장소마다
+        visit_date를 같이 보내면 그 장소가 코스의 며칠째 방문지인지 저장됨(N박N일 여러 날
+        코스). visit_date가 travel_date~end_date 범위를 벗어나면 400(INVALID_COURSE_DATE_RANGE).
+        visit_order는 날짜와 무관하게 코스 전체를 통틀은 전역 순서(하루짜리 코스면 날짜
+        구분 없이 기존과 동일하게 동작 — visit_date를 안 보내도 됨).
       requestBody:
         required: true
         content:
@@ -2379,6 +2536,12 @@ paths:
                   format: date
                   nullable: true
                   example: '2025-11-10'
+                end_date:
+                  type: string
+                  format: date
+                  nullable: true
+                  description: 여러 날 범위 지원. travel_date(시작일)보다 이전이면 400.
+                  example: '2025-11-12'
                 transport:
                   type: string
                   enum: [car, walk, public]
@@ -2401,6 +2564,12 @@ paths:
                         type: string
                         nullable: true
                         example: '10:00'
+                      visit_date:
+                        type: string
+                        format: date
+                        nullable: true
+                        description: 이 장소가 며칠째 방문지인지. travel_date~end_date 범위를 벗어나면 400
+                        example: '2025-11-10'
       responses:
         '201':
           description: 코스 저장 성공
@@ -2629,8 +2798,9 @@ paths:
       summary: 여행 기록 삭제
       description: |
         여행 기록을 삭제한다.
-        삭제 시 place.visit_log_count를 -1 처리하고,
-        해당 기록의 log_emotion_tag에 연결된 place_emotion_tag count도 함께 차감된다.
+        삭제 시 place.visit_log_count를 -1 처리한다. 이 기록에 달려있던 log_emotion_tag 행도
+        DB FK(ON DELETE CASCADE)로 함께 삭제되며, 장소의 상위 태그는 조회 시점에 log_emotion_tag를
+        직접 집계하므로(저장된 카운터 없음, 2026-09-02 결정) 별도 차감 처리 없이 자동으로 반영된다.
       parameters:
         - name: logId
           in: path

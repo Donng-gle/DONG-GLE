@@ -1,7 +1,7 @@
 # 마일스톤
 
 > 공모전 제출 마감: 2026년 9월 20일
-> 최근 수정: 2026-08-24 · 이수연 (영업시간 "24시간 운영" 파싱 버그 수정)
+> 최근 수정: 2026-09-04 · 설만수 (실기기 테스트 전 로직 검토 — 버그 7건 발견·전부 수정, `client`/`server`가 `dev`보다 다시 앞섬)
 
 ---
 
@@ -153,12 +153,12 @@
 **데이터 (이수연)**
 1. [x] ~~`analyze_place_emotion.py` 전체 배치 실행~~ → **아키텍처 전환으로 폐기** (2026-08-21) — 김지광이 `place_semantic_vector`(사진 3장·검증된 프롬프트 `semantic-image-v4.1` 기반 raw score)로 182곳 전체를 이미 분석·적재 완료 (`feat/semantic-vector`→`ai` PR #20). 우리가 만든 threshold(0.5) 기반 시드값(167곳, 270개 태그)은 삭제 완료, `place_emotion_tag` 테이블/백엔드 서비스 로직 자체는 유지 (방문 로그 누적용으로 별도 역할, decision-log 2026-08-21 참고)
 2. [x] ~~결과 검증~~ → 위 전환으로 대상 자체가 바뀜, `place_semantic_vector` 결과 검증은 김지광 담당(PR #20에 이미 SUN 데이터셋 벤치마크·안동 파일럿 검증 포함됨)
-3. [ ] `onboarding_card` 시드 데이터 스크립트 신규 작성 — 이제 `place_semantic_vector`(장소 단위 raw score)를 참고할지, 이미지별 개별 점수가 별도로 필요한지(온보딩 카드는 "사진 한 장 단위" 대표성이 필요함, ssot.md 카드 선택 전략 참고) 확인 필요. PLACE_IMAGE 후보 조회 → AI 점수 → 태그별 대표 사진 선정. 스키마 제약(태그별 최소 4장, `is_seed=true` 7장) 충족 방법도 확인 필요
+3. [ ] `onboarding_card` 시드 데이터 스크립트 신규 작성 — 이제 `place_semantic_vector`(장소 단위 raw score)를 참고할지, 이미지별 개별 점수가 별도로 필요한지(온보딩 카드는 "사진 한 장 단위" 대표성이 필요함, ssot.md 카드 선택 전략 참고) 확인 필요. PLACE_IMAGE 후보 조회 → AI 점수 → 태그별 대표 사진 선정. 스키마 제약(태그별 최소 4장, `is_seed=true` 7장) 충족 방법도 확인 필요. **2026-08-31 실제 Supabase 확인 — 우선순위 상향 필요**: 현재 11건뿐(시드 7 + 일반 4). 태그별 커버리지 relaxing 4·lively 2·romantic 1·local 3·photogenic 6·traditional 3·modern 2 — 7개 중 5개가 "최소 4장" 기준 미달(romantic은 1장뿐). 시드 7장 소진 후 보여줄 카드가 4장밖에 없어 스펙상 "균형 60%+탐색 30%+랜덤 10%"로 최대 25장까지 진행하는 알고리즘이 사실상 작동 불가 — 데모 전 반드시 채워야 함 (decision-log 2026-08-31 참고)
 4. [x] `fetch_unanalyzed_places` 로직 개선 완료 (2026-08-10) — `main_image_url` 없어도 `place_image` 후보가 있으면 폴백해서 분석 대상에 포함 (부용대 반영 확인). *(단, 이 함수 자체가 있던 `analyze_place_emotion.py`는 위 1번으로 폐기됨 — 로직은 남아있으나 더 이상 호출되지 않음)*
 5. [x] **`place_image` 정리 완료** (2026-08-06~10) — 사진 전무 18건 중 15건 Google Places로 보완(`place_photo_enrichment.py`), 나머지 3건(안동한우갈비/위생찜닭/안동시 월령빠지)은 구글에도 없어 **DB에서 삭제** (2026-08-10, decision-log 참고) — 전체 장소 190건 → 187건, 사진 보유율 100%. **당초 계획했던 "3장으로 트림"은 하지 않기로 함** — `place_image`는 다다익선으로 그대로 두고, 온보딩 카드용 대표 선정은 스프린트3 3번 항목에서 별도 처리. 식당/카페 대표이미지(`main_image_url`)는 32곳 전수 검토해 음식 사진 대신 내부/외부 사진으로 통일 (decision-log 2026-08-08 참고)
-6. [x] **영업시간 `place_hours` 테이블 신설 및 적재 완료** (2026-08-10~24) — Google Places `opening_hours`(70건) + TourAPI 텍스트 자동 파싱(상시개방 38건, 단순 단일시간대 23건) 합쳐 182건 중 **131건(72%)** 확보. "매일 24시간 운영" 특수 케이스를 잘못 파싱하던 버그 수정 완료 (2026-08-24, decision-log 참고). 브레이크타임은 소스에 데이터가 없어 미반영. 남은 51건은 요일/계절별 복잡한 텍스트(33건)거나 데이터 자체가 없음(18건). 코스 추천 알고리즘에서 실제로 참조하는 로직은 아직 없음
+6. [x] **영업시간 `place_hours` 테이블 신설 및 적재 완료** (2026-08-10~24) — Google Places `opening_hours`(70건) + TourAPI 텍스트 자동 파싱(상시개방 38건, 단순 단일시간대 23건) 합쳐 182건 중 **131건(72%)** 확보. "매일 24시간 운영" 특수 케이스를 잘못 파싱하던 버그 수정 완료 (2026-08-24, decision-log 참고). 브레이크타임은 소스에 데이터가 없어 미반영. 남은 51건은 요일/계절별 복잡한 텍스트(33건)거나 데이터 자체가 없음(18건). **코스 추천 알고리즘(`ai/course_optimizer/place_hours_client.py`) 연동 확인 완료** (2026-08-28) — 요일 매핑(`python_weekday_to_place_day`)이 `place_hours.open_day` 컨벤션과 정확히 일치, `close_time=NULL`(상시개방)·요일 행 없음(휴무) 케이스 모두 정확히 해석. `place_hours` 없는 51건은 카테고리별 fallback 운영시간으로 처리되어 안전하게 동작
 7. [x] **종료된 축제 5건 + 사진 없는 장소 3건 DB 삭제** (2026-08-10) — 축제: 경북 K-스토리 페스티벌, 동아시아문화도시 안동, 안동 수(水)페스타, 안동벚꽃축제, 차전장군 노국공주축제(남은 3건은 진행중/예정이라 유지). 장소: 안동한우갈비/위생찜닭/안동시 월령빠지(구글에도 사진 없어 삭제). 연결된 사용자 데이터 없음 확인 후 삭제. 전체 장소 190→182건
-8. [ ] **`place_semantic_vector` vs `place_emotion_tag` 역할 정리 필요** (2026-08-21) — 코스 추천/장소 상세 등에서 이 두 신호를 어떻게 함께 쓸지 알고리즘 설계 영역이라 김지광/설만수 확인 대기 (decision-log 참고)
+8. [~] **`place_semantic_vector` vs 방문 로그 누적 감성 태그 역할 정리** (2026-08-21) — `place_emotion_tag` 테이블 자체는 2026-09-02에 제거됨(log_emotion_tag를 조회 시점에 직접 집계하는 방식으로 전환, decision-log 참고), 저장 방식 문제는 해소됐지만 "코스 추천 등에서 두 신호를 어떻게 함께 쓸지"는 여전히 알고리즘 설계 영역이라 김지광/설만수 확인 대기
 
 **알고리즘 (김지광)**
 - [x] AI 모델 확정 — OpenAI GPT Vision(`gpt-4.1-mini`) 기반, `ai/semantic_vector`로 구현 완료 (2026-08-02 데이터 파트에서 실제 연동·검증함, decision-log 참고)
@@ -172,25 +172,32 @@
 - [x] **이미지 프록시 엔드포인트 구현** (2026-08-04) — `GET /images/proxy?ref={photo_reference}&maxWidth=`. Google Places Photo API 키는 서버사이드에서만 다루고 이미지 바이너리를 중계하는 방식. `server` 머지 완료
 - [x] **백엔드 Render 배포** (2026-08-04) — `https://dong-gle.onrender.com` (무료 플랜, Docker 멀티스테이지 빌드, `server` 브랜치 push 시 자동 배포). 무료 플랜 512MB 메모리 제한으로 배포 직후 OOM(Exit 137) 발생 확인 → JVM 힙/GC 옵션 조정으로 해결. `main`은 아직 서버 코드가 반영 안 된 상태라 배포 소스는 임시로 `server` 사용 중 — `dev`/`main` 통합되면 배포 브랜치 전환 필요
 - [ ] `server` → `dev` 통합 (계속 이월, 의도적으로 보류 중)
-- [ ] 카카오/구글 OAuth 앱 자격증명 발급 + 로그인 E2E 검증 (스프린트2부터 이월)
+- [x] 카카오/구글 OAuth 앱 자격증명 발급 + 코드 구현 완료 (스프린트2부터 이월). **2026-08-30 재확인**: 클라이언트 쪽(네이티브 Google Sign-In 전환, 카카오 `WebBrowser.openAuthSessionAsync` 전환)이 각각 2026-08-26/2026-08-27 결정 당시엔 "미착수"였으나, 이후 세션에서 `dev`에 직접 커밋(`71f7983`, `a21dcf5` — 브랜치 안 거치고 바로 `dev`에 올라간 것으로 확인, 정상 워크플로우 위반이지만 내용 자체는 검증 완료: `LoginScreen.tsx`/`oauthConfig.ts`/`auth.ts`가 결정 내용과 정확히 일치, `tsc --noEmit` 통과)로 이미 반영되어 있었음 — 문서만 안 따라갔던 것.
+- [x] **실기기 E2E 검증 완료** (2026-08-31) — 안드로이드 실기기(무선 디버깅)로 카카오/구글 로그인 둘 다 성공 확인. 이 과정에서 카카오 OAuth 응답 역직렬화 버그 발견/수정, `client-front` 실기기 백엔드 주소 문제 수정, 디버그 키스토어 위치·구글 테스트 사용자 등록 등 운영 노하우 정리 완료 (decision-log 2026-08-31 참고)
 - [x] **여행 기록(방문 로그) 관련 제외한 나머지 엔드포인트 — 1차분 구현 완료** (2026-08-04):
   - `GET /users/me/preferences`, `GET /users/me/likes`, `GET /events` (월별 축제 목록, d_day 계산)
-  - 코스 CRUD 신규 구현: `GET /users/me/courses`, `POST /courses`, `POST /courses/manual`, `GET/PATCH/DELETE /courses/{courseId}` — 구글맵 Directions 경로 재계산(이동시간/거리/폴리라인)은 스코프 제외, 코드에 TODO로 명시(항상 null 반환)
+  - 코스 CRUD 신규 구현: `GET /users/me/courses`, `POST /courses`, `POST /courses/manual`, `GET/PATCH/DELETE /courses/{courseId}` — 구글맵 Directions 경로 재계산(이동시간/거리/폴리라인)은 스코프 제외였으나 **2026-08-30 구현 완료**(아래 항목 참고), 항상 null 반환하던 TODO 해소
   - `GET/PATCH /users/me/notification`, `POST /users/me/device-token` — `notification_setting`/`device_token` 테이블 신규 추가(`schema.sql`/`schema.dbml` 반영, 공용 Supabase에도 적용 완료). 설정값/토큰 저장까지만 구현, 실제 푸시 발송(FCM 연동, `course_reminder` 크론 등)은 스코프 외
   - `GET /health`
 - [x] **여행 기록 CRUD·유사 사용자 탐색 — 2차분 구현 완료** (2026-08-05, 재검토 후 착수) — 애초에 "여행 기록 관련은 전부 제외"로 뭉뚱그렸던 걸 다시 뜯어보니 AI 태그 분석이 필요 없는 부분은 스키마가 이미 있어서 바로 구현 가능했음:
   - `GET /users/me/logs`, `GET /places/{placeId}/logs`, `GET/PATCH/DELETE /logs/{logId}`
   - `GET /explore/similar-logs` — 내 상위 태그(score 상위 3개)와 겹치는(score 0.6 이상) 다른 유저의 공개 기록을 뷰포트 필터링해서 반환
   - `DELETE /logs/{logId}` 시 `place.visit_log_count`, `place_emotion_tag.count` 감소까지 스펙대로 구현
-- [ ] **미구현 잔여분 — 보류** (2026-08-05 재확인):
-  - `POST /places/{placeId}/logs`(여행 기록 작성) — 응답에 AI가 분석한 감성 태그를 동기적으로 포함해야 하는데, 그 이미지 분석 로직(`ai/semantic_vector`)이 김지광님 소유의 Python 코드라 백엔드에서 중복 구현 시 로직이 두 군데로 갈라짐. AI 연동 방식(백엔드에서 직접 재구현할지, 다른 방식으로 연동할지) 결정 필요
-  - `/courses/generate`, `/swipe/candidates`, `/swipe/sessions/{sessionId}`, `/swipe/sessions/{sessionId}/results` — 코스 추천 알고리즘 미확정이 선행 조건(김지광 담당). 스와이프 세션 저장용 테이블도 아직 없음
-  - `/onboarding/cards`, `/onboarding/preferences` — api 스펙 자체에 `[DEPRECATED 가능성]` 표기됨. `Onboarding Algo.md`(v2.0.0)가 스와이프 방식(`/onboarding/next` 등)만 다루고 이 두 엔드포인트를 전혀 언급하지 않음 — 예전 카드 다중선택 방식의 흔적으로 추정되며, `/onboarding/complete`가 이미 같은 역할(결과 저장 + `has_onboarded` 갱신)을 스와이프 방식으로 수행 중이라 사실상 대체된 것으로 보임. 실제 필요 여부 팀 확인 후 스펙 정리 필요
-  - `/admin/sync/places` — TourAPI 재동기화 트리거 기능인데, "데이터 파트가 DB에 직접 적재" 결정(2026-06-29)과 책임이 겹침. 응답 스펙의 `deactivated`(비활성화 수)를 반영할 soft-delete 컬럼도 `place` 테이블에 없어 스키마 추가까지 필요 — 정말 필요한 기능인지 재검토 필요
+- [ ] **미구현 잔여분 — 보류**:
+  - [x] `POST /places/{placeId}/logs`(여행 기록 작성) — AI 감성 태그 자동 부여는 제외하고 우선 구현 완료 (2026-08-30, `feat/visit-log-create`). 기록 생성/저장, `visit_log_count` 증가는 정상 동작, 응답 `tags`는 AI 연동 전까지 항상 빈 배열. AI 태그 부여는 `ai/semantic_vector`의 이미지 분석이 아직 어떤 HTTP 엔드포인트로도 노출되지 않아서 계속 보류 (decision-log 2026-08-30 참고)
+  - [x] `/swipe/candidates`, `/swipe/sessions/{sessionId}`, `/swipe/sessions/{sessionId}/results` — **2026-08-30 구현 완료** (`feat/swipe-session`). 후보 랭킹은 `ai/place_recommender`(취향 벡터 기반 Qdrant 검색 + `place.hidden_score` 결합 Top-N, `POST /v1/places/recommend`, PR #25 포함분) 호출 + 신설한 `swipe_session`/`swipe_session_candidate` 테이블로 세션 상태 저장. 세부 값(후보 20장, mood_tags 가중치 등)은 decision-log 참고
+  - [x] `/courses/generate` — **2026-08-30 구현 완료(스코프 축소)**. `ai/course_optimizer` 연동해서 좋아요/필수 표시 장소로 코스 1개를 생성. 스펙상 "최대 3개 후보"·"must 강제 포함"은 course_optimizer 알고리즘 자체의 한계(경로 1개만 반환 가능, 필수 장소 개념 없음)로 지금은 근사치 — 상세는 decision-log 참고. **김지광에게 알고리즘 확장(top-N 경로, 필수 장소 강제) 요청 필요**
+  - [x] **구글맵 Directions(Routes API v2) 연동 완료** (2026-08-30) — `/courses/generate`와 `GET/PATCH /courses/{courseId}` 양쪽에서 이동거리(km)/시간(분)/장소별 구간 정보/폴리라인을 실제로 계산해서 반환. `ai/course_optimizer`가 이미 쓰던 것과 같은 Routes API 재사용. `course.transport` 컬럼 신규 추가(어떤 이동수단으로 재계산할지 저장). 실패해도 코스 조회 자체는 항상 가능(null로 안전하게 폴백). 상세는 decision-log 참고 — 테스트 중 RestClient 멀티 모킹 버그도 같이 발견/수정
+  - [x] `/onboarding/cards`, `/onboarding/preferences` — **2026-08-30 스펙에서 제거 완료**. `OnboardingController.kt`에 두 엔드포인트 구현 자체가 없음을 코드로 확인, `/onboarding/complete`가 이미 같은 역할(결과 저장 + `has_onboarded` 갱신)을 스와이프 방식으로 대체 수행 중이라 예전 카드 다중선택 설계의 흔적으로 결론. `api_1.3.1v.yaml`에서 두 경로 + 전용 스키마(`OnboardingPreferenceRequest`/`Response`) 삭제 (decision-log 참고)
+  - `/admin/sync/places` — **2026-08-30 재검토 후 보류로 결정, 스펙엔 유지**. 데이터 적재 방식(2026-06-29 결정)과는 성격이 다른 "관리자 수동 재동기화 트리거"라 제거하지 않기로 함. 실제 구현 필요 여부는 데이터 파트(이수연)의 재동기화 운영 계획에 달려있어 확인 필요 (decision-log 참고)
 
 **프론트 (설만수)**
-- [ ] 온보딩 API `dev` 머지되는 대로 온보딩 스와이프 화면 구현 착수
-- [ ] 디자인 시안 나오는 대로 탐색/코스 화면 작업 시작 (계속 이월)
+- [x] 온보딩 API `dev` 머지되는 대로 온보딩 스와이프 화면 구현 착수 — `client` 브랜치에서 로그인/온보딩/홈/장소상세·목록/코스만들기 플로우까지 디자인 반영 완료. **`client` → `dev` 통합 완료** (2026-09-03, decision-log 참고)
+- [x] 스크랩북(내 코스+찜한 장소 통합) 화면 디자인 반영 (2026-09-03, decision-log 참고) — `MyCoursesScreen`/`LikesScreen`을 `ScrapbookScreen`으로 통합, `feat/my-courses-screen` → `client` 병합 완료
+- [x] `CourseDetailScreen`/`CourseEditScreen` 자체 디자인 반영 (2026-09-03, decision-log 참고) — 전용 시안 없어서 `CourseResultScreen`/`CourseManualBuilderScreen` 언어 재사용, `feat/course-detail-edit-screen` → `client` 병합 완료
+- [x] 유사 사용자 탐색 피드(Figma `316:4122`/`507:10963`) 반영 (2026-09-03, decision-log 참고) — 카드에 작성자 정보가 필요해서 백엔드 `SimilarLogItemResponse`에 `nickname`/`profile_image_url` 추가(`feat/explore-nickname` → `server`), 프론트는 `feat/explore-feed` → `client` 병합 완료. **부수 발견**: 이 작업 중 실제 Supabase `log_emotion_tag`에 문서/엔티티에 없던 `score` 컬럼(NOT NULL)이 이미 있던 걸 발견해서 같이 수정함 — 데이터/AI 파트가 왜 라이브 DB에 직접 추가했는지 원인 확인 필요 (decision-log 참고)
+- [~] 좌측 드로어 — 전용 시안은 여전히 없음(Figma 79개 프레임 전수 확인해도 없음). 슬라이드 애니메이션/아바타/섹션 구분 등 UX 기본기는 개선 완료(2026-09-03, decision-log 참고), 항목 배치는 계속 임시
+- [x] 게스트 모드(비로그인 이용) 실제 구현 (2026-09-03, decision-log 참고) — `App.tsx`/`HomeScreen.tsx`/`LoginScreen.tsx`, 인증 필요 기능은 진입 차단 후 로그인 유도. **남은 것**: 로그인 화면의 게스트 진입이 버튼이 아니라 텍스트 링크뿐이라 디자인팀(전성빈) 확인 필요, `PlaceDetailScreen` 찜 버튼은 아직 사전 차단 없이 실패 얼럿으로만 처리
 
 **디자인 (전성빈)**
 - [ ] 주요 화면(온보딩 스와이프, 장소 탐색, 코스 추천) 시안 계속 진행

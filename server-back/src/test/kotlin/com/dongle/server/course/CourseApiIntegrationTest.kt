@@ -1,6 +1,9 @@
 package com.dongle.server.course
 
 import com.dongle.server.auth.jwt.JwtTokenProvider
+import com.dongle.server.course.directions.GoogleRoutesClient
+import com.dongle.server.course.directions.RouteLegResult
+import com.dongle.server.course.directions.RouteResult
 import com.dongle.server.place.Place
 import com.dongle.server.place.PlaceCategory
 import com.dongle.server.place.PlaceRepository
@@ -8,10 +11,13 @@ import com.dongle.server.user.OAuthProvider
 import com.dongle.server.user.User
 import com.dongle.server.user.UserRepository
 import org.junit.jupiter.api.Test
+import org.mockito.BDDMockito.given
+import org.mockito.Mockito
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.http.MediaType
+import org.springframework.test.context.bean.override.mockito.MockitoBean
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
@@ -22,6 +28,8 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import org.springframework.transaction.annotation.Transactional
 import com.jayway.jsonpath.JsonPath
 
+// GoogleRoutesClient를 컴포넌트 단위로 모킹한다 (@MockitoBean) — CourseGenerateApiIntegrationTest 주석 참고
+// (RestClient 레이어를 직접 모킹하는 방식은 같은 타입 빈이 여러 개일 때 서로 뒤섞이는 문제가 있었음).
 @SpringBootTest
 @AutoConfigureMockMvc
 @Transactional
@@ -38,6 +46,21 @@ class CourseApiIntegrationTest {
 
     @Autowired
     lateinit var jwtTokenProvider: JwtTokenProvider
+
+    @MockitoBean
+    lateinit var googleRoutesClient: GoogleRoutesClient
+
+    private fun <T> anyKt(): T = Mockito.any()
+
+    private fun stubDirectionsRoute() {
+        val route = RouteResult(
+            totalDistanceMeters = 1500,
+            totalDurationSeconds = 600,
+            legs = listOf(RouteLegResult(distanceMeters = 1500, durationSeconds = 600)),
+            encodedPolyline = "abc123",
+        )
+        given(googleRoutesClient.computeRoute(anyKt(), anyKt())).willReturn(route)
+    }
 
     private fun user(userId: String, oauthId: String): User =
         userRepository.save(User(userId = userId, nickname = "테스터", oauthProvider = OAuthProvider.kakao, oauthId = oauthId))
@@ -81,13 +104,118 @@ class CourseApiIntegrationTest {
             .andReturn()
 
         val courseId = JsonPath.read<Int>(saveResult.response.contentAsString, "$.course_id")
+        stubDirectionsRoute()
 
         mockMvc.perform(get("/courses/$courseId").header("Authorization", "Bearer $token"))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.title").value("테스트전용코스"))
             .andExpect(jsonPath("$.places[0].name").value("테스트전용코스장소A"))
             .andExpect(jsonPath("$.places[0].planned_time").value("10:00"))
+            .andExpect(jsonPath("$.places[0].distance_from_prev_km").doesNotExist())
             .andExpect(jsonPath("$.places[1].name").value("테스트전용코스장소B"))
+            .andExpect(jsonPath("$.places[1].distance_from_prev_km").value(1.5))
+            .andExpect(jsonPath("$.places[1].duration_from_prev_min").value(10))
+            .andExpect(jsonPath("$.total_distance_km").value(1.5))
+            .andExpect(jsonPath("$.total_duration_min").value(10))
+            .andExpect(jsonPath("$.polyline").value("abc123"))
+    }
+
+    @Test
+    fun `직접 코스 짜기에 end_date를 같이 보내면 여행 기간으로 저장된다`() {
+        val owner = user("course_user_range", "kakao-course-range")
+        val token = tokenFor(owner)
+        val placeA = place("CRS_RANGE1", "테스트전용범위코스장소A")
+
+        val saveResult = mockMvc.perform(
+            post("/courses/manual")
+                .header("Authorization", "Bearer $token")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """{"title":"테스트전용범위코스","travel_date":"2026-08-02","end_date":"2026-08-05",
+                       "places":[{"place_id":${placeA.id},"visit_order":1}]}""",
+                )
+        )
+            .andExpect(status().isCreated)
+            .andReturn()
+
+        val courseId = JsonPath.read<Int>(saveResult.response.contentAsString, "$.course_id")
+        stubDirectionsRoute()
+
+        mockMvc.perform(get("/courses/$courseId").header("Authorization", "Bearer $token"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.travel_date").value("2026-08-02"))
+            .andExpect(jsonPath("$.end_date").value("2026-08-05"))
+    }
+
+    @Test
+    fun `end_date가 travel_date보다 이전이면 400을 반환한다`() {
+        val owner = user("course_user_range_invalid", "kakao-course-range-invalid")
+        val token = tokenFor(owner)
+        val placeA = place("CRS_RANGE2", "테스트전용범위코스장소B")
+
+        mockMvc.perform(
+            post("/courses/manual")
+                .header("Authorization", "Bearer $token")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """{"title":"테스트전용잘못된범위코스","travel_date":"2026-08-05","end_date":"2026-08-02",
+                       "places":[{"place_id":${placeA.id},"visit_order":1}]}""",
+                )
+        )
+            .andExpect(status().isBadRequest)
+            .andExpect(jsonPath("$.code").value("INVALID_COURSE_DATE_RANGE"))
+    }
+
+    @Test
+    fun `장소마다 visit_date를 보내면 여러 날 코스로 저장되고 날짜별로 구분돼서 조회된다`() {
+        val owner = user("course_user_perday", "kakao-course-perday")
+        val token = tokenFor(owner)
+        val placeDay1 = place("CRS_DAY1", "테스트전용1일차장소")
+        val placeDay2 = place("CRS_DAY2", "테스트전용2일차장소")
+
+        val saveResult = mockMvc.perform(
+            post("/courses/manual")
+                .header("Authorization", "Bearer $token")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """{"title":"테스트전용N박N일코스","travel_date":"2026-08-02","end_date":"2026-08-03",
+                       "places":[
+                         {"place_id":${placeDay1.id},"visit_order":1,"visit_date":"2026-08-02"},
+                         {"place_id":${placeDay2.id},"visit_order":2,"visit_date":"2026-08-03"}
+                       ]}""",
+                )
+        )
+            .andExpect(status().isCreated)
+            .andReturn()
+
+        val courseId = JsonPath.read<Int>(saveResult.response.contentAsString, "$.course_id")
+        stubDirectionsRoute()
+
+        mockMvc.perform(get("/courses/$courseId").header("Authorization", "Bearer $token"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.places[0].name").value("테스트전용1일차장소"))
+            .andExpect(jsonPath("$.places[0].visit_date").value("2026-08-02"))
+            .andExpect(jsonPath("$.places[1].name").value("테스트전용2일차장소"))
+            .andExpect(jsonPath("$.places[1].visit_date").value("2026-08-03"))
+    }
+
+    @Test
+    fun `장소의 visit_date가 코스 기간 범위를 벗어나면 400을 반환한다`() {
+        val owner = user("course_user_perday_invalid", "kakao-course-perday-invalid")
+        val token = tokenFor(owner)
+        val placeA = place("CRS_DAY_INVALID", "테스트전용범위밖장소")
+
+        mockMvc.perform(
+            post("/courses/manual")
+                .header("Authorization", "Bearer $token")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """{"title":"테스트전용범위밖날짜코스","travel_date":"2026-08-02","end_date":"2026-08-03",
+                       "places":[{"place_id":${placeA.id},"visit_order":1,"visit_date":"2026-08-10"}]}""",
+                )
+        )
+            .andExpect(status().isBadRequest)
+            .andExpect(jsonPath("$.code").value("INVALID_COURSE_DATE_RANGE"))
     }
 
     @Test
@@ -122,6 +250,48 @@ class CourseApiIntegrationTest {
         mockMvc.perform(get("/users/me/courses").header("Authorization", "Bearer $token"))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.courses[?(@.title == '테스트전용목록코스')]").exists())
+    }
+
+    @Test
+    fun `코스 목록의 장소 썸네일은 방문 순서 기준 최대 3장만 온다`() {
+        val owner = user("course_user_thumb", "kakao-course-thumb")
+        val token = tokenFor(owner)
+        // 일부러 뒤죽박죽 순서로 저장 요청 — 응답은 visit_order 기준으로 정렬돼야 함
+        val places = (1..4).map { place("CRS_THUMB00$it", "테스트전용썸네일장소$it") }
+
+        mockMvc.perform(
+            post("/courses/manual")
+                .header("Authorization", "Bearer $token")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {"title":"테스트전용썸네일코스","places":[
+                      {"place_id":${places[3].id},"visit_order":4},
+                      {"place_id":${places[0].id},"visit_order":1},
+                      {"place_id":${places[2].id},"visit_order":3},
+                      {"place_id":${places[1].id},"visit_order":2}
+                    ]}
+                    """.trimIndent()
+                )
+        ).andExpect(status().isCreated)
+
+        val listResult = mockMvc.perform(get("/users/me/courses").header("Authorization", "Bearer $token"))
+            .andExpect(status().isOk)
+            .andReturn()
+
+        // 필터 경로([?(...)]) 뒤에 추가 필드/인덱스를 이어붙이면 Jayway가 중첩 배열을 돌려줘서 캐스팅이
+        // 꼬임 — courses 전체를 Map 리스트로 받아서 코틀린에서 직접 찾는 쪽이 훨씬 안전함
+        val courses = JsonPath.read<List<Map<String, Any?>>>(listResult.response.contentAsString, "$.courses")
+        val target = courses.first { it["title"] == "테스트전용썸네일코스" }
+        val placeCount = target["place_count"]
+        @Suppress("UNCHECKED_CAST")
+        val thumbnails = target["place_thumbnails"] as List<String>
+
+        assert(placeCount == 4) { "place_count expected 4 but was $placeCount" }
+        assert(thumbnails.size == 3) { "place_thumbnails expected 3 items but was $thumbnails" }
+        assert(thumbnails == listOf("https://example.com/CRS_THUMB001.jpg", "https://example.com/CRS_THUMB002.jpg", "https://example.com/CRS_THUMB003.jpg")) {
+            "place_thumbnails expected in visit order but was $thumbnails"
+        }
     }
 
     @Test

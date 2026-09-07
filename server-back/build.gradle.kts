@@ -73,5 +73,8 @@ tasks.named<org.springframework.boot.gradle.tasks.run.BootRun>("bootRun") {
 
 tasks.withType<Test> {
 	useJUnitPlatform()
-	environment(loadEnvFile())
+	// "test" 프로파일 강제 활성화 → src/test/resources/application-test.yml이 병합 적용됨
+	// (현재는 Hikari maximum-pool-size만 낮춤. 공용 Supabase pooler 커넥션 한도 관련,
+	// docs/decision-log.md 2026-08-30 "(관찰)" 항목 참고). 운영(main resources) 설정에는 영향 없음
+	environment(loadEnvFile() + ("SPRING_PROFILES_ACTIVE" to "test"))
 }

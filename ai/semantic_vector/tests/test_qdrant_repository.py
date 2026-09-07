@@ -12,6 +12,8 @@ from semantic_vector.config import SemanticVectorConfig
 from semantic_vector.exceptions import QdrantIndexError
 from semantic_vector.models import PlaceImageInput, SemanticVectorResult
 from semantic_vector.qdrant_repository import (
+  SimilarPlaceHit,
+  dedupe_hits_by_place_id,
   delete_semantic_vector,
   ensure_collection_exists,
   get_detail_vector_by_place_id,
@@ -133,6 +135,7 @@ async def test_upsert_semantic_vector(
   assert point.vector["major"] == semantic_result.major_vector
   assert point.vector["detail"] == semantic_result.detail_vector
   assert point.payload["place_id"] == "place-1"
+  assert point.payload["image_id"] == "image-1"
   assert point.payload["image_url"] == "https://example.com/image.jpg"
   assert point.payload["analysis_image_count"] == 1
   assert point.payload["analysis_image_urls"] == ["https://example.com/image.jpg"]
@@ -190,11 +193,17 @@ async def test_search_similar_places_by_detail_vector(config: SemanticVectorConf
     points=[
       SimpleNamespace(
         score=0.95,
-        payload={"place_id": "place-2", "category": "관광지", "name": "대체 장소"},
+        payload={
+          "place_id": "place-2",
+          "image_id": "place-2-img1",
+          "image_url": "https://example.com/2.jpg",
+          "category": "관광지",
+          "name": "대체 장소",
+        },
       ),
       SimpleNamespace(
         score=0.90,
-        payload={"place_id": "place-1", "category": "관광지"},
+        payload={"place_id": "place-1", "image_id": "place-1-img1", "category": "관광지"},
       ),
     ]
   )
@@ -210,9 +219,13 @@ async def test_search_similar_places_by_detail_vector(config: SemanticVectorConf
 
   assert len(hits) == 1
   assert hits[0].place_id == "place-2"
+  assert hits[0].image_id == "place-2-img1"
+  assert hits[0].image_url == "https://example.com/2.jpg"
   assert hits[0].score == 0.95
   client.query_points.assert_awaited_once()
   assert client.query_points.await_args.kwargs["using"] == "detail"
+  # over-fetch for image-level duplicates / excludes
+  assert client.query_points.await_args.kwargs["limit"] >= 5
 
 
 @pytest.mark.asyncio
@@ -237,3 +250,31 @@ async def test_search_similar_places_by_major_vector(config: SemanticVectorConfi
   assert hits[0].place_id == "44"
   assert hits[0].score == 0.88
   assert client.query_points.await_args.kwargs["using"] == "major"
+
+
+def test_dedupe_hits_by_place_id_keeps_best_first() -> None:
+  hits = [
+    SimilarPlaceHit(
+      place_id="1",
+      score=0.9,
+      payload={},
+      image_id="1-img1",
+      image_url="https://a.jpg",
+    ),
+    SimilarPlaceHit(
+      place_id="1",
+      score=0.8,
+      payload={},
+      image_id="1-img2",
+      image_url="https://b.jpg",
+    ),
+    SimilarPlaceHit(
+      place_id="2",
+      score=0.7,
+      payload={},
+      image_id="2-img1",
+      image_url="https://c.jpg",
+    ),
+  ]
+  unique = dedupe_hits_by_place_id(hits)
+  assert [hit.image_id for hit in unique] == ["1-img1", "2-img1"]

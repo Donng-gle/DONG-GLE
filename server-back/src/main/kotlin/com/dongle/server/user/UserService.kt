@@ -30,6 +30,13 @@ class UserService(
         return user.toResponse()
     }
 
+    // Hard delete + CASCADE (MVP, decision-log 2026-06 참고). 좋아요/여행기록/코스/취향프로필/
+    // 알림설정/디바이스토큰/리프레시토큰 등 연관 데이터는 schema.sql의 ON DELETE CASCADE로 함께 삭제됨
+    @Transactional
+    fun withdraw(userId: Long) {
+        userRepository.delete(findUser(userId))
+    }
+
     private fun findUser(userId: Long): User =
         userRepository.findById(userId).orElseThrow { UserNotFoundException(userId) }
 }

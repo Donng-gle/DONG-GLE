@@ -15,8 +15,6 @@ data/
 ├── README.md
 ├── requirements.txt
 ├── .env.example
-├── migrations/
-│   └── 001_place_semantic_vector.sql
 └── pipeline/
     ├── __init__.py
     ├── config.py              # TourAPI 설정
@@ -83,7 +81,7 @@ python ../scripts/backfill_semantic_vectors.py
 
 - **분석 완료 판정**: `place_emotion_tag` count가 아니라 `place_semantic_vector` 행 존재 여부
 - **재분석 기준**: `model_name`, `prompt_version`, `tag_schema_version`이 현재 설정과 다를 때
-- **마이그레이션**: `migrations/001_place_semantic_vector.sql`을 DB에 적용
+- **스키마**: `place_semantic_vector`는 프로젝트 루트 `schema.sql`/`schema.dbml`에 정의됨 (SSOT, decision-log 2026-08-21 참고)
 
 `analyze_place_emotion.py`의 threshold/count 기반 적재는 더 이상 사용하지 않는다.
 

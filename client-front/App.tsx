@@ -1,17 +1,35 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
+import { useFonts } from 'expo-font';
 import { UserProfile, authApi } from './src/api/auth';
+import { registerSessionExpiredListener } from './src/api/client';
 import { tokenStorage } from './src/auth/tokenStorage';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
+import { OnboardingScreen } from './src/screens/OnboardingScreen';
 
 export default function App() {
   const [checkingSession, setCheckingSession] = useState(true);
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [isGuest, setIsGuest] = useState(false);
+  // Figma 디자인 전체가 Pretendard 기준이라 앱 진입점에서 한 번만 로드 (2026-08-31 결정, decision-log 참고)
+  const [fontsLoaded] = useFonts({
+    'Pretendard-Regular': require('./assets/fonts/Pretendard-Regular.ttf'),
+    'Pretendard-Medium': require('./assets/fonts/Pretendard-Medium.ttf'),
+    'Pretendard-SemiBold': require('./assets/fonts/Pretendard-SemiBold.ttf'),
+    'Pretendard-Bold': require('./assets/fonts/Pretendard-Bold.ttf'),
+    'SquadaOne-Regular': require('./assets/fonts/SquadaOne-Regular.ttf'),
+  });
 
   useEffect(() => {
     restoreSession();
+
+    // 액세스 토큰 갱신까지 실패하면(리프레시 토큰 만료/무효) apiClient가 이걸 호출 —
+    // 화면 어디에 있든 자동으로 로그인 화면으로 돌려보냄 (api/client.ts 참고)
+    registerSessionExpiredListener(() => setProfile(null));
+    return () => registerSessionExpiredListener(null);
   }, []);
 
   async function restoreSession() {
@@ -30,24 +48,48 @@ export default function App() {
     }
   }
 
-  if (checkingSession) {
+  if (checkingSession || !fontsLoaded) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator />
-        <StatusBar style="auto" />
-      </View>
+      <SafeAreaProvider>
+        <View style={styles.center}>
+          <ActivityIndicator />
+          <StatusBar style="auto" />
+        </View>
+      </SafeAreaProvider>
     );
   }
 
   return (
-    <View style={styles.container}>
-      {profile ? (
-        <HomeScreen profile={profile} onLogout={() => setProfile(null)} />
-      ) : (
-        <LoginScreen onLoginSuccess={setProfile} />
-      )}
-      <StatusBar style="auto" />
-    </View>
+    <SafeAreaProvider>
+      <View style={styles.container}>
+        {profile ? (
+          profile.has_onboarded ? (
+            <HomeScreen
+              profile={profile}
+              onLogout={() => setProfile(null)}
+              onRequireLogin={() => setProfile(null)}
+              // 마이페이지 "취향 재검사" — has_onboarded를 false로 내리면 아래 분기가 OnboardingScreen을 다시 태움
+              onRetakeOnboarding={() => setProfile({ ...profile, has_onboarded: false })}
+            />
+          ) : (
+            <OnboardingScreen onComplete={() => setProfile({ ...profile, has_onboarded: true })} />
+          )
+        ) : isGuest ? (
+          // 게스트는 토큰 자체가 없어서 onLogout(profile을 null로만)이 곧 로그인 화면 복귀와 같음.
+          // ProfileScreen(따라서 취향 재검사)은 게스트가 못 여는 화면이라(HomeScreen이 openOverlay 대신
+          // onRequireLogin으로 돌려보냄) onRetakeOnboarding은 절대 호출 안 되지만 prop은 필수라 no-op으로 채움
+          <HomeScreen
+            profile={null}
+            onLogout={() => setIsGuest(false)}
+            onRequireLogin={() => setIsGuest(false)}
+            onRetakeOnboarding={() => {}}
+          />
+        ) : (
+          <LoginScreen onLoginSuccess={setProfile} onGuestContinue={() => setIsGuest(true)} />
+        )}
+        <StatusBar style="auto" />
+      </View>
+    </SafeAreaProvider>
   );
 }
 
