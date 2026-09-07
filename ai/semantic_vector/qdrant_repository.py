@@ -1,7 +1,8 @@
-"""Qdrant Collection 및 Point 저장."""
+"""Qdrant Collection 및 Point 저장 (이미지 단위 point)."""
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -22,11 +23,25 @@ _EXPECTED_VECTORS = {
 
 @dataclass(frozen=True)
 class SimilarPlaceHit:
-  """Detail Vector Cosine Similarity 검색 결과."""
+  """이미지 단위 Cosine Similarity 검색 결과."""
 
   place_id: str
   score: float
   payload: dict[str, Any]
+  image_id: str | None = None
+  image_url: str | None = None
+
+
+def dedupe_hits_by_place_id(hits: Sequence[SimilarPlaceHit]) -> list[SimilarPlaceHit]:
+  """같은 place_id는 점수 순에서 처음(최고) hit만 남긴다."""
+  seen: set[str] = set()
+  unique: list[SimilarPlaceHit] = []
+  for hit in hits:
+    if hit.place_id in seen:
+      continue
+    seen.add(hit.place_id)
+    unique.append(hit)
+  return unique
 
 
 def _build_client(config: SemanticVectorConfig) -> AsyncQdrantClient:
@@ -92,14 +107,19 @@ async def upsert_semantic_vector(
   *,
   config: SemanticVectorConfig,
 ) -> None:
-  """Semantic vector Point를 Qdrant에 upsert한다."""
+  """이미지 단위 Semantic vector Point를 Qdrant에 upsert한다."""
+  if not input_data.image_id:
+    raise QdrantIndexError("image_id is required for Qdrant image-level upsert")
+  if not input_data.image_url:
+    raise QdrantIndexError("image_url is required for Qdrant image-level upsert")
+
   client = _build_client(config)
   payload = {
     "place_id": input_data.place_id,
     "image_id": input_data.image_id,
     "image_url": input_data.image_url,
-    "analysis_image_count": len(input_data.resolved_analysis_image_urls()),
-    "analysis_image_urls": input_data.resolved_analysis_image_urls(),
+    "analysis_image_count": 1,
+    "analysis_image_urls": [input_data.image_url],
     "name": input_data.name,
     "region": input_data.region,
     "category": input_data.category,
@@ -169,7 +189,11 @@ async def get_detail_vector_by_place_id(
   *,
   config: SemanticVectorConfig,
 ) -> list[float] | None:
-  """place_id에 해당하는 Detail Vector(35차원)를 조회한다."""
+  """place_id에 해당하는 이미지 point 중 하나의 Detail Vector를 조회한다.
+
+  이미지 단위 색인이므로 동일 place_id에 여러 point가 있을 수 있다.
+  scroll limit=1로 임의(첫) 이미지 벡터를 반환한다.
+  """
   client = _build_client(config)
 
   async def _scroll() -> list[float] | None:
@@ -201,6 +225,22 @@ async def get_detail_vector_by_place_id(
   )
 
 
+def _hit_from_point(point: Any) -> SimilarPlaceHit | None:
+  payload = point.payload or {}
+  hit_place_id = str(payload.get("place_id", ""))
+  if not hit_place_id:
+    return None
+  image_id = payload.get("image_id")
+  image_url = payload.get("image_url")
+  return SimilarPlaceHit(
+    place_id=hit_place_id,
+    score=float(point.score or 0.0),
+    payload=payload,
+    image_id=str(image_id) if image_id is not None else None,
+    image_url=str(image_url) if image_url is not None else None,
+  )
+
+
 async def search_similar_places_by_named_vector(
   query_vector: list[float],
   *,
@@ -210,12 +250,18 @@ async def search_similar_places_by_named_vector(
   exclude_place_ids: set[str] | None = None,
   limit: int = 20,
 ) -> list[SimilarPlaceHit]:
-  """Named Vector Cosine Similarity 기준으로 유사 장소를 검색한다."""
+  """Named Vector Cosine Similarity 기준으로 유사 이미지 point를 검색한다.
+
+  이미지 단위이므로 같은 place_id가 여러 번 나올 수 있다.
+  exclude 필터 후에도 충분히 남도록 Qdrant limit을 over-fetch한다.
+  """
   if named_vector not in _EXPECTED_VECTORS:
     raise QdrantIndexError(f"unknown named vector: {named_vector}")
 
   client = _build_client(config)
   excluded = exclude_place_ids or set()
+  # 이미지 중복 + exclude 소모를 고려해 over-fetch
+  qdrant_limit = max(limit * 3, limit + len(excluded) * 2, 20)
 
   async def _search() -> list[SimilarPlaceHit]:
     try:
@@ -230,7 +276,7 @@ async def search_similar_places_by_named_vector(
         query=query_vector,
         using=named_vector,
         query_filter=query_filter,
-        limit=limit,
+        limit=qdrant_limit,
         with_payload=True,
       )
     except (ResponseHandlingException, UnexpectedResponse) as error:
@@ -238,17 +284,12 @@ async def search_similar_places_by_named_vector(
 
     hits: list[SimilarPlaceHit] = []
     for point in results.points:
-      payload = point.payload or {}
-      hit_place_id = str(payload.get("place_id", ""))
-      if not hit_place_id or hit_place_id in excluded:
+      hit = _hit_from_point(point)
+      if hit is None or hit.place_id in excluded:
         continue
-      hits.append(
-        SimilarPlaceHit(
-          place_id=hit_place_id,
-          score=float(point.score or 0.0),
-          payload=payload,
-        )
-      )
+      hits.append(hit)
+      if len(hits) >= limit * 3:
+        break
     return hits
 
   return await retry_async(
@@ -266,7 +307,7 @@ async def search_similar_places_by_detail_vector(
   exclude_place_ids: set[str] | None = None,
   limit: int = 20,
 ) -> list[SimilarPlaceHit]:
-  """Detail Vector Cosine Similarity 기준으로 유사 장소를 검색한다."""
+  """Detail Vector Cosine Similarity 기준으로 유사 이미지 point를 검색한다."""
   return await search_similar_places_by_named_vector(
     detail_vector,
     config=config,
@@ -285,7 +326,7 @@ async def search_similar_places_by_major_vector(
   exclude_place_ids: set[str] | None = None,
   limit: int = 20,
 ) -> list[SimilarPlaceHit]:
-  """Major Vector Cosine Similarity 기준으로 유사 장소를 검색한다."""
+  """Major Vector Cosine Similarity 기준으로 유사 이미지 point를 검색한다."""
   return await search_similar_places_by_named_vector(
     major_vector,
     config=config,

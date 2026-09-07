@@ -18,12 +18,11 @@
 
 1. 장소당 대표 이미지 + 추가 이미지 중 최대 3장을 선택한다.
 2. 각 이미지를 GPT Vision(`gpt-4.1-mini`, 프롬프트 `semantic-image-v4.1`)으로 분석한다.
-3. 이미지별 35개 Detail Score를 태그별 산술평균으로 집계한다.
-4. 집계된 35개 Detail Score로 7개 Major Score를 계산한다.
-5. 35차원 Detail Vector와 7차원 Major Vector를 생성한다.
-6. 두 벡터를 Qdrant named vector로 upsert한다.
-7. 동일 결과를 PostgreSQL `place_semantic_vector`에도 저장한다.
-8. LangSmith로 VLM 호출·집계 구간을 tracing한다 (observability 전용).
+3. **이미지마다** 35개 Detail Score → 7개 Major Score → Detail/Major Vector를 만들고 **Qdrant에 이미지 1 point로 upsert**한다.
+4. 이미지별 Detail Score를 태그별 산술평균으로 집계해 장소 단위 Major/Detail를 만든다.
+5. 장소 집계 결과는 PostgreSQL `place_semantic_vector`에, 이미지 원본 점수는 `place_image_semantic_vector`에 저장한다.
+6. **장소 집계 벡터는 Qdrant에 올리지 않는다.** 추천/대체 검색은 이미지 point만 사용한다 (`place_recommender` 참고).
+7. LangSmith로 VLM 호출·집계 구간을 tracing한다 (observability 전용).
 
 ### 1.3 구현 전제
 
@@ -46,12 +45,13 @@
 - 데이터 조회 로직을 `ai` 폴더에 중복 구현하지 않는다.
 - GPT는 35개 Detail Score만 생성한다.
 - 7개 Major Score는 Python 코드로 계산한다.
-- Qdrant에는 `major`, `detail` 두 named vector를 저장한다.
+- Qdrant에는 **이미지 단위**로 `major`, `detail` 두 named vector를 저장한다 (장소당 최대 3 point).
+- Postgres 장소 집계(`place_semantic_vector`)와 Qdrant 색인 grain이 다르다: PG=장소, Qdrant=이미지.
 - 7개와 35개 점수를 이어 붙인 42차원 벡터는 생성하지 않는다.
 - 35개와 7개 벡터의 순서는 항상 고정한다.
 - GPT 응답의 JSON 키 순서에 의존하지 않는다.
 - Qdrant 저장 실패와 GPT 분석 실패를 구분한다.
-- 동일 장소에 대한 재실행 시 upsert가 가능해야 한다.
+- 동일 `(place_id, image_id)`에 대한 재실행 시 upsert가 가능해야 한다.
 - 프롬프트와 태그 스키마에 버전을 부여한다.
 - **현재 확정 프롬프트는 `semantic-image-v4.1` 단일 버전이다.** 이전 v1~v4 코드는 제거했다.
 
@@ -119,15 +119,14 @@ ai/semantic_vector.analyze_place()
     ├── LangSmith: place analysis span
     ├── 이미지별 GPT Vision 호출 (≤3)
     │     └── LangSmith: image N VLM call
-    ├── Detail Score 태그별 평균 집계
+    ├── 이미지별 Detail/Major Vector 생성
+    │     └── Qdrant Upsert (이미지 1 point씩)
+    ├── Detail Score 태그별 평균 집계 (장소 단위)
     │     └── LangSmith: aggregation
-    ├── 7개 Major Score 계산
-    ├── Detail/Major Vector 생성
-    ├── Qdrant Upsert
-    └── (연결 계층) place_semantic_vector upsert
+    └── (연결 계층) place_semantic_vector + place_image_semantic_vector upsert
     │
     ▼
-SemanticVectorResult
+SemanticVectorResult  (장소 집계, PG용)
 ```
 
 좀 더 구체적인 흐름은 다음과 같다.
@@ -868,20 +867,22 @@ detail.distance == COSINE
 
 ## 7. Qdrant 저장 구조
 
+**이미지 1장 = Point 1개.** 장소 집계 벡터는 Qdrant에 저장하지 않는다.
+
 ### 7.1 Point ID
 
-장소당 하나의 대표 Vector만 저장한다면 `place_id`를 Point ID로 사용할 수 있다.
-
-권장:
-
 ```text
-point_id = place_id
+source = f"{place_id}:{image_id}"
+point_id = uuid5(NAMESPACE, source)
 ```
 
-장소 ID가 Qdrant Point ID 형식과 맞지 않으면 UUID를 안정적으로 생성한다.
+`image_id` 규칙: `{place_id}-img{n}` (대표사진=img1).  
+`build_point_id(place_id, image_id)` — `ai/semantic_vector/point_id.py`.
 
-```python
-uuid5(NAMESPACE_URL, place_id)
+장소 단위 구 컬렉션에서 이미지 단위로 전환할 때는 `--reset-qdrant` 후 재적재가 필요하다.
+
+```bash
+python scripts/backfill_semantic_vectors.py --reset-qdrant --reanalyze-all
 ```
 
 ### 7.2 Named Vector
@@ -895,10 +896,15 @@ uuid5(NAMESPACE_URL, place_id)
 
 ### 7.3 Payload
 
+`image_id`, `image_url`은 필수. `analysis_image_count`는 항상 1.
+
 ```json
 {
   "place_id": "place-1001",
-  "image_id": "image-9001",
+  "image_id": "place-1001-img1",
+  "image_url": "https://example.com/main.jpg",
+  "analysis_image_count": 1,
+  "analysis_image_urls": ["https://example.com/main.jpg"],
   "name": "안동 하회마을",
   "region": "안동",
   "category": "관광지",
@@ -912,37 +918,17 @@ uuid5(NAMESPACE_URL, place_id)
 
 ```json
 {
-  "id": "place-1001",
+  "id": "<uuid5(place-1001:place-1001-img1)>",
   "vectors": {
-    "major": [
-      0.83,
-      0.24,
-      0.56,
-      0.72,
-      0.86,
-      0.92,
-      0.21
-    ],
-    "detail": [
-      0.91, 0.88, 0.72, 0.85, 0.79,
-      0.14, 0.22, 0.41, 0.18, 0.26,
-      0.66, 0.58, 0.73, 0.12, 0.71,
-      0.84, 0.63, 0.89, 0.08, 0.78,
-      0.92, 0.81, 0.74, 0.77, 0.88,
-      0.95, 0.91, 0.87, 0.93, 0.94,
-      0.11, 0.23, 0.09, 0.17, 0.46
-    ]
+    "major": [0.83, 0.24, 0.56, 0.72, 0.86, 0.92, 0.21],
+    "detail": [0.91, 0.88, 0.72, 0.85, 0.79]
   },
   "payload": {
     "place_id": "place-1001",
-    "image_id": "image-9001",
+    "image_id": "place-1001-img1",
     "image_url": "https://example.com/main.jpg",
-    "analysis_image_count": 3,
-    "analysis_image_urls": [
-      "https://example.com/main.jpg",
-      "https://example.com/extra1.jpg",
-      "https://example.com/extra2.jpg"
-    ],
+    "analysis_image_count": 1,
+    "analysis_image_urls": ["https://example.com/main.jpg"],
     "name": "안동 하회마을",
     "region": "안동",
     "category": "관광지",
@@ -955,6 +941,8 @@ uuid5(NAMESPACE_URL, place_id)
   }
 }
 ```
+
+추천 시 같은 `place_id`의 여러 이미지가 hit될 수 있다. place당 best 선택·코스/장소 분리는 `ai/place_recommender`가 담당한다.
 
 ---
 
@@ -982,17 +970,11 @@ LangSmith place analysis span
     ↓
 analysis_image_urls 각 장에 대해 GPT Vision 호출
     ↓
-Detail Score 태그별 산술평균 집계 (aggregation span)
+이미지별 Detail/Major Vector 생성 → Qdrant Upsert (이미지 point)
     ↓
-7개 Major Score 계산
+Detail Score 태그별 산술평균 집계 (aggregation span, PG용)
     ↓
-35차원 Detail Vector / 7차원 Major Vector 생성
-    ↓
-Qdrant Collection 확인
-    ↓
-Qdrant Upsert
-    ↓
-SemanticVectorResult 반환
+SemanticVectorResult 반환 (장소 집계)
 ```
 
 `analyze_place_with_details()`는 이미지별 `VisionAnalysisResponse`와 집계 결과를 함께 반환한다.  
@@ -1001,20 +983,23 @@ SemanticVectorResult 반환
 ### 의사 코드 (개념)
 
 ```python
-async def analyze_place(input_data, *, config=None, ...):
-    responses = []
+async def analyze_place(input_data, *, config=None, persist=True, ...):
+    pairs = []
     for index, url in enumerate(input_data.resolved_analysis_image_urls()):
-        responses.append(
-            await analyze_image_with_vision(..., image_index=index + 1)
-        )
+        per_input = input_data.model_copy(update={
+            "image_url": url,
+            "image_id": f"{input_data.place_id}-img{index + 1}",
+            "analysis_image_urls": [url],
+        })
+        response = await analyze_image_with_vision(per_input, image_index=index + 1)
+        pairs.append((per_input, response))
+        if persist:
+            await upsert_semantic_vector(image_result, per_input)  # 이미지 point
 
-    detail = aggregate_detail_scores([r.detail_scores for r in responses])
-    major = calculate_major_scores(detail)
-    # vector build → optional Qdrant upsert
+    detail = aggregate_detail_scores([r.detail_scores for _, r in pairs])
+    # 장소 집계 → PG only (Qdrant 미적재)
     ...
 ```
-
-> 초기 명세의 “이미지 1장 → Vision 1회” 의사 코드는 다중 이미지 집계로 대체되었다.
 
 ---
 

@@ -10,6 +10,7 @@ from semantic_vector.analyzer import analyze_place, analyze_place_with_details
 from semantic_vector.config import SemanticVectorConfig
 from semantic_vector.exceptions import InvalidVisionResponseError
 from semantic_vector.models import PlaceImageInput, VisionAnalysisResponse
+from semantic_vector.point_id import build_point_id
 from semantic_vector.tests.conftest import make_detail_scores
 
 
@@ -63,8 +64,11 @@ async def test_analyze_place_full_flow(
   vision_mock.assert_awaited_once()
   ensure_mock.assert_awaited_once()
   upsert_mock.assert_awaited_once()
+  upsert_result = upsert_mock.await_args.args[0]
   upsert_input = upsert_mock.await_args.args[1]
   assert upsert_input.image_url == place_input.image_url
+  assert upsert_input.image_id == "image-9001"
+  assert upsert_result.qdrant_point_id == build_point_id("place-1001", "image-9001")
   assert result.place_id == "place-1001"
   assert len(result.detail_vector) == 35
   assert len(result.major_vector) == 7
@@ -74,7 +78,7 @@ async def test_analyze_place_full_flow(
 
 
 @pytest.mark.asyncio
-async def test_analyze_place_aggregates_multiple_images(
+async def test_analyze_place_upserts_one_qdrant_point_per_image(
   config: SemanticVectorConfig,
   vision_response: VisionAnalysisResponse,
 ) -> None:
@@ -100,9 +104,27 @@ async def test_analyze_place_aggregates_multiple_images(
     result = await analyze_place(place_input, config=config)
 
   assert vision_mock.await_count == 3
+  assert upsert_mock.await_count == 3
   assert result.summary.count(" | ") == 2
-  upsert_input = upsert_mock.await_args.args[1]
-  assert upsert_input.image_url == "https://example.com/main.jpg"
+
+  upserted_urls = [call.args[1].image_url for call in upsert_mock.await_args_list]
+  assert upserted_urls == [
+    "https://example.com/main.jpg",
+    "https://example.com/extra-1.jpg",
+    "https://example.com/extra-2.jpg",
+  ]
+  upserted_ids = [call.args[1].image_id for call in upsert_mock.await_args_list]
+  assert upserted_ids == [
+    "place-1001-img1",
+    "place-1001-img2",
+    "place-1001-img3",
+  ]
+  point_ids = [call.args[0].qdrant_point_id for call in upsert_mock.await_args_list]
+  assert point_ids == [
+    build_point_id("place-1001", "place-1001-img1"),
+    build_point_id("place-1001", "place-1001-img2"),
+    build_point_id("place-1001", "place-1001-img3"),
+  ]
 
 
 @pytest.mark.asyncio
