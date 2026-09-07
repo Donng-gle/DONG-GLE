@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PlaceListItem, placeApi } from '../api/place';
 import { CircleCloseIcon, LocationPinIcon, SearchIcon } from '../components/icons';
@@ -13,10 +12,15 @@ interface Props {
 }
 
 // Figma "검색창"(362:3204/362:3724, 검색바) + "검색"(362:3254/362:3728, 콘텐츠) 실측 그대로.
+// HomeScreen이 이 화면을 투명 Modal로 띄워서(2026-09-07 결정, decision-log 참고) 뒷배경엔 현재
+// 보고 있던 화면(지도 등)이 그대로 비치고, 그 위에 이 흰 패널만 상단에 얹힘 — Figma 원본도
+// 화면 전체를 새 화면으로 덮는 게 아니라 기존 화면(예: "메인 페이지-맞춤 코스") 위에 검색
+// 패널만 겹쳐 보이는 구조였음(처음 구현 땐 이 부분을 놓치고 완전히 별개인 흰 화면으로 만들었었음)
+//
 // 두 상태: (1) 검색어 없음 — "인기 검색어" 칩 목록 (2) 검색어 있음 — 장소명 자동완성 목록(핀
 // 아이콘+일치 구간 굵게). 검색을 실행하면(칩/자동완성 선택 또는 키보드에서 검색 입력) 목록이
-// 아니라 그 장소의 관광지 상세 페이지로 바로 이동함(2026-09-07 결정, decision-log 참고 —
-// 처음엔 PlaceListScreen 결과 목록으로 넘겼었는데 사용자가 상세 페이지로 바로 가도록 정정)
+// 아니라 그 장소의 관광지 상세 페이지로 바로 이동함 — 이때는 패널이 아니라 화면 전체를 덮는
+// PlaceDetailScreen으로 전환(2026-09-07 결정, decision-log 참고)
 //
 // "인기 검색어"는 실제 인기도 데이터/API가 없어서(PlaceListScreen이 전에 이미 같은 이유로 자동완성
 // 자체를 뺐던 이력 있음) Figma 시안 텍스트를 그대로 하드코딩 — "병상서원"은 시안 오타로 보여서
@@ -81,79 +85,85 @@ export function SearchScreen({ onExit }: Props) {
     }
   }
 
+  // 장소를 확정하면 작은 패널이 아니라 화면 전체(관광지 상세)로 전환 — Modal 안에서 렌더링
+  // 대상만 바꾸는 방식(2026-09-07 결정, decision-log 참고)
   if (selectedPlaceId != null) {
-    return <PlaceDetailScreen placeId={selectedPlaceId} onExit={() => setSelectedPlaceId(null)} />;
+    return (
+      <View style={styles.fullScreen}>
+        <PlaceDetailScreen placeId={selectedPlaceId} onExit={() => setSelectedPlaceId(null)} />
+      </View>
+    );
   }
 
   return (
-    <View style={styles.container}>
-      <StatusBar style="dark" />
+    <View style={styles.overlayRoot} pointerEvents="box-none">
+      <View style={[styles.panel, { paddingTop: insets.top + 12 }]}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={onExit} hitSlop={8} style={styles.backButton}>
+            <Text style={styles.backIcon}>←</Text>
+          </TouchableOpacity>
 
-      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
-        <TouchableOpacity onPress={onExit} hitSlop={8} style={styles.backButton}>
-          <Text style={styles.backIcon}>←</Text>
-        </TouchableOpacity>
-
-        <View style={styles.searchBar}>
-          <SearchIcon size={20} />
-          <TextInput
-            style={styles.searchInput}
-            value={query}
-            onChangeText={setQuery}
-            placeholder="검색어를 입력하세요"
-            placeholderTextColor={colors.gray500}
-            onSubmitEditing={() => submitQuery(query)}
-            returnKeyType="search"
-            autoFocus
-            editable={!resolving}
-          />
-          {query.length > 0 && (
-            <TouchableOpacity onPress={() => setQuery('')} hitSlop={8}>
-              <CircleCloseIcon size={20} />
-            </TouchableOpacity>
-          )}
+          <View style={styles.searchBar}>
+            <SearchIcon size={20} />
+            <TextInput
+              style={styles.searchInput}
+              value={query}
+              onChangeText={setQuery}
+              placeholder="검색어를 입력하세요"
+              placeholderTextColor={colors.gray500}
+              onSubmitEditing={() => submitQuery(query)}
+              returnKeyType="search"
+              autoFocus
+              editable={!resolving}
+            />
+            {query.length > 0 && (
+              <TouchableOpacity onPress={() => setQuery('')} hitSlop={8}>
+                <CircleCloseIcon size={20} />
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
-      </View>
 
-      {resolving ? (
-        <ActivityIndicator color={colors.black} style={styles.loading} />
-      ) : (
-        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
-          {query.trim().length === 0 ? (
-            <>
-              <Text style={styles.sectionTitle}>인기 검색어</Text>
-              <View style={styles.keywordRows}>
-                {POPULAR_KEYWORDS.map((row, rowIdx) => (
-                  <View key={rowIdx} style={styles.keywordRow}>
-                    {row.map((keyword) => (
-                      <TouchableOpacity
-                        key={keyword}
-                        style={styles.keywordChip}
-                        onPress={() => submitQuery(keyword)}
-                      >
-                        <Text style={styles.keywordChipText}>{keyword}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
+        {resolving ? (
+          <ActivityIndicator color={colors.black} style={styles.loading} />
+        ) : (
+          <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
+            {query.trim().length === 0 ? (
+              <>
+                <Text style={styles.sectionTitle}>인기 검색어</Text>
+                <View style={styles.keywordRows}>
+                  {POPULAR_KEYWORDS.map((row, rowIdx) => (
+                    <View key={rowIdx} style={styles.keywordRow}>
+                      {row.map((keyword) => (
+                        <TouchableOpacity
+                          key={keyword}
+                          style={styles.keywordChip}
+                          onPress={() => submitQuery(keyword)}
+                        >
+                          <Text style={styles.keywordChipText}>{keyword}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  ))}
+                </View>
+              </>
+            ) : (
+              <View style={styles.suggestionList}>
+                {suggestions.map((place) => (
+                  <TouchableOpacity
+                    key={place.id}
+                    style={styles.suggestionRow}
+                    onPress={() => setSelectedPlaceId(place.id)}
+                  >
+                    <LocationPinIcon size={16} />
+                    <HighlightedText text={place.name} query={query.trim()} />
+                  </TouchableOpacity>
                 ))}
               </View>
-            </>
-          ) : (
-            <View style={styles.suggestionList}>
-              {suggestions.map((place) => (
-                <TouchableOpacity
-                  key={place.id}
-                  style={styles.suggestionRow}
-                  onPress={() => setSelectedPlaceId(place.id)}
-                >
-                  <LocationPinIcon size={16} />
-                  <HighlightedText text={place.name} query={query.trim()} />
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
-        </ScrollView>
-      )}
+            )}
+          </ScrollView>
+        )}
+      </View>
     </View>
   );
 }
@@ -175,7 +185,21 @@ function HighlightedText({ text, query }: { text: string; query: string }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.white },
+  // 투명 Modal 전체 화면 영역 — 패널이 차지하는 위쪽 외엔 그대로 투명해서 뒷화면(지도 등)이
+  // 비쳐 보임(2026-09-07 결정, decision-log 참고)
+  overlayRoot: { flex: 1, backgroundColor: 'transparent' },
+  // 장소를 확정했을 때만 씀 — 이때는 패널이 아니라 화면 전체를 덮는 관광지 상세
+  fullScreen: { flex: 1, backgroundColor: colors.white },
+  // 위쪽에만 걸리는 흰 패널(높이는 내용에 따라 자동) — Figma엔 그림자 값이 없었지만 바로 아래
+  // 지도가 비치는 경계가 밋밋해 보여서 옅은 그림자만 추가(2026-09-07 결정, decision-log 참고)
+  panel: {
+    backgroundColor: colors.white,
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
+  },
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 12, gap: 12 },
   backButton: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
   backIcon: { fontSize: 18, color: colors.black },
