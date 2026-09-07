@@ -1,138 +1,440 @@
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
-import { PlaceCategory, PlaceListItem, PlaceMapPin, placeApi } from '../../api/place';
-import { PlaceListItemRow } from '../../components/PlaceListItemRow';
+import { useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Animated,
+  Dimensions,
+  FlatList,
+  Image,
+  PanResponder,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { PlaceCategory, PlaceListItem, placeApi } from '../../api/place';
+import { AndongGlobe } from '../../components/AndongGlobe';
+import { LocationPinIcon } from '../../components/icons';
 import { colors } from '../../theme/colors';
 import { fonts } from '../../theme/fonts';
 import { PlaceDetailScreen } from '../PlaceDetailScreen';
 
-const ANDONG_REGION = { latitude: 36.5684, longitude: 128.7294, latitudeDelta: 0.14, longitudeDelta: 0.14 };
-// placeApi.map()의 bounds 포맷("swLat,swLng,neLat,neLng") — 지도 이동에 따른 재조회는 아직 연동 전이라
-// 안동시 전역을 덮는 고정 뷰포트로 요청함 (2026-08-31 결정, decision-log 참고)
-const ANDONG_BOUNDS = '36.44,128.62,36.70,128.84';
-const CATEGORIES: PlaceCategory[] = ['관광지', '식당', '카페', '액티비티', '문화공간', '축제행사'];
+const GLOBE_SIZE = Dimensions.get('window').width;
 const PAGE_SIZE = 20;
 
-// Figma 노드 334:3255("메인 페이지-안동 거리") — 지도+카테고리 칩+장소 리스트.
-// 디자인엔 카드별 별점(★4.0)이 있지만 visit_log 스키마에 별점 컬럼이 없어서(decision-log 확인 필요
-// 항목) 생략함 — 없는 데이터를 지어내지 않기 위한 선택
+// 바텀시트 상수 — JournalTab.tsx("나의 일지" 탭)와 완전히 동일한 값 그대로 재사용. 사용자가
+// "나의 일지 정도 위치에 생긴다"고 명시적으로 그 탭 시트 위치를 기준으로 요청했고, PanResponder+
+// Animated 기반 접힘/펼침 메커니즘 자체도 거기서 이미 실기기로 검증된 걸 그대로 가져옴
+// (2026-09-07, decision-log 참고)
+const PEEK_HEIGHT = 76;
+const NAV_CLEARANCE = 72;
+const SNAP_THRESHOLD_RATIO = 0.35;
+
+// 선택된 카테고리 아이콘은 커지고 나머지는 작아짐 — 위치 기준점은 아이콘 "아래쪽 중앙"(점 마커가
+// 찍힌 자리)으로 고정해서, 커지고 작아져도 지도 위 실제 위치가 위아래로 밀리지 않게 함
+const SELECTED_SCALE = 1.35;
+const UNSELECTED_SCALE = 0.7;
+// 나머지 아이콘 흐리게(사용자 요청, 2026-09-07 추가)
+const UNSELECTED_OPACITY = 0.35;
+
+// Figma 노드 334:3255("메인 페이지-안동 거리") 실측 — 구글맵+칩+리스트였던 걸 전면 교체.
+// 실제론 인터랙티브 지도가 아니라 안동시 일러스트(360x360) 위에 카테고리별 3D 아이콘 6개를 정해진
+// 위치에 얹어둔 디자인이라, 나의 일지 탭에서 쓰던 AndongGlobe(사용자 명시 요청 — "기존 메인
+// 화면에 있던 지도")를 그대로 재사용하고 그 위에 이 6개 아이콘을 오버레이함.
+//
+// 아이콘 6개는 Figma에 실제 이미지로 박혀있는 걸(라벨+점 마커까지 이미지 안에 다 포함) 사용자가
+// PNG로 내보내서 줌 — assets/images/street-categories/*.png (3x, 150x225).
+//
+// AndongGlobe는 원래 드래그로 회전 가능한데(나의 일지 탭), 그 상태로 아이콘을 얹으면 회전할수록
+// 아이콘 위치와 실제 지도 텍스처가 어긋나므로 이 화면에서만 interactive=false로 회전을 꺼서
+// 아이콘이 항상 제자리에 고정되게 함(AndongGlobe.tsx에 prop 추가)
+//
+// 2026-09-07 추가: 처음엔 카테고리 아이콘을 누르면 바로 PlaceListScreen으로 이동했는데, 사용자가
+// "선택한 카테고리 아이콘만 커지고 나머지는 작아지며, 하단에 나의 일지 정도 위치의 팝업(바텀시트)이
+// 뜨고, 그걸 끝까지 올리면 화면 전체를 채우는 목록이 된다"고 정정 — JournalTab의 바텀시트 메커니즘을
+// 그대로 가져와서 재구현. Figma 재연결이 끊긴 상태라 카드 레이아웃(사진+카테고리 배지+하트,
+// 이름+주소)은 세션 앞부분에 이미 실측해둔 334:3255 "장소 카드" 노드 값을 그대로 씀 — 다만 그
+// 카드엔 별점(★4.0)이 있는데 목록 API(PlaceListItem)엔 rating 필드 자체가 없어서(PlaceDetail에만
+// 있음, decision-log 참고) 계속 생략함. 펼친 상태 화면도 이 Figma 프레임을 그대로 참고
+const CATEGORY_MARKERS: {
+  category: PlaceCategory;
+  icon: number;
+  // Figma 실측(334:3255 하위 6개 Frame) — 360x360 지도 기준 좌상단 좌표+크기, 비율로 환산해서
+  // GLOBE_SIZE(기기 폭)에 맞춰 스케일
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}[] = [
+  {
+    category: '관광지',
+    icon: require('../../../assets/images/street-categories/tourist-spot.png'),
+    left: 161 / 360,
+    top: 35 / 360,
+    width: 50 / 360,
+    height: 75 / 360,
+  },
+  {
+    category: '카페',
+    icon: require('../../../assets/images/street-categories/cafe.png'),
+    left: 247 / 360,
+    top: 88 / 360,
+    width: 50 / 360,
+    height: 75 / 360,
+  },
+  {
+    category: '액티비티',
+    icon: require('../../../assets/images/street-categories/activity.png'),
+    left: 170 / 360,
+    top: 138 / 360,
+    width: 50 / 360,
+    height: 75 / 360,
+  },
+  {
+    category: '축제행사',
+    icon: require('../../../assets/images/street-categories/festival.png'),
+    left: 67 / 360,
+    top: 96 / 360,
+    width: 50 / 360,
+    height: 75 / 360,
+  },
+  {
+    category: '문화공간',
+    icon: require('../../../assets/images/street-categories/culture.png'),
+    left: 92 / 360,
+    top: 188 / 360,
+    width: 50 / 360,
+    height: 75 / 360,
+  },
+  {
+    category: '식당',
+    icon: require('../../../assets/images/street-categories/restaurant.png'),
+    left: 238 / 360,
+    top: 226 / 360,
+    width: 50 / 360,
+    height: 75 / 360,
+  },
+];
+
 export function StreetTab() {
-  const [category, setCategory] = useState<PlaceCategory | null>(null);
-  const [pins, setPins] = useState<PlaceMapPin[] | null>(null);
+  const insets = useSafeAreaInsets();
+  const [selectedCategory, setSelectedCategory] = useState<PlaceCategory | null>(null);
   const [places, setPlaces] = useState<PlaceListItem[] | null>(null);
   const [page, setPage] = useState(1);
   const [hasNext, setHasNext] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
-  // 카드를 눌러도 상세로 안 넘어가던 문제 수정(2026-09-05) — PlaceListScreen이 이미 쓰던
-  // PlaceListItemRow+PlaceDetailScreen 조합을 그대로 재사용
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [selectedPlaceId, setSelectedPlaceId] = useState<number | null>(null);
+  const [containerHeight, setContainerHeight] = useState<number | null>(null);
+  const [expanded, setExpanded] = useState(false);
 
-  useEffect(() => {
-    setPins(null);
-    loadPlaces(1);
-    placeApi
-      .map(ANDONG_BOUNDS, category ? { category } : {})
-      .then((res) => setPins(res.pins))
-      .catch(() => setPins([]));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [category]);
+  // JournalTab과 동일한 드래그 시트 메커니즘 — 주석은 거기 참고
+  const translateY = useRef(new Animated.Value(0)).current;
+  const translateYRef = useRef(0);
+  const dragBaseValue = useRef(0);
+  const maxTranslate = useRef(0);
+  const listRef = useRef<FlatList<PlaceListItem>>(null);
 
-  // 관광지만 107건이라 기본 페이지(20건)로는 카테고리 하나도 다 못 보여줌 — 스크롤 끝에서
-  // 다음 페이지를 이어붙이는 방식으로 전체를 다 볼 수 있게 함 (2026-09-04 수정, decision-log 참고).
-  // 지도 핀(placeApi.map)은 원래부터 페이지네이션 없이 뷰포트 안 전체를 한 번에 받아오므로 그대로 둠
-  function loadPlaces(pageToLoad: number) {
+  function handleContainerLayout(height: number) {
+    if (containerHeight != null) return;
+    setContainerHeight(height);
+    const panelHeight = Math.max(0, height - insets.bottom);
+    maxTranslate.current = Math.max(0, panelHeight - PEEK_HEIGHT - NAV_CLEARANCE);
+    translateY.setValue(maxTranslate.current);
+    translateYRef.current = maxTranslate.current;
+  }
+
+  function loadPlaces(category: PlaceCategory, pageToLoad: number) {
     if (pageToLoad === 1) {
       setPlaces(null);
     } else {
       setLoadingMore(true);
     }
-    const params = category ? { category } : {};
     placeApi
-      .list({ ...params, page: pageToLoad, size: PAGE_SIZE })
+      .list({ category, page: pageToLoad, size: PAGE_SIZE })
       .then((res) => {
         setPlaces((prev) => (pageToLoad === 1 ? res.places : [...(prev ?? []), ...res.places]));
         setPage(pageToLoad);
         setHasNext(res.meta.has_next);
       })
-      .catch(() => {
+      .catch((e) => {
+        Alert.alert('장소를 불러오지 못했어요', e instanceof Error ? e.message : '알 수 없는 오류');
         if (pageToLoad === 1) setPlaces([]);
       })
       .finally(() => setLoadingMore(false));
   }
 
   function loadMorePlaces() {
-    if (!loadingMore && hasNext) loadPlaces(page + 1);
+    if (selectedCategory && !loadingMore && hasNext) loadPlaces(selectedCategory, page + 1);
   }
 
-  if (selectedId != null) {
-    return <PlaceDetailScreen placeId={selectedId} onExit={() => setSelectedId(null)} />;
+  // 마커를 누르면: 같은 카테고리를 다시 누르면 닫고(토글), 다른 카테고리면 그걸로 바꿔서 목록을
+  // 새로 불러오고 시트를 접힘(peek) 상태로 되돌림
+  function selectCategory(category: PlaceCategory) {
+    if (selectedCategory === category) {
+      setSelectedCategory(null);
+      setExpanded(false);
+      return;
+    }
+    setSelectedCategory(category);
+    setExpanded(false);
+    if (maxTranslate.current > 0) {
+      translateY.setValue(maxTranslate.current);
+      translateYRef.current = maxTranslate.current;
+    }
+    loadPlaces(category, 1);
   }
+
+  function snapTo(next: boolean) {
+    setExpanded(next);
+    if (!next) listRef.current?.scrollToOffset({ offset: 0, animated: false });
+    const target = next ? 0 : maxTranslate.current;
+    translateYRef.current = target;
+    Animated.spring(translateY, { toValue: target, useNativeDriver: true, bounciness: 4 }).start();
+  }
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gesture) => Math.abs(gesture.dy) > 2,
+      onPanResponderGrant: () => {
+        dragBaseValue.current = translateYRef.current;
+      },
+      onPanResponderMove: (_, gesture) => {
+        const next = clamp(dragBaseValue.current + gesture.dy, 0, maxTranslate.current);
+        translateY.setValue(next);
+        translateYRef.current = next;
+      },
+      onPanResponderRelease: (_, gesture) => {
+        const current = clamp(dragBaseValue.current + gesture.dy, 0, maxTranslate.current);
+        snapTo(current < maxTranslate.current * SNAP_THRESHOLD_RATIO);
+      },
+    }),
+  ).current;
+
+  async function toggleLike(place: PlaceListItem) {
+    if (place.is_liked === null) {
+      Alert.alert('로그인이 필요해요', '찜하려면 먼저 로그인해주세요.');
+      return;
+    }
+    try {
+      const result = place.is_liked ? await placeApi.unlike(place.id) : await placeApi.like(place.id);
+      setPlaces((prev) => (prev ?? []).map((p) => (p.id === place.id ? { ...p, is_liked: result.is_liked } : p)));
+    } catch (e) {
+      Alert.alert('찜 처리에 실패했어요', e instanceof Error ? e.message : '알 수 없는 오류');
+    }
+  }
+
+  if (selectedPlaceId != null) {
+    return <PlaceDetailScreen placeId={selectedPlaceId} onExit={() => setSelectedPlaceId(null)} />;
+  }
+
+  const panelHeight = containerHeight != null ? Math.max(0, containerHeight - insets.bottom) : 0;
 
   return (
-    <View style={styles.container}>
-      <View style={styles.mapWrap}>
-        <MapView provider={PROVIDER_GOOGLE} style={styles.map} initialRegion={ANDONG_REGION}>
-          {(pins ?? [])
-            .filter((p) => p.lat != null && p.lng != null)
-            .map((p) => (
-              <Marker
-                key={p.id}
-                coordinate={{ latitude: p.lat as number, longitude: p.lng as number }}
-                title={p.name}
-                description={p.category}
-                onPress={() => setSelectedId(p.id)}
-              />
-            ))}
-        </MapView>
-        {pins === null && (
-          <View style={[StyleSheet.absoluteFill, styles.mapLoading]}>
-            <ActivityIndicator color={colors.black} />
-          </View>
-        )}
+    <View style={styles.container} onLayout={(e) => handleContainerLayout(e.nativeEvent.layout.height)}>
+      <View style={styles.globeWrap}>
+        <AndongGlobe size={GLOBE_SIZE} interactive={false} />
+        <View style={[styles.markerLayer, { width: GLOBE_SIZE, height: GLOBE_SIZE }]} pointerEvents="box-none">
+          {CATEGORY_MARKERS.map((m) => {
+            const isSelected = selectedCategory === m.category;
+            const scale = selectedCategory == null ? 1 : isSelected ? SELECTED_SCALE : UNSELECTED_SCALE;
+            // 선택된 게 있으면 나머지는 흐리게(사용자 요청, 2026-09-07 추가) — 선택 없을 땐 전부 선명
+            const opacity = selectedCategory == null || isSelected ? 1 : UNSELECTED_OPACITY;
+            const baseW = m.width * GLOBE_SIZE;
+            const baseH = m.height * GLOBE_SIZE;
+            const w = baseW * scale;
+            const h = baseH * scale;
+            // 기준점(아이콘 아래쪽 중앙, 점 마커 위치)을 고정하고 거기서부터 커지거나 작아지게
+            const anchorX = m.left * GLOBE_SIZE + baseW / 2;
+            const anchorY = m.top * GLOBE_SIZE + baseH;
+            return (
+              <TouchableOpacity
+                key={m.category}
+                style={[styles.marker, { left: anchorX - w / 2, top: anchorY - h, width: w, height: h, opacity }]}
+                onPress={() => selectCategory(m.category)}
+              >
+                <Image source={m.icon} style={styles.markerImage} resizeMode="contain" />
+              </TouchableOpacity>
+            );
+          })}
+        </View>
       </View>
 
-      <View style={styles.chipRow}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRowContent}>
-          <TouchableOpacity style={[styles.chip, category === null && styles.chipActive]} onPress={() => setCategory(null)}>
-            <Text style={[styles.chipText, category === null && styles.chipTextActive]}>전체</Text>
-          </TouchableOpacity>
-          {CATEGORIES.map((c) => (
-            <TouchableOpacity key={c} style={[styles.chip, category === c && styles.chipActive]} onPress={() => setCategory(c)}>
-              <Text style={[styles.chipText, category === c && styles.chipTextActive]}>{c}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
-
-      <FlatList
-        style={styles.list}
-        data={places ?? []}
-        keyExtractor={(item) => String(item.id)}
-        contentContainerStyle={styles.listContent}
-        ListEmptyComponent={places !== null ? <Text style={styles.emptyText}>해당 카테고리에 장소가 없어요</Text> : null}
-        onEndReached={loadMorePlaces}
-        onEndReachedThreshold={0.5}
-        ListFooterComponent={loadingMore ? <ActivityIndicator color={colors.black} style={styles.footerLoading} /> : null}
-        renderItem={({ item }) => <PlaceListItemRow place={item} onPress={() => setSelectedId(item.id)} />}
-      />
+      {selectedCategory != null && containerHeight != null && (
+        // pointerEvents="box-none" — 이 View 자체(와 시트가 접혀서 안 보이는 빈 위쪽 여백)는 터치를
+        // 안 먹고 실제 자식(핸들/리스트)만 터치되게 함. 이게 없으면 시트가 peek 상태로 접혀 있어도
+        // 화면 전체 높이만큼 잡고 있는 빈 영역이 지도 위 다른 카테고리 아이콘 탭을 가로채서 카테고리를
+        // 못 바꾸는 버그가 있었음(2026-09-07 사용자 리포트로 발견/수정)
+        <View style={[styles.sheetClip, { height: panelHeight }]} pointerEvents="box-none">
+          <Animated.View
+            style={[styles.sheet, { height: panelHeight, transform: [{ translateY }] }]}
+            pointerEvents="box-none"
+          >
+            <View style={styles.handleArea} {...panResponder.panHandlers}>
+              <View style={styles.handleBar} />
+              <Text style={styles.sheetTitle}>{selectedCategory} 관련 명소</Text>
+            </View>
+            <FlatList
+              ref={listRef}
+              data={places ?? []}
+              keyExtractor={(item) => String(item.id)}
+              scrollEnabled={expanded}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.listContent}
+              onEndReached={loadMorePlaces}
+              onEndReachedThreshold={0.5}
+              ListEmptyComponent={
+                places != null ? <Text style={styles.emptyText}>해당 카테고리에 장소가 없어요</Text> : null
+              }
+              ListFooterComponent={loadingMore ? <ActivityIndicator color={colors.black} style={styles.footerLoading} /> : null}
+              renderItem={({ item }) => (
+                <PlaceCategoryCard place={item} onPress={() => setSelectedPlaceId(item.id)} onToggleLike={() => toggleLike(item)} />
+              )}
+            />
+          </Animated.View>
+        </View>
+      )}
     </View>
   );
 }
 
+// Figma 실측(334:3255 "장소 카드", 324x316): 사진(324x256)+좌상단 카테고리 배지+우상단 하트,
+// 그 아래 이름+주소. 원본엔 이름 옆에 별점(★4.0)도 있는데 PlaceListItem엔 rating 필드가 없어서
+// (PlaceDetail에만 있음) 생략 — 없는 데이터를 지어내지 않기 위한 선택(다른 화면들과 동일 원칙)
+function PlaceCategoryCard({
+  place,
+  onPress,
+  onToggleLike,
+}: {
+  place: PlaceListItem;
+  onPress: () => void;
+  onToggleLike: () => void;
+}) {
+  return (
+    <TouchableOpacity style={styles.card} onPress={onPress}>
+      <View style={styles.cardImageWrap}>
+        {place.main_image_url ? (
+          <Image source={{ uri: place.main_image_url }} style={styles.cardImage} resizeMode="cover" />
+        ) : (
+          <View style={[styles.cardImage, styles.cardImagePlaceholder]} />
+        )}
+        <View style={styles.categoryBadge}>
+          <Text style={styles.categoryBadgeText}>{place.category}</Text>
+        </View>
+        <TouchableOpacity style={styles.likeButton} onPress={onToggleLike} hitSlop={8}>
+          {/* 찜 안 했을 때는 검정 테두리만, 찜했을 때만 빨갛게 채워짐 — 이전엔 두 상태 다 빨간색으로
+              고정해뒀던 실수 정정(2026-09-07, 스크린샷 대조로 발견) */}
+          <Text style={[styles.likeIcon, place.is_liked && styles.likeIconActive]}>
+            {place.is_liked ? '♥' : '♡'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+      <View style={styles.cardInfo}>
+        <Text style={styles.cardName} numberOfLines={1}>
+          {place.name}
+        </Text>
+        {place.addr1 && (
+          <View style={styles.cardAddrRow}>
+            <LocationPinIcon size={12} />
+            <Text style={styles.cardAddr} numberOfLines={1}>
+              {place.addr1}
+            </Text>
+          </View>
+        )}
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
+}
+
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  mapWrap: { height: 220 },
-  map: { flex: 1 },
-  mapLoading: { alignItems: 'center', justifyContent: 'center' },
+  container: { flex: 1, backgroundColor: colors.white },
+  globeWrap: { alignItems: 'center' },
+  markerLayer: { position: 'absolute', top: 0 },
+  marker: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
+  markerImage: { width: '100%', height: '100%' },
+  // 아래 시트 스타일은 JournalTab.tsx와 동일한 값(위치/그림자/배경) — 주석은 거기 참고
+  sheetClip: { position: 'absolute', top: 0, left: 0, right: 0, overflow: 'hidden' },
+  sheet: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    backgroundColor: colors.backgroundMuted,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: -4 },
+    elevation: 6,
+  },
+  handleArea: { alignItems: 'center', paddingTop: 10, paddingBottom: 16 },
+  handleBar: { width: 36, height: 4, borderRadius: 2, backgroundColor: colors.border, marginBottom: 12 },
+  sheetTitle: {
+    width: '100%',
+    fontFamily: fonts.semiBold,
+    fontSize: 20,
+    letterSpacing: -0.5,
+    lineHeight: 28,
+    color: colors.black,
+    // Figma 실측(334:3255 "관광지 관련 명소" 텍스트, 프레임 기준 좌측 인셋 24) — 카드 리스트
+    // 패딩(18)이랑 값이 달라서 각자 따로 씀(2026-09-07 재실측 정정)
+    paddingHorizontal: 24,
+  },
+  // Figma 실측(334:3255 "장소 리스트" 프레임, 좌측 인셋 18) — 20으로 잘못 썼던 걸 정정(2026-09-07)
+  listContent: { paddingHorizontal: 18, paddingBottom: 100 },
+  emptyText: { textAlign: 'center', color: colors.gray400, fontFamily: fonts.regular, fontSize: 13, marginTop: 40 },
   footerLoading: { marginVertical: 16 },
-  chipRow: { paddingVertical: 12 },
-  chipRowContent: { paddingHorizontal: 20, gap: 8 },
-  chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: colors.border },
-  chipActive: { backgroundColor: colors.black, borderColor: colors.black },
-  chipText: { fontFamily: fonts.medium, fontSize: 13, letterSpacing: -0.3, color: colors.gray700 },
-  chipTextActive: { color: colors.white },
-  list: { flex: 1 },
-  listContent: { paddingHorizontal: 20, paddingBottom: 12 },
-  emptyText: { fontFamily: fonts.regular, fontSize: 14, color: colors.gray500, textAlign: 'center', marginTop: 40 },
+  card: {
+    backgroundColor: colors.white,
+    borderRadius: 16,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
+  },
+  cardImageWrap: {
+    width: '100%',
+    aspectRatio: 324 / 256,
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: colors.border,
+  },
+  cardImage: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 },
+  cardImagePlaceholder: { backgroundColor: colors.border },
+  categoryBadge: {
+    position: 'absolute',
+    left: 12,
+    top: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: 'rgba(17,17,17,0.6)',
+  },
+  categoryBadgeText: { fontFamily: fonts.medium, fontSize: 12, color: colors.white },
+  likeButton: {
+    position: 'absolute',
+    right: 12,
+    top: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.85)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  likeIcon: { fontSize: 18, color: colors.black },
+  likeIconActive: { color: '#ff4d4d' },
+  cardInfo: { paddingTop: 12, paddingHorizontal: 4 },
+  cardName: { fontFamily: fonts.semiBold, fontSize: 16, letterSpacing: -0.4, color: colors.black },
+  // Figma 실측(334:3255 이름행→주소행 간격 12) — 4로 잘못 썼던 걸 정정(2026-09-07)
+  cardAddrRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 12 },
+  cardAddr: { fontFamily: fonts.regular, fontSize: 12, color: colors.gray500, flexShrink: 1 },
 });

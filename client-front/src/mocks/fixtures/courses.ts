@@ -109,6 +109,56 @@ export const MOCK_COURSE_DETAILS: Record<number, CourseDetail> = {
   },
 };
 
+// "취향 맞춤 코스" 탭 — 다른 사용자의 공개 코스 목업(2026-09-07 결정, decision-log 참고).
+// authorId는 mocks/fixtures/users.ts의 MOCK_USERS 참고. exploreApi.similarCourses/getCourseDetail이
+// 이 배열을 씀(handlers.ts 참고) — MOCK_COURSE_LIST/DETAILS(내 코스)와는 별개 배열
+export interface MockOtherCourse {
+  id: number;
+  authorId: number;
+  title: string;
+  travelDate: string | null;
+  endDate: string | null;
+  places: CoursePlaceItem[];
+}
+
+export const MOCK_OTHER_COURSES: MockOtherCourse[] = [
+  {
+    id: 6001,
+    authorId: 101,
+    title: '하회마을+월영교 반나절 코스',
+    travelDate: '2026-08-18',
+    endDate: null,
+    places: [
+      toCoursePlaceItem(1, 1, '10:00', null, null),
+      toCoursePlaceItem(5, 2, '18:00', 6.8, 14),
+    ],
+  },
+  {
+    id: 6002,
+    authorId: 102,
+    title: '전통시장 먹거리 코스',
+    travelDate: '2026-08-25',
+    endDate: null,
+    places: [
+      toCoursePlaceItem(6, 1, '11:30', null, null),
+      toCoursePlaceItem(9, 2, '13:00', 2.1, 6),
+      toCoursePlaceItem(2, 3, '15:30', 5.4, 11),
+    ],
+  },
+  {
+    id: 6003,
+    authorId: 103,
+    title: '안동 2박3일 나들이',
+    travelDate: '2026-07-05',
+    endDate: '2026-07-07',
+    places: [
+      toCoursePlaceItem(4, 1, '10:00', null, null, '2026-07-05'),
+      toCoursePlaceItem(11, 2, '19:00', null, null, '2026-07-06'),
+      toCoursePlaceItem(2, 3, '10:30', null, null, '2026-07-07'),
+    ],
+  },
+];
+
 // courseApi.generate 결과 — 스와이프로 고른 걸 반영하는 대신 항상 같은 후보 하나 반환(실제
 // course_optimizer 지금도 후보 1개만 옴, decision-log 2026-08-30 참고)
 export function buildMockGeneratedCandidate(candidateId: string): {

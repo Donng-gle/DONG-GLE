@@ -20,6 +20,7 @@ import { NotificationSettingsScreen } from './NotificationSettingsScreen';
 import { PlaceListScreen } from './PlaceListScreen';
 import { ProfileScreen } from './ProfileScreen';
 import { ScrapbookScreen } from './ScrapbookScreen';
+import { SearchScreen } from './SearchScreen';
 import { TagsScreen } from './TagsScreen';
 
 interface Props {
@@ -103,6 +104,11 @@ export function HomeScreen({ profile: initialProfile, onLogout, onRequireLogin, 
   // 게스트는 안 볼 수 있는 탭(나의 일지/취향 맞춤 코스)이 아니라 바로 쓸 수 있는 '안동 거리'로 시작
   const [tab, setTab] = useState<Tab>(initialProfile ? 'journal' : 'street');
   const [drawerVisible, setDrawerVisible] = useState(false);
+  // 검색은 다른 오버레이들과 달리 화면 전체를 갈아치우지 않고 현재 화면(지도 등) 위에 얹히는
+  // 투명 Modal로 띄움(2026-09-07 결정, decision-log 참고 — Figma 시안이 뒷배경에 원래 화면이
+  // 비치는 오버레이 형태라 드로어(Modal transparent)와 같은 패턴을 재사용) — 그래서 overlay
+  // 유니온과 별개의 boolean 상태
+  const [searchVisible, setSearchVisible] = useState(false);
   const [overlay, setOverlay] = useState<Overlay | null>(null);
   const [profile, setProfile] = useState(initialProfile);
   const drawerAnim = useRef(new Animated.Value(0)).current;
@@ -217,7 +223,7 @@ export function HomeScreen({ profile: initialProfile, onLogout, onRequireLogin, 
 
       <AppHeader
         onMenuPress={openDrawer}
-        onSearchPress={() => openOverlay('places')}
+        onSearchPress={() => setSearchVisible(true)}
         onProfilePress={() => (profile ? openOverlay('profile') : requireLogin())}
       />
 
@@ -323,6 +329,10 @@ export function HomeScreen({ profile: initialProfile, onLogout, onRequireLogin, 
             )}
           </Animated.View>
         </View>
+      </Modal>
+
+      <Modal visible={searchVisible} transparent animationType="none" onRequestClose={() => setSearchVisible(false)}>
+        <SearchScreen onExit={() => setSearchVisible(false)} />
       </Modal>
     </View>
   );

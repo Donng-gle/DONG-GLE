@@ -18,6 +18,10 @@ import { AndongGlobeView } from '../../modules/andong-globe-view';
 
 interface Props {
   size: number; // 정사각형 한 변 길이(px)
+  // "안동 거리" 탭(2026-09-07 추가)처럼 지도 위에 고정 위치 마커(카테고리 아이콘)를 얹어야 하는
+  // 화면에서는 회전을 막아야 함 — 드래그로 돌리면 지도 텍스처만 돌고 마커는 화면 고정이라 어긋남.
+  // 기본값 true(기존 나의 일지 탭 동작 그대로 유지)
+  interactive?: boolean;
 }
 
 // 드래그 1px당 회전각(도). 0.5로 뒀더니 살짝만 밀어도 옆면까지 확 돌아가버려서 훨씬 둔감하게 낮춤
@@ -29,7 +33,7 @@ const DEGREES_PER_PIXEL = 0.12;
 // 큰 컨테이너에 맞춰 훨씬 크게 시작해서 다시 튜닝
 const CAMERA_DISTANCE_INCHES = 20;
 
-export function AndongGlobe({ size }: Props) {
+export function AndongGlobe({ size, interactive = true }: Props) {
   const [rotationDeg, setRotationDeg] = useState(0);
   const baseAngle = useRef(0);
 
@@ -53,7 +57,7 @@ export function AndongGlobe({ size }: Props) {
 
   return (
     <View style={[styles.container, { width: size, height: size * 1.08 }]}>
-      <View style={[styles.imageWrap, { width: size, height: size }]} {...panResponder.panHandlers}>
+      <View style={[styles.imageWrap, { width: size, height: size }]} {...(interactive ? panResponder.panHandlers : {})}>
         <AndongGlobeView
           style={{ width: size, height: size, overflow: 'hidden' }}
           rotationDeg={rotationDeg}
