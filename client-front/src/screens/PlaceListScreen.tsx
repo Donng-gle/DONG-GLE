@@ -12,6 +12,9 @@ interface Props {
   onExit: () => void;
   // 지정하면 장소를 눌렀을 때 상세화면 대신 이 콜백으로 선택 결과를 돌려줌 (코스 직접 만들기/수정 화면에서 재사용)
   onSelectPlace?: (place: PlaceListItem) => void;
+  // 안동 거리 탭의 지도 위 카테고리 아이콘에서 넘어올 때 처음부터 그 카테고리로 필터링된 채로 열기
+  // 위해 추가(2026-09-07) — 그 외엔 기존처럼 "전체"부터 시작
+  initialCategory?: PlaceCategory;
 }
 
 const CATEGORIES: PlaceCategory[] = ['관광지', '식당', '카페', '액티비티', '문화공간', '축제행사'];
@@ -20,9 +23,9 @@ const PAGE_SIZE = 20;
 // Figma 노드 362:3724("검색창") 색/형태 반영 — 인기 검색어/자동완성은 SearchScreen이 전담하고
 // (2026-09-07 결정, decision-log 참고), 거기서 검색을 실행하면 목록이 아니라 바로 관광지 상세로
 // 이동하도록 바뀌어서 이 화면은 더 이상 그 진입 경로로 쓰이지 않음 — 카테고리 탐색+자체 검색만 담당
-export function PlaceListScreen({ onExit, onSelectPlace }: Props) {
+export function PlaceListScreen({ onExit, onSelectPlace, initialCategory }: Props) {
   const insets = useSafeAreaInsets();
-  const [category, setCategory] = useState<PlaceCategory | null>(null);
+  const [category, setCategory] = useState<PlaceCategory | null>(initialCategory ?? null);
   const [query, setQuery] = useState('');
   const [places, setPlaces] = useState<PlaceListItem[] | null>(null);
   const [page, setPage] = useState(1);
