@@ -258,8 +258,15 @@ export function StreetTab() {
       </View>
 
       {selectedCategory != null && containerHeight != null && (
-        <View style={[styles.sheetClip, { height: panelHeight }]}>
-          <Animated.View style={[styles.sheet, { height: panelHeight, transform: [{ translateY }] }]}>
+        // pointerEvents="box-none" — 이 View 자체(와 시트가 접혀서 안 보이는 빈 위쪽 여백)는 터치를
+        // 안 먹고 실제 자식(핸들/리스트)만 터치되게 함. 이게 없으면 시트가 peek 상태로 접혀 있어도
+        // 화면 전체 높이만큼 잡고 있는 빈 영역이 지도 위 다른 카테고리 아이콘 탭을 가로채서 카테고리를
+        // 못 바꾸는 버그가 있었음(2026-09-07 사용자 리포트로 발견/수정)
+        <View style={[styles.sheetClip, { height: panelHeight }]} pointerEvents="box-none">
+          <Animated.View
+            style={[styles.sheet, { height: panelHeight, transform: [{ translateY }] }]}
+            pointerEvents="box-none"
+          >
             <View style={styles.handleArea} {...panResponder.panHandlers}>
               <View style={styles.handleBar} />
               <Text style={styles.sheetTitle}>{selectedCategory} 관련 명소</Text>
