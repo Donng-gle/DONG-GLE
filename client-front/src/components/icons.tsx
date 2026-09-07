@@ -199,20 +199,3 @@ export function CircleCloseIcon({ size = 20 }: { size?: number }) {
     </View>
   );
 }
-
-// Figma "bookmark"(관광지 상세 서브_GNB, 458:2474/358:5134 실측, 24x24) — 리본 모양 북마크.
-// 찜(찜 상태 place.is_liked)과 같은 동작에 연결돼서 채워진 정도로 상태를 보여줌
-// (2026-09-07 추가, PlaceDetailScreen.tsx 참고)
-export function BookmarkIcon({ size = 24, filled = false, color = colors.black }: { size?: number; filled?: boolean; color?: string }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24">
-      <Path
-        d="M6 3a2 2 0 0 0-2 2v16l8-5 8 5V5a2 2 0 0 0-2-2H6Z"
-        fill={filled ? color : 'none'}
-        stroke={color}
-        strokeWidth={filled ? 0 : 1.5}
-        strokeLinejoin="round"
-      />
-    </Svg>
-  );
-}
