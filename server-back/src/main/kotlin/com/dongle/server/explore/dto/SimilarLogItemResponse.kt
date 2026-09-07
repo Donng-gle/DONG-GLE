@@ -1,12 +1,17 @@
 package com.dongle.server.explore.dto
 
+import com.dongle.server.visitlog.dto.VisitLogPhotoResponse
+
 data class SimilarLogItemResponse(
     val logId: Long,
     val placeId: Long,
     val placeName: String,
     val lat: Double?,
     val lng: Double?,
-    val photoUrl: String?,
+    // 여러 장 사진 확장은 처음엔 범위 밖이었는데(2026-09-06 결정), "취향 맞춤 코스" 카드에서
+    // 사진을 넘기면 그 사진에 달린 글로 바뀌어야 해서(2026-09-07 결정, decision-log 참고)
+    // 대표 사진 1장(photoUrl)에서 전체 목록+캡션(photos)으로 확장
+    val photos: List<VisitLogPhotoResponse>,
     val oneLine: String?,
     val rating: Int?,
     val tags: List<String>,

@@ -45,6 +45,9 @@ class CourseApiIntegrationTest {
     lateinit var placeRepository: PlaceRepository
 
     @Autowired
+    lateinit var courseRepository: CourseRepository
+
+    @Autowired
     lateinit var jwtTokenProvider: JwtTokenProvider
 
     @MockitoBean
@@ -368,6 +371,65 @@ class CourseApiIntegrationTest {
         val token = tokenFor(owner)
 
         mockMvc.perform(get("/courses/999999999").header("Authorization", "Bearer $token"))
+            .andExpect(status().isNotFound)
+    }
+
+    @Test
+    fun `공개 코스는 다른 사용자도 GET explore courses로 조회할 수 있다`() {
+        val owner = user("course_user_public", "kakao-course-public")
+        val stranger = user("course_user_public_viewer", "kakao-course-public-viewer")
+        val ownerToken = tokenFor(owner)
+        val strangerToken = tokenFor(stranger)
+        val placeA = place("CRS_PUBLIC1", "테스트전용공개코스장소")
+
+        val saveResult = mockMvc.perform(
+            post("/courses/manual")
+                .header("Authorization", "Bearer $ownerToken")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"title":"테스트전용공개코스","places":[{"place_id":${placeA.id},"visit_order":1}]}""")
+        ).andReturn()
+        val courseId = JsonPath.read<Int>(saveResult.response.contentAsString, "$.course_id")
+        stubDirectionsRoute()
+
+        // is_public 기본값(true)만으로도(별도 공개 처리 없이) 다른 사용자가 조회 가능해야 함
+        mockMvc.perform(get("/explore/courses/$courseId").header("Authorization", "Bearer $strangerToken"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.title").value("테스트전용공개코스"))
+            .andExpect(jsonPath("$.places[0].name").value("테스트전용공개코스장소"))
+    }
+
+    @Test
+    fun `비공개 코스를 explore courses로 조회하면 403을 반환한다`() {
+        val owner = user("course_user_private", "kakao-course-private")
+        val stranger = user("course_user_private_viewer", "kakao-course-private-viewer")
+        val ownerToken = tokenFor(owner)
+        val strangerToken = tokenFor(stranger)
+        val placeA = place("CRS_PRIVATE1", "테스트전용비공개코스장소")
+
+        val saveResult = mockMvc.perform(
+            post("/courses/manual")
+                .header("Authorization", "Bearer $ownerToken")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"title":"테스트전용비공개코스","places":[{"place_id":${placeA.id},"visit_order":1}]}""")
+        ).andReturn()
+        val courseId = JsonPath.read<Int>(saveResult.response.contentAsString, "$.course_id")
+
+        // API에 is_public을 직접 지정하는 필드가 없어서(항상 기본값 true) 테스트에서만 리포지토리로 직접 뒤집음
+        val course = courseRepository.findById(courseId.toLong()).orElseThrow()
+        course.isPublic = false
+        courseRepository.save(course)
+
+        mockMvc.perform(get("/explore/courses/$courseId").header("Authorization", "Bearer $strangerToken"))
+            .andExpect(status().isForbidden)
+            .andExpect(jsonPath("$.code").value("COURSE_NOT_PUBLIC"))
+    }
+
+    @Test
+    fun `존재하지 않는 코스를 explore courses로 조회하면 404를 반환한다`() {
+        val viewer = user("course_user_public_missing", "kakao-course-public-missing")
+        val token = tokenFor(viewer)
+
+        mockMvc.perform(get("/explore/courses/999999999").header("Authorization", "Bearer $token"))
             .andExpect(status().isNotFound)
     }
 

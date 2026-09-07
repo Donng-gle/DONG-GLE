@@ -186,11 +186,14 @@ CREATE INDEX idx_visit_log_visited ON visit_log (visited_at);
 
 -- 방문 기록 사진 (여러 장). 이전엔 visit_log.photo_url 단일 컬럼이었는데(사진 1장만 가능),
 -- place_image와 동일한 패턴(부모 테이블 + sort_order)으로 확장 (2026-09-06 결정, decision-log 참고)
+-- caption: 사진별 캡션(선택). "취향 맞춤 코스" 카드가 사진을 넘기면 그 사진에 달린 글로 바뀌게
+-- 하기 위해 추가 (2026-09-07 결정, decision-log 참고)
 CREATE TABLE visit_log_photo (
     id           BIGSERIAL PRIMARY KEY,
     visit_log_id BIGINT    NOT NULL REFERENCES visit_log (id) ON DELETE CASCADE,
     photo_url    TEXT      NOT NULL,
-    sort_order   INT       NOT NULL DEFAULT 0 CHECK (sort_order >= 0)
+    sort_order   INT       NOT NULL DEFAULT 0 CHECK (sort_order >= 0),
+    caption      TEXT
 );
 
 CREATE INDEX idx_visit_log_photo_log ON visit_log_photo (visit_log_id);
@@ -221,7 +224,8 @@ CREATE TABLE course (
     end_date    DATE,  -- 여러 날 범위 지원. "직접 코스 만들기"에서만 입력받음(2026-09-06 결정, decision-log 참고)
     transport   VARCHAR(10)  CHECK (transport IN ('car', 'walk', 'public')),  -- 구글맵 경로 재계산용, nullable(과거 데이터/미입력 허용)
     created_at  TIMESTAMP    NOT NULL DEFAULT NOW(),
-    updated_at  TIMESTAMP    NOT NULL DEFAULT NOW()
+    updated_at  TIMESTAMP    NOT NULL DEFAULT NOW(),
+    is_public   BOOLEAN      NOT NULL DEFAULT TRUE  -- 취향 맞춤 코스 탭(GET /explore/similar-courses)에서 공개 코스만 노출 (2026-09-07 결정, decision-log 참고)
 );
 
 CREATE INDEX idx_course_user ON course (user_id);
