@@ -15,8 +15,8 @@ const GLOBE_SIZE = Dimensions.get('window').width;
 // PlaceListScreen(그 카테고리로 초기 필터링)으로 이동해서 목록을 봄(2026-09-07 결정, decision-log 참고).
 //
 // 아이콘 6개는 Figma에 실제 이미지로 박혀있는 걸(라벨+점 마커까지 이미지 안에 다 포함) 사용자가
-// PNG로 내보내서 줌 — assets/images/street-categories/*.png. 원본이 50x75(1x)라 실기기에서 다소
-// 흐릿하게 보일 수 있음, 더 선명하게 하려면 Figma에서 2x/3x로 다시 내보내 받아야 함.
+// PNG로 내보내서 줌 — assets/images/street-categories/*.png. 3x(150x225)로 내보낸 파일로 교체함
+// (처음엔 1x(50x75)로 받아서 흐릿할 수 있었음, 2026-09-07 3x로 재교체)
 //
 // AndongGlobe는 원래 드래그로 회전 가능한데(나의 일지 탭), 그 상태로 아이콘을 얹으면 회전할수록
 // 아이콘 위치와 실제 지도 텍스처가 어긋나므로 이 화면에서만 interactive=false로 회전을 꺼서
