@@ -1,5 +1,5 @@
 import { StyleSheet, Text, View } from 'react-native';
-import Svg, { Path } from 'react-native-svg';
+import Svg, { Circle, Line, Path } from 'react-native-svg';
 import { colors } from '../theme/colors';
 
 // HomeScreen.tsx에 있던 걸 AppHeader.tsx(마이페이지 등 다른 화면에서도 같은 헤더 재사용)와
@@ -115,45 +115,21 @@ const cameraIconStyles = StyleSheet.create({
   lens: { width: 5, height: 5, borderRadius: 2.5, borderWidth: 1.2, borderColor: colors.black },
 });
 
-// Figma "돋보기"(225:24476, 검색창 안 20x20 / 메인 GNB 28x28 두 크기로 재사용) 실측 벡터 bbox
-// 그대로 재현(2026-09-07 추가/정밀화) — 원(렌즈) bbox: 10.83x10.83@(3.33,3.33)/20,
-// 손잡이 bbox: 4.17x4.17@(12.5,12.5)/20. 손잡이는 회전된 사각형이라 bbox만으론 실제 폭을
-// 못 구해서(45도 회전 시 bbox변 = (W+H)*cos45) 역산: W = 4.17/cos45 - strokeWidth ≈ 3.9.
-// 다른 아이콘들과 다르게 size를 prop으로 받아야 해서(검색창/헤더 두 곳에서 다른 크기로 씀)
-// StyleSheet 대신 인라인 스타일 사용
+// Figma "돋보기"(354:1610/I354:1610;225:23656 인스턴스, export_node_as_image로 실물 렌더 확인,
+// 2026-09-09 재작업) — 이전엔 View(원 테두리+회전된 막대)로 근사했는데, 회전된 막대를 top/left로
+// 배치한 뒤 transform:rotate를 걸면 RN이 막대 "자기 자신의 중심"을 기준으로 회전시켜서, 의도했던
+// 손잡이 중심(14.585,14.585)이 아니라 그보다 오른쪽 아래로 밀린 지점을 중심으로 회전하는 버그가
+// 있었음 — 그래서 손잡이가 원 테두리에 자연스럽게 안 붙고 살짝 어긋나 보였음(사용자가 "피그마
+// 모양이랑 다르다"고 리포트한 원인). 이번엔 react-native-svg(다른 아이콘들과 동일 라이브러리)의
+// Circle+Line으로 좌표를 직접 계산해서 그려 이 문제 자체를 없앰 — 원(렌즈)/손잡이 치수는 기존에
+// 실측해뒀던 값 그대로 재사용(원 bbox 10.83x10.83@(3.33,3.33)/20, 손잡이 실제 길이 역산값 3.9,
+// 손잡이 중심 14.585/20 — 주석은 그대로 두고 좌표만 SVG용으로 환산)
 export function SearchIcon({ size = 20, color = colors.black }: { size?: number; color?: string }) {
-  const circleSize = size * 0.5415; // 10.83/20
-  const strokeWidth = Math.max(1.4, size * 0.1);
-  const circleOffset = size * 0.1665; // 3.33/20
-  const handleLength = size * 0.195; // 역산한 손잡이 실제 폭(3.9/20)
-  const handlePos = size * 0.632; // 손잡이 bbox 중심(14.585/20) 기준 역산한 회전 전 좌상단
   return (
-    <View style={{ width: size, height: size }}>
-      <View
-        style={{
-          position: 'absolute',
-          top: circleOffset,
-          left: circleOffset,
-          width: circleSize,
-          height: circleSize,
-          borderRadius: circleSize / 2,
-          borderWidth: strokeWidth,
-          borderColor: color,
-        }}
-      />
-      <View
-        style={{
-          position: 'absolute',
-          top: handlePos,
-          left: handlePos,
-          width: handleLength,
-          height: strokeWidth,
-          borderRadius: strokeWidth / 2,
-          backgroundColor: color,
-          transform: [{ rotate: '45deg' }],
-        }}
-      />
-    </View>
+    <Svg width={size} height={size} viewBox="0 0 20 20" fill="none">
+      <Circle cx={8.745} cy={8.745} r={5.415} stroke={color} strokeWidth={2} />
+      <Line x1={13.206} y1={13.206} x2={15.964} y2={15.964} stroke={color} strokeWidth={2} strokeLinecap="round" />
+    </Svg>
   );
 }
 
