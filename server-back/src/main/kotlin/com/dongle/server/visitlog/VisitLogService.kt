@@ -194,6 +194,8 @@ private fun VisitLog.toSummaryResponse() = VisitLogSummaryResponse(
     rating = rating,
     visitedAt = visitedAt,
     tags = emotionTags.map { it.tag },
+    nickname = user.nickname,
+    profileImageUrl = user.profileImageUrl,
 )
 
 private fun VisitLog.toDetailResponse() = VisitLogDetailResponse(
