@@ -399,13 +399,14 @@ const styles = StyleSheet.create({
   footerLoading: { marginVertical: 16 },
   // Figma 실측대로면 카드 자체는 배경/그림자가 없지만(2026-09-08), 사용자가 "취향 맞춤 코스"
   // 리스트처럼 카드별로 구분되게 해달라고 요청(2026-09-09) — RecommendedTab/JournalTab과 동일한
-  // 흰 카드+옅은 그림자 패턴 적용. 사진에 4px 패딩을 줘서 흰 테두리가 살짝 보이게 하고, 안쪽
-  // radius는 바깥 radius(20)에서 패딩(4)만큼 뺀 16으로(JournalTab 카드와 동일한 중첩 규칙)
+  // 흰 카드+옅은 그림자 패턴 적용. 사진 안쪽 여백/카드 사이 간격이 너무 붙어 보인다는 피드백으로
+  // 패딩(4→10)·카드 간격(20→28) 확대(2026-09-09). 안쪽 radius는 바깥 radius(20)에서 패딩(10)만큼
+  // 뺀 10으로(JournalTab 카드와 동일한 중첩 규칙)
   card: {
     backgroundColor: colors.white,
     borderRadius: 20,
-    padding: 4,
-    marginBottom: 20,
+    padding: 10,
+    marginBottom: 28,
     shadowColor: '#000',
     shadowOpacity: 0.06,
     shadowRadius: 10,
@@ -415,7 +416,7 @@ const styles = StyleSheet.create({
   cardImageWrap: {
     width: '100%',
     aspectRatio: 324 / 256,
-    borderRadius: 16,
+    borderRadius: 10,
     overflow: 'hidden',
     backgroundColor: colors.border,
   },
@@ -444,8 +445,8 @@ const styles = StyleSheet.create({
   },
   likeIcon: { fontSize: 18, color: colors.white },
   likeIconActive: { color: '#ff4d4d' },
-  cardInfo: { paddingTop: 12, paddingHorizontal: 8 },
+  cardInfo: { paddingTop: 16, paddingHorizontal: 6, paddingBottom: 8 },
   cardName: { fontFamily: fonts.medium, fontSize: 20, color: colors.black },
-  cardAddrRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
+  cardAddrRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 8 },
   cardAddr: { fontFamily: fonts.regular, fontSize: 14, color: colors.black, flexShrink: 1 },
 });
