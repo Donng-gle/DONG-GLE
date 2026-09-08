@@ -241,21 +241,26 @@ export function PlaceDetailScreen({ placeId, onExit }: Props) {
           <Text style={styles.sectionTitle}>기본정보</Text>
 
           {place.lat != null && place.lng != null && (
-            <MapView
-              provider={PROVIDER_GOOGLE}
-              style={styles.previewMap}
-              scrollEnabled={false}
-              zoomEnabled={false}
-              pointerEvents="none"
-              initialRegion={{
-                latitude: place.lat,
-                longitude: place.lng,
-                latitudeDelta: 0.01,
-                longitudeDelta: 0.01,
-              }}
-            >
-              <Marker coordinate={{ latitude: place.lat, longitude: place.lng }} />
-            </MapView>
+            // MapView 자체에 borderRadius를 줘도 안드로이드 네이티브 지도 뷰는 그걸 무시하고 각진
+            // 사각형 그대로 그림(RN 네이티브 컴포넌트 공통 이슈) — overflow:hidden인 감싸는 View로
+            // 잘라내는 방식으로 우회(2026-09-09, 사용자가 "테두리가 각지다"고 리포트해서 발견)
+            <View style={styles.previewMapWrap}>
+              <MapView
+                provider={PROVIDER_GOOGLE}
+                style={styles.previewMap}
+                scrollEnabled={false}
+                zoomEnabled={false}
+                pointerEvents="none"
+                initialRegion={{
+                  latitude: place.lat,
+                  longitude: place.lng,
+                  latitudeDelta: 0.01,
+                  longitudeDelta: 0.01,
+                }}
+              >
+                <Marker coordinate={{ latitude: place.lat, longitude: place.lng }} />
+              </MapView>
+            </View>
           )}
 
           <View style={styles.infoList}>
@@ -434,8 +439,10 @@ const styles = StyleSheet.create({
   section: { marginTop: 12, backgroundColor: colors.white, paddingHorizontal: 20, paddingTop: 20, paddingBottom: 24 },
   sectionTitle: { fontFamily: fonts.semiBold, fontSize: 20, letterSpacing: -0.5, color: colors.black, marginBottom: 12 },
   // 사용자 요청으로 확대+더 둥글게(183/8 -> 220/16, 파일 상단 코멘트 4번 참고 — Figma엔 이 크기
-  // 변형이 없어서 임의 조정)
-  previewMap: { width: '100%', height: 220, borderRadius: 16, marginBottom: 12 },
+  // 변형이 없어서 임의 조정). overflow:hidden은 감싸는 previewMapWrap 쪽에도 있어야 안드로이드에서
+  // 실제로 잘림(위 JSX 코멘트 참고) — MapView 자체 borderRadius는 iOS 대비용으로 유지
+  previewMap: { width: '100%', height: 220, borderRadius: 16 },
+  previewMapWrap: { borderRadius: 16, overflow: 'hidden', marginBottom: 12 },
   infoList: { gap: 8 },
   infoRow: { flexDirection: 'row' },
   infoLabel: { width: 64, fontFamily: fonts.medium, fontSize: 12, letterSpacing: -0.3, color: colors.black },
@@ -458,14 +465,16 @@ const styles = StyleSheet.create({
   gridCardProfileRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   gridCardAvatar: { width: 16, height: 16, borderRadius: 8 },
   gridCardAvatarPlaceholder: { backgroundColor: colors.border },
-  gridCardNickname: { flex: 1, fontFamily: fonts.medium, fontSize: 12, lineHeight: 14, color: colors.white },
+  // Figma 실측(12/8)이 실기기에서 너무 작다는 사용자 리포트로 닉네임 12->14, 본문 8->11 확대
+  // (2026-09-09) — 카드 자체 높이(216)엔 여유가 있어서 레이아웃 안 깨짐
+  gridCardNickname: { flex: 1, fontFamily: fonts.medium, fontSize: 14, lineHeight: 17, color: colors.white },
   // 사진 없는 카드는 어두운 배경/그라디언트가 없어서 흰 글자가 안 보임 — 검정 계열로 전환(위
   // PhotoReviewCard 코멘트 참고)
   gridCardTextOnLight: { color: colors.black },
   gridCardBody: {
     fontFamily: fonts.regular,
-    fontSize: 8,
-    lineHeight: 9.6,
+    fontSize: 11,
+    lineHeight: 15,
     letterSpacing: -0.2,
     color: '#cccccc',
     marginTop: 4,
