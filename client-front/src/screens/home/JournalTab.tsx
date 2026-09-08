@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Animated,
@@ -18,6 +18,7 @@ import { AndongGlobe } from '../../components/AndongGlobe';
 import { PlusIcon } from '../../components/icons';
 import { colors } from '../../theme/colors';
 import { fonts } from '../../theme/fonts';
+import { JournalCourseLogCreateModal } from '../JournalCourseLogCreateModal';
 import { JournalLogCreateModal } from '../JournalLogCreateModal';
 
 const GLOBE_SIZE = Dimensions.get('window').width;
@@ -40,6 +41,38 @@ const SNAP_THRESHOLD_RATIO = 0.35;
 
 interface Props {
   onOpenLogs: () => void;
+}
+
+// 같은 course_id를 가진 기록들을 하나의 "코스 카드"로 묶어서 보여줌(2026-09-08 결정, decision-log
+// 참고). course_id가 없는 기록은 기존과 동일하게 장소 카드 하나로. 그룹의 위치는 그 코스의 첫
+// 기록이 나온 자리를 그대로 씀(=서버가 준 순서 유지, 별도 재정렬 안 함)
+type JournalEntry =
+  | { kind: 'place'; log: VisitLogMapItem }
+  | { kind: 'course'; courseId: number; courseTitle: string; logs: VisitLogMapItem[] };
+
+function groupLogsIntoEntries(logs: VisitLogMapItem[]): JournalEntry[] {
+  const entries: JournalEntry[] = [];
+  const courseIndexById = new Map<number, number>(); // courseId -> entries 배열 내 인덱스
+
+  for (const log of logs) {
+    if (log.course_id == null) {
+      entries.push({ kind: 'place', log });
+      continue;
+    }
+    const existingIndex = courseIndexById.get(log.course_id);
+    if (existingIndex == null) {
+      courseIndexById.set(log.course_id, entries.length);
+      entries.push({ kind: 'course', courseId: log.course_id, courseTitle: log.course_title ?? '코스 기록', logs: [log] });
+    } else {
+      const entry = entries[existingIndex];
+      if (entry.kind === 'course') entry.logs.push(log);
+    }
+  }
+  return entries;
+}
+
+function entryKey(entry: JournalEntry): string {
+  return entry.kind === 'place' ? `place-${entry.log.id}` : `course-${entry.courseId}`;
 }
 
 // Figma 노드 506:11115("메인 페이지-나의 일지"). 상단 안동 지구본(장식, 드래그로 회전) 위에
@@ -71,8 +104,21 @@ export function JournalTab(_props: Props) {
   const translateYRef = useRef(0);
   const dragBaseValue = useRef(0);
   const maxTranslate = useRef(0);
-  const listRef = useRef<FlatList<VisitLogMapItem>>(null);
+  const listRef = useRef<FlatList<JournalEntry>>(null);
   const [createVisible, setCreateVisible] = useState(false);
+  const [courseCreateVisible, setCourseCreateVisible] = useState(false);
+
+  const entries = useMemo(() => groupLogsIntoEntries(logs ?? []), [logs]);
+
+  // "+"를 누르면 장소 하나만 기록할지, 여러 장소를 코스로 묶어 기록할지 먼저 고르게 함
+  // (2026-09-08 결정, decision-log 참고) — 아직 Figma 시안이 없어서 네이티브 Alert로 임시 구현
+  function handlePressAdd() {
+    Alert.alert('무엇을 기록할까요?', undefined, [
+      { text: '장소 기록', onPress: () => setCreateVisible(true) },
+      { text: '코스 작성', onPress: () => setCourseCreateVisible(true) },
+      { text: '취소', style: 'cancel' },
+    ]);
+  }
 
   function loadLogs() {
     visitLogApi
@@ -157,22 +203,28 @@ export function JournalTab(_props: Props) {
                 {/* "+"는 탭이라 PanResponder(handleArea 전체에 걸려있음)와 겹치는데, RN 터치
                     협상은 가장 안쪽(TouchableOpacity)이 먼저 응답자가 될 기회를 가져서(캡처
                     단계 핸들러를 안 쓰는 한) 드래그와 안 충돌함(2026-09-05 실기기 확인) */}
-                <TouchableOpacity onPress={() => setCreateVisible(true)} hitSlop={8}>
+                <TouchableOpacity onPress={handlePressAdd} hitSlop={8}>
                   <PlusIcon />
                 </TouchableOpacity>
               </View>
             </View>
             <FlatList
               ref={listRef}
-              data={logs ?? []}
-              keyExtractor={(item) => String(item.id)}
+              data={entries}
+              keyExtractor={entryKey}
               scrollEnabled={expanded}
               showsVerticalScrollIndicator={false}
               contentContainerStyle={styles.listContent}
               ListEmptyComponent={
                 logs != null ? <Text style={styles.emptyText}>아직 방문 기록이 없어요.</Text> : null
               }
-              renderItem={({ item }) => <JournalLogCard log={item} />}
+              renderItem={({ item }) =>
+                item.kind === 'place' ? (
+                  <JournalLogCard log={item.log} />
+                ) : (
+                  <JournalCourseCard courseTitle={item.courseTitle} logs={item.logs} />
+                )
+              }
             />
           </Animated.View>
         </View>
@@ -181,6 +233,11 @@ export function JournalTab(_props: Props) {
       <JournalLogCreateModal
         visible={createVisible}
         onClose={() => setCreateVisible(false)}
+        onCreated={loadLogs}
+      />
+      <JournalCourseLogCreateModal
+        visible={courseCreateVisible}
+        onClose={() => setCourseCreateVisible(false)}
         onCreated={loadLogs}
       />
     </View>
@@ -253,6 +310,43 @@ function JournalLogCard({ log }: { log: VisitLogMapItem }) {
             <Text style={styles.cardBadgeText}>{log.weather}</Text>
           </View>
         )}
+      </View>
+    </View>
+  );
+}
+
+// 같은 course_id로 묶인 기록들(장소 2개 이상)을 하나의 카드로 — Figma 시안이 없어서(2026-09-08
+// 결정, decision-log 참고) JournalLogCard와 같은 카드 셸(흰 배경+그림자)만 재사용하고, 사진 영역은
+// 장소마다 작은 썸네일을 가로로 나열하는 방식으로 임시 구현. 나중에 디자인 나오면 교체 예정
+function JournalCourseCard({ courseTitle, logs }: { courseTitle: string; logs: VisitLogMapItem[] }) {
+  return (
+    <View style={styles.card}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.courseThumbRow}>
+        {logs.map((log) => (
+          <View key={log.id} style={styles.courseThumbItem}>
+            {log.photos[0] ? (
+              <Image source={{ uri: log.photos[0].url }} style={styles.courseThumbImage} resizeMode="cover" />
+            ) : (
+              <View style={[styles.courseThumbImage, styles.courseThumbPlaceholder]} />
+            )}
+            <Text style={styles.courseThumbLabel} numberOfLines={1}>
+              {log.place_name}
+            </Text>
+          </View>
+        ))}
+      </ScrollView>
+      <View style={styles.cardTextArea}>
+        <Text style={styles.cardTitle}>{courseTitle}</Text>
+      </View>
+      <View style={styles.cardBadgeBar}>
+        <View style={styles.cardBadgeItem}>
+          <Text style={styles.cardBadgeIcon}>📅</Text>
+          <Text style={styles.cardBadgeText}>{formatVisitDay(logs[0].visited_at)}</Text>
+        </View>
+        <View style={styles.cardBadgeItem}>
+          <Text style={styles.cardBadgeIcon}>📍</Text>
+          <Text style={styles.cardBadgeText}>장소 {logs.length}곳</Text>
+        </View>
       </View>
     </View>
   );
@@ -349,6 +443,12 @@ const styles = StyleSheet.create({
   },
   cardDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: 'rgba(0,0,0,0.2)' },
   cardDotActive: { width: 20, backgroundColor: colors.black },
+  // 코스 카드(JournalCourseCard) 전용 — 장소별 작은 썸네일을 가로로 나열(디자인 미반영 임시 레이아웃)
+  courseThumbRow: { gap: 8, paddingHorizontal: 8, paddingTop: 8 },
+  courseThumbItem: { width: 88, alignItems: 'center' },
+  courseThumbImage: { width: 88, height: 88, borderRadius: 12, backgroundColor: colors.border },
+  courseThumbPlaceholder: { backgroundColor: colors.border },
+  courseThumbLabel: { fontFamily: fonts.regular, fontSize: 11, color: colors.gray500, marginTop: 4, maxWidth: 88 },
   cardTextArea: { paddingHorizontal: 12 },
   cardTitle: {
     fontFamily: fonts.semiBold,
