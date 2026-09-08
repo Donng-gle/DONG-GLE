@@ -32,12 +32,20 @@ export function CourseSwipeScreen({ sessionId, candidates, initialResults = [], 
   const current = candidates[index];
   const currentRef = useRef(current);
   const submittingRef = useRef(submitting);
+  const indexRef = useRef(index);
+  const resultsRef = useRef(results);
   useEffect(() => {
     currentRef.current = current;
   }, [current]);
   useEffect(() => {
     submittingRef.current = submitting;
   }, [submitting]);
+  useEffect(() => {
+    indexRef.current = index;
+  }, [index]);
+  useEffect(() => {
+    resultsRef.current = results;
+  }, [results]);
 
   const position = useRef(new Animated.ValueXY()).current;
   const rotate = position.x.interpolate({ inputRange: [-300, 0, 300], outputRange: ['-12deg', '0deg', '12deg'] });
@@ -70,12 +78,16 @@ export function CourseSwipeScreen({ sessionId, candidates, initialResults = [], 
   }
 
   async function handleAction(action: SwipeAction) {
-    if (!current || submitting) return;
-    const next = [...results, { place_id: current.place_id, action }];
+    // panResponder는 최초 렌더 시점에 한 번만 생성돼서 이 함수를 클로저로 캡처한다.
+    // index/results/current/submitting을 직접 읽으면 그 시점 값에 고정된 stale closure가
+    // 되어 두 번째 스와이프부터 낡은 index로 재계산되는 버그가 있었음 — 항상 ref로 최신값을 읽는다.
+    const curr = currentRef.current;
+    if (!curr || submittingRef.current) return;
+    const next = [...resultsRef.current, { place_id: curr.place_id, action }];
 
-    if (index + 1 < candidates.length) {
+    if (indexRef.current + 1 < candidates.length) {
       setResults(next);
-      setIndex(index + 1);
+      setIndex(indexRef.current + 1);
       return;
     }
 
