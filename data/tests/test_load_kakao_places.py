@@ -33,3 +33,14 @@ def test_build_place_row_maps_content_type_id_by_category() -> None:
   assert cafe_row["content_type_id"] == 39
   assert restaurant_row["content_type_id"] == 39
   assert activity_row["content_type_id"] == 28
+
+
+def test_build_place_row_allows_null_image_when_no_photos() -> None:
+  # 사진 없이 장소 정보만 적재하는 경우(2026-09-08 결정) — main_image_url은 NULL
+  item = _sample_item()
+  item["photo_urls"] = []
+
+  row = build_place_row("카페", item)
+
+  assert row["main_image_url"] is None
+  assert row["name"] == item["name"]

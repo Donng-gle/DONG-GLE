@@ -1,10 +1,12 @@
-"""카카오 로컬 API로 안동시 카페/식당/액티비티 신규 장소를 발굴하고 Google Places로 사진을 보완한다.
+"""카카오 로컬 API로 안동시 카페/식당/액티비티 신규 장소를 발굴하고, 가능하면 Google Places로
+사진까지 보완한다.
 
-TourAPI가 이미 수집한 기존 장소와 겹치지 않는 것만 남기고, 사진을 못 구한 후보는
-아예 제외한다 — place_semantic_vector/onboarding_card 등 사진 기반 핵심 기능에
-못 쓰이는 장소를 적재해봐야 의미가 없기 때문이다. (카카오 API만으로 장소를 늘리지
-않기로 했던 2026-07-17 결정의 이유가 정확히 이 "사진 없음" 문제였음 — 이번엔 Google
-Places로 사진을 보완해서 이 문제를 해결하고 진행한다. decision-log 참고)
+TourAPI가 이미 수집한 기존 장소와 겹치지 않는 것만 남긴다. Google Places에서 사진을 못 찾은
+후보도 장소 정보(이름/주소/좌표/전화)만으로 적재한다 — 리뷰를 남길 장소 자체가 부족한 문제가
+더 급해서, 사진 없는 장소는 이후 사용자가 방문 기록에 사진을 올리면 그 사진들이
+log_emotion_tag로 누적되어 감성 신호를 대신 채워준다 (2026-09-08 결정, decision-log 참고,
+place_semantic_vector=공식 사진 기준선 / log_emotion_tag=방문자 누적 신호라는 기존 이원 구조와
+자연스럽게 맞물림). main_image_url은 사진이 없으면 NULL로 저장된다.
 
 사용 예:
   python -m pipeline.fetch_kakao_places
@@ -240,11 +242,14 @@ def build_new_place_candidates() -> dict[str, list[dict]]:
     )
 
     enriched: list[dict] = []
+    photo_found_count = 0
     for doc in new_docs:
       photo_match = find_place_photos(doc["place_name"], doc["x"], doc["y"])
-      if not photo_match:
-        print(f"  스킵(사진 없음): {doc['place_name']}")
-        continue
+      photo_urls = photo_match["photo_urls"] if photo_match else []
+      if photo_match:
+        photo_found_count += 1
+      else:
+        print(f"  사진 없음(장소 정보만 적재): {doc['place_name']}")
       enriched.append(
         {
           "kakao_id": doc["id"],
@@ -255,12 +260,12 @@ def build_new_place_candidates() -> dict[str, list[dict]]:
           "lng": float(doc["x"]),
           "tel": doc.get("phone") or None,
           "category_name": doc.get("category_name"),
-          "photo_urls": photo_match["photo_urls"],
+          "photo_urls": photo_urls,
         }
       )
       time.sleep(0.1)
 
-    print(f"[{category}] 사진 보완 후 최종 {len(enriched)}건")
+    print(f"[{category}] 최종 {len(enriched)}건 (사진 확보 {photo_found_count}건, 사진 없음 {len(enriched) - photo_found_count}건)")
     results[category] = enriched
 
   return results

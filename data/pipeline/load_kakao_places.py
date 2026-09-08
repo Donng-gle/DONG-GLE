@@ -54,6 +54,7 @@ CATEGORY_CONTENT_TYPE_ID = {
 
 
 def build_place_row(category: str, item: dict) -> dict:
+  photo_urls = item.get("photo_urls") or []
   return {
     "content_id": f"kakao-{item['kakao_id']}",
     "content_type_id": CATEGORY_CONTENT_TYPE_ID[category],
@@ -63,7 +64,7 @@ def build_place_row(category: str, item: dict) -> dict:
     "lat": item["lat"],
     "lng": item["lng"],
     "tel": item.get("tel"),
-    "main_image_url": item["photo_urls"][0],
+    "main_image_url": photo_urls[0] if photo_urls else None,
   }
 
 
