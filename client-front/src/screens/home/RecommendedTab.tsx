@@ -252,8 +252,9 @@ export function RecommendedTab() {
 // 이미 쓰고 있는 AndongGlobe(안동시 행정구역 일러스트, interactive=false) 위에 좌표를 얹는 방식으로
 // 교체(2026-09-09). 문제는 이 일러스트가 정확히 어느 위경도 범위를 그린 건지 알려주는 기준점이 없어서
 // (실제 안동시 경계 좌표를 찾아봤지만 확인 불가) 절대 좌표를 이 그림 위 픽셀로 정확히 변환할 방법이
-// 없음 — 대신 이 코스/장소 "자기 자신"의 좌표 범위(바운딩 박스)만 그림 중앙의 여유 영역(60%)에 맞춰
-// 정규화해서 배치(사용자 확인, 2026-09-09). 즉 코스 내 지점들의 상대적 위치/방향(동서남북)은 정확히
+// 없음 — 대신 이 코스/장소 "자기 자신"의 좌표 범위(바운딩 박스)만 실제 지도 그림이 그려진 영역
+// (layoutPreviewPoints의 MAP_CONTENT 참고 — 캔버스 정중앙이 아니라 왼쪽/위로 치우쳐 있어서 PIL로
+// 실측함)에 맞춰 정규화해서 배치(사용자 확인, 2026-09-09). 즉 코스 내 지점들의 상대적 위치/방향(동서남북)은 정확히
 // 맞지만, 안동시 전체에서 실제로 어디쯤인지(절대 위치)는 반영 안 됨 — StreetTab의 카테고리 아이콘도
 // 애초에 실측 좌표가 아니라 Figma 눈대중 고정 위치라 같은 선상의 타협
 function RoutePreviewMap({ points, size }: { points: PreviewPoint[]; size: number }) {
@@ -292,11 +293,18 @@ function RoutePreviewMap({ points, size }: { points: PreviewPoint[]; size: numbe
   );
 }
 
-// 위경도 바운딩 박스를 size*size 이미지 중앙 60% 영역(INSET~1-INSET)에 정규화해서 배치 — 위 코멘트
-// 참고. 위도는 북쪽(큰 값)이 위로 가야 해서 반전(1 - frac), 경도는 그대로(동쪽=큰 값=오른쪽).
-// 점 1개뿐이거나 한 축의 범위가 0(전부 같은 위도/경도)이면 그 축은 정중앙(0.5)으로
-const PREVIEW_INSET = 0.2;
-const PREVIEW_SPAN = 1 - PREVIEW_INSET * 2;
+// 처음엔 이미지 캔버스(360x360) 중앙 60% 영역에 배치했는데, 실제 그림(andong-globe-map.png)이
+// 캔버스 정중앙이 아니라 왼쪽/위로 치우쳐 그려져 있어서(오른쪽/아래 여백이 더 큼) 점들이 실제
+// 지도 밖(여백)에 찍히거나 한쪽으로 쏠려 보였음(2026-09-09 확인) — PIL로 실제 그려진 영역의
+// 픽셀 bbox를 재보니 (25,39)~(304,341)/360 이었음(투명 여백 제외). 이 실측 영역을 기준으로 다시
+// 계산하고, 그 안에서 다시 12% 여유(MAP_CONTENT_MARGIN)를 둬서 점이 지도 그림 가장자리에 바로
+// 붙지 않게 함
+const MAP_CONTENT = { left: 25 / 360, top: 39 / 360, right: 304 / 360, bottom: 341 / 360 };
+const MAP_CONTENT_MARGIN = 0.12;
+
+// 위경도 바운딩 박스를 위 실측 영역 안에 정규화해서 배치. 위도는 북쪽(큰 값)이 위로 가야 해서
+// 반전(1 - frac), 경도는 그대로(동쪽=큰 값=오른쪽). 점 1개뿐이거나 한 축의 범위가 0(전부 같은
+// 위도/경도)이면 그 축은 정중앙(0.5)으로
 function layoutPreviewPoints(points: PreviewPoint[], size: number) {
   const lats = points.map((p) => p.lat);
   const lngs = points.map((p) => p.lng);
@@ -306,10 +314,18 @@ function layoutPreviewPoints(points: PreviewPoint[], size: number) {
   const maxLng = Math.max(...lngs);
   const latSpan = maxLat - minLat;
   const lngSpan = maxLng - minLng;
+
+  const contentW = MAP_CONTENT.right - MAP_CONTENT.left;
+  const contentH = MAP_CONTENT.bottom - MAP_CONTENT.top;
+  const left = MAP_CONTENT.left + contentW * MAP_CONTENT_MARGIN;
+  const right = MAP_CONTENT.right - contentW * MAP_CONTENT_MARGIN;
+  const top = MAP_CONTENT.top + contentH * MAP_CONTENT_MARGIN;
+  const bottom = MAP_CONTENT.bottom - contentH * MAP_CONTENT_MARGIN;
+
   return points.map((p) => {
     const fracX = lngSpan === 0 ? 0.5 : (p.lng - minLng) / lngSpan;
     const fracY = latSpan === 0 ? 0.5 : 1 - (p.lat - minLat) / latSpan;
-    return { ...p, x: size * (PREVIEW_INSET + fracX * PREVIEW_SPAN), y: size * (PREVIEW_INSET + fracY * PREVIEW_SPAN) };
+    return { ...p, x: size * (left + fracX * (right - left)), y: size * (top + fracY * (bottom - top)) };
   });
 }
 
