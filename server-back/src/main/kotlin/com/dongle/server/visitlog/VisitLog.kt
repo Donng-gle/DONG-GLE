@@ -1,5 +1,6 @@
 package com.dongle.server.visitlog
 
+import com.dongle.server.course.Course
 import com.dongle.server.place.Place
 import com.dongle.server.user.User
 import jakarta.persistence.CascadeType
@@ -30,6 +31,12 @@ class VisitLog(
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "place_id", nullable = false)
     val place: Place,
+
+    // 코스 단위 기록(장소 2개 이상)일 때만 값 있음, nullable — 같은 course를 공유하는 visit_log들을
+    // "나의 일지"에서 하나의 코스 카드로 묶어서 보여줌 (2026-09-08 결정, decision-log 참고)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "course_id", nullable = true)
+    val course: Course? = null,
 
     // Figma "메인 페이지-나의 일지-기록하기"(593:12613) 시안엔 사진/한줄리뷰와 별개로 짧은 제목
     // 입력칸이 있어서 추가(2026-09-05 결정, decision-log 참고). one_line은 계속 "설명" 역할

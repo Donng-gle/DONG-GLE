@@ -237,6 +237,24 @@ class CourseApiIntegrationTest {
             .andExpect(jsonPath("$.course_id").exists())
     }
 
+    // journal은 나의 일지 "기록하기"(POST /logs/course)에서만 서버가 직접 부여하는 값이라, 이
+    // 범용 저장 API로 흉내낼 수 없어야 함(2026-09-08 결정, decision-log 참고)
+    @Test
+    fun `POST courses에 source journal을 보내면 400을 반환한다`() {
+        val owner = user("course_user_journal_guard", "kakao-course-journal-guard")
+        val token = tokenFor(owner)
+        val placeA = place("CRS_JOURNAL_GUARD", "테스트전용저널가드장소")
+
+        mockMvc.perform(
+            post("/courses")
+                .header("Authorization", "Bearer $token")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"title":"저널로위장","source":"journal","places":[{"place_id":${placeA.id},"visit_order":1}]}""")
+        )
+            .andExpect(status().isBadRequest)
+            .andExpect(jsonPath("$.code").value("INVALID_COURSE_SOURCE"))
+    }
+
     @Test
     fun `내 코스 목록에서 저장한 코스를 확인할 수 있다`() {
         val owner = user("course_user_3", "kakao-course-3")

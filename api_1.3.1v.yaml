@@ -993,7 +993,8 @@ components:
           description: 여러 날 범위 지원(2026-09-06 추가). "직접 코스 만들기"에서만 채워짐.
         source:
           type: string
-          enum: [ai, ai_edited, user]
+          enum: [ai, ai_edited, user, journal]
+          description: journal=나의 일지 기록하기에서 장소 2개 이상 골라 사후 생성된 코스(2026-09-08 추가, decision-log 참고)
         place_count:
           type: integer
           description: 코스에 포함된 장소 수
@@ -1032,7 +1033,8 @@ components:
           description: 여러 날 범위 지원(2026-09-06 추가). "직접 코스 만들기"에서만 채워짐.
         source:
           type: string
-          enum: [ai, ai_edited, user]
+          enum: [ai, ai_edited, user, journal]
+          description: journal=나의 일지 기록하기에서 장소 2개 이상 골라 사후 생성된 코스(2026-09-08 추가, decision-log 참고)
         places:
           type: array
           description: 방문 순서대로 정렬된 장소 목록. 각 장소에 구글맵 재계산 결과(이동시간/거리)가 포함됨.
@@ -1095,6 +1097,15 @@ components:
           format: int64
         place_name:
           type: string
+        course_id:
+          type: integer
+          format: int64
+          nullable: true
+          description: 코스 단위 기록(장소 2개 이상)일 때만 값 있음. 2026-09-08 추가, decision-log 참고
+        course_title:
+          type: string
+          nullable: true
+          description: course_id가 있을 때 그 코스의 제목. 2026-09-08 추가, decision-log 참고
         photos:
           type: array
           items:
@@ -1171,6 +1182,17 @@ components:
           format: int64
         place_name:
           type: string
+        course_id:
+          type: integer
+          format: int64
+          nullable: true
+          description: |
+            코스 단위 기록(장소 2개 이상)일 때만 값 있음. 나의 일지 화면은 같은 course_id를 가진
+            기록들을 하나의 코스 카드로 묶어서 보여준다. 2026-09-08 추가, decision-log 참고
+        course_title:
+          type: string
+          nullable: true
+          description: course_id가 있을 때 그 코스의 제목. 2026-09-08 추가, decision-log 참고
         lat:
           type: number
           format: double
@@ -2419,6 +2441,105 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/VisitLogDetail'
+        '401':
+          description: 인증 필요
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 장소 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /logs/course:
+    post:
+      tags: [VisitLog]
+      summary: 코스 단위 여행 기록 작성 (장소 2개 이상)
+      description: |
+        나의 일지 "기록하기"에서 장소를 2개 이상 골랐을 때 사용. course(source=journal) +
+        장소마다 하나씩 VisitLog를 한 트랜잭션으로 생성하고, 생성된 모든 VisitLog가 같은
+        course_id를 공유한다. 나의 일지 화면은 같은 course_id를 가진 기록들을 하나의 코스
+        카드로 묶어서 보여준다. 장소가 1개뿐이면 이 엔드포인트 대신 기존
+        POST /places/{placeId}/logs를 사용한다. (2026-09-08 결정, decision-log 참고)
+
+        장소별 필드(photos/title/one_line/weather/rating/visited_at)는 개별
+        POST /places/{placeId}/logs와 동일한 의미 — 코스 전체가 아니라 장소마다 각각 입력받는다.
+        생성된 course는 GET /users/me/courses(스크랩북 "내 코스")에도 노출된다.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [places]
+              properties:
+                places:
+                  type: array
+                  minItems: 2
+                  maxItems: 20
+                  items:
+                    type: object
+                    required: [place_id]
+                    properties:
+                      place_id:
+                        type: integer
+                        format: int64
+                      photos:
+                        type: array
+                        maxItems: 10
+                        items:
+                          type: object
+                          required: [url]
+                          properties:
+                            url:
+                              type: string
+                              description: Presigned URL로 S3 업로드 완료 후 받은 file_url
+                            caption:
+                              type: string
+                              maxLength: 100
+                      title:
+                        type: string
+                        nullable: true
+                        maxLength: 50
+                      one_line:
+                        type: string
+                        nullable: true
+                        maxLength: 100
+                      weather:
+                        type: string
+                        nullable: true
+                        maxLength: 20
+                      rating:
+                        type: integer
+                        nullable: true
+                        minimum: 1
+                        maximum: 5
+                      visited_at:
+                        type: string
+                        format: date-time
+                course_title:
+                  type: string
+                  nullable: true
+                  maxLength: 200
+                  description: 생략하면 "9월 8일의 코스"처럼 방문일 기준으로 자동 생성됨
+      responses:
+        '201':
+          description: 작성 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  course_id:
+                    type: integer
+                    format: int64
+                  logs:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/VisitLogDetail'
         '401':
           description: 인증 필요
           content:
