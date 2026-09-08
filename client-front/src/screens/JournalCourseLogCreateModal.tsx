@@ -63,16 +63,18 @@ function formatDateLabel(dateKey: string) {
 // 디자인 미반영 버전 — 이 프로젝트 관례대로(feat/place-user-explore-client 등) 기능 먼저 붙이고
 // 나중에 디자인 나오면 교체함
 export function JournalCourseLogCreateModal({ visible, onClose, onCreated }: Props) {
-  const [step, setStep] = useState<'places' | 'form'>('places');
+  // 사용자 요청(2026-09-08)으로 순서 변경: 날짜부터 정하고(코스 전체 공유) → 장소를 고르고 →
+  // 장소마다 사진/한줄리뷰/날씨 입력. CalendarPicker는 "직접 일정 만들기-날짜 선택"(Figma
+  // 316:4643)의 실제 구현체를 그대로 재사용(CourseManualBuilderScreen/CourseFlowScreen과 동일)
+  const [step, setStep] = useState<'date' | 'places' | 'form'>('date');
   const [selectedPlaces, setSelectedPlaces] = useState<PlaceListItem[]>([]);
   const [entries, setEntries] = useState<PlaceFormEntry[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [visitedAt, setVisitedAt] = useState(''); // 코스 전체 공유 날짜, YYYY-MM-DD
-  const [showCalendar, setShowCalendar] = useState(false);
   const [saving, setSaving] = useState(false);
 
   function resetAndClose() {
-    setStep('places');
+    setStep('date');
     setSelectedPlaces([]);
     setEntries([]);
     setCurrentIndex(0);
@@ -201,6 +203,20 @@ export function JournalCourseLogCreateModal({ visible, onClose, onCreated }: Pro
 
   if (!visible) return null;
 
+  if (step === 'date') {
+    return (
+      <CalendarPicker
+        visible
+        value={visitedAt || toDateOnly(new Date().toISOString())}
+        onClose={resetAndClose}
+        onConfirm={(date) => {
+          setVisitedAt(date);
+          setStep('places');
+        }}
+      />
+    );
+  }
+
   if (step === 'places') {
     return (
       <Modal visible transparent={false} animationType="slide" onRequestClose={resetAndClose}>
@@ -279,13 +295,11 @@ export function JournalCourseLogCreateModal({ visible, onClose, onCreated }: Pro
               </Text>
             </View>
 
-            {/* 날짜는 코스 전체가 공유 — 장소마다 각각 입력받는 사진/한줄리뷰/날씨와 달리 하루 코스
-                기준이라 여기서 한 번만 입력받음(2026-09-08 결정, decision-log 참고) */}
-            <TouchableOpacity style={styles.fieldBox} onPress={() => setShowCalendar(true)} activeOpacity={0.8}>
-              <Text style={visitedAt ? styles.fieldValue : styles.fieldPlaceholder}>
-                {visitedAt ? formatDateLabel(visitedAt) : '날짜를 입력해주세요.'}
-              </Text>
-            </TouchableOpacity>
+            {/* 날짜는 코스 전체가 공유 — 앞 단계(step 'date')에서 이미 정했으므로 여기선 읽기 전용
+                표시만(2026-09-08 결정, decision-log 참고) */}
+            <View style={styles.fieldBox}>
+              <Text style={styles.fieldValue}>{formatDateLabel(visitedAt)}</Text>
+            </View>
 
             <View style={styles.fieldBox}>
               <TextInput
@@ -309,16 +323,6 @@ export function JournalCourseLogCreateModal({ visible, onClose, onCreated }: Pro
           </View>
         </Pressable>
       </Pressable>
-
-      <CalendarPicker
-        visible={showCalendar}
-        value={visitedAt || toDateOnly(new Date().toISOString())}
-        onClose={() => setShowCalendar(false)}
-        onConfirm={(date) => {
-          setVisitedAt(date);
-          setShowCalendar(false);
-        }}
-      />
     </Modal>
   );
 }
@@ -382,7 +386,6 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   fieldInput: { fontFamily: fonts.regular, fontSize: 12, letterSpacing: -0.3, color: colors.black, padding: 0 },
-  fieldPlaceholder: { fontFamily: fonts.regular, fontSize: 12, letterSpacing: -0.3, color: colors.gray500 },
   fieldValue: { fontFamily: fonts.regular, fontSize: 12, letterSpacing: -0.3, color: colors.black },
   buttonRow: { flexDirection: 'row', height: 44, borderTopWidth: 1, borderTopColor: colors.border },
   cancelButton: { flex: 1, alignItems: 'center', justifyContent: 'center', borderRightWidth: 1, borderRightColor: colors.border },
