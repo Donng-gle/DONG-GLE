@@ -7,13 +7,12 @@ import { CourseDetail, CoursePlaceItem } from '../api/course';
 import { exploreApi } from '../api/explore';
 import { colors } from '../theme/colors';
 import { fonts } from '../theme/fonts';
+import { MUTED_MAP_STYLE, regionForCoords } from '../theme/map';
 
 interface Props {
   courseId: number;
   onExit: () => void;
 }
-
-const ANDONG_REGION = { latitude: 36.5684, longitude: 128.7294, latitudeDelta: 0.1, longitudeDelta: 0.1 };
 
 // "취향 맞춤 코스" 탭 "자세히 보기"(2026-09-07 결정, decision-log 참고) — 다른 사용자의 공개 코스를
 // 읽기 전용으로 보여줌. CourseDetailScreen(본인 코스, 수정/삭제 가능)과 지도+장소 리스트 렌더링은
@@ -66,13 +65,23 @@ export function PublicCourseDetailScreen({ courseId, onExit }: Props) {
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
+        {/* 고정된 안동시 전체 영역(ANDONG_REGION) 대신 실제 코스 좌표에 맞춰 자동으로 카메라를
+            맞춤(regionForCoords, RecommendedTab.tsx의 "선택" 미리보기 지도와 공용) — 코스가 짧으면
+            점들이 화면 한쪽에 작게 몰려 보이던 문제 수정. 스타일도 MUTED_MAP_STYLE로 다듬고,
+            경로선도 그 미리보기와 톤을 맞춰 검정 점선 대신 파란 실선으로(2026-09-09, 사용자
+            피드백). 이 지도는 "자세히 보기" 화면 자체라 터치는 계속 허용(RecommendedTab의 미리보기
+            지도와 다른 점 — 사용자 확인) */}
         {pinnedPlaces.length > 0 && (
-          <MapView provider={PROVIDER_GOOGLE} style={styles.map} initialRegion={ANDONG_REGION}>
+          <MapView
+            provider={PROVIDER_GOOGLE}
+            style={styles.map}
+            initialRegion={regionForCoords(pinnedPlaces.map((p) => ({ latitude: p.lat as number, longitude: p.lng as number })))}
+            customMapStyle={MUTED_MAP_STYLE}
+          >
             <Polyline
               coordinates={pinnedPlaces.map((p) => ({ latitude: p.lat as number, longitude: p.lng as number }))}
-              strokeColor={colors.black}
-              strokeWidth={2}
-              lineDashPattern={[6, 6]}
+              strokeColor={colors.accentBlue}
+              strokeWidth={3}
             />
             {pinnedPlaces.map((p) => (
               <Marker key={p.place_id} coordinate={{ latitude: p.lat as number, longitude: p.lng as number }}>
