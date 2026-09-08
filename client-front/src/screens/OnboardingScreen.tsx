@@ -36,6 +36,9 @@ export function OnboardingScreen({ onComplete }: Props) {
 
   const position = useRef(new Animated.ValueXY()).current;
   const rotate = position.x.interpolate({ inputRange: [-300, 0, 300], outputRange: ['-12deg', '0deg', '12deg'] });
+  // 오른쪽/왼쪽으로 끄는 정도에 따라 좋아요/넘기기 도장이 서서히 나타나게(0 → SWIPE_THRESHOLD 사이에서 페이드인)
+  const likeOpacity = position.x.interpolate({ inputRange: [0, SWIPE_THRESHOLD], outputRange: [0, 1], extrapolate: 'clamp' });
+  const passOpacity = position.x.interpolate({ inputRange: [-SWIPE_THRESHOLD, 0], outputRange: [1, 0], extrapolate: 'clamp' });
 
   const panResponder = useRef(
     PanResponder.create({
@@ -207,6 +210,12 @@ export function OnboardingScreen({ onComplete }: Props) {
           >
             <Image source={{ uri: card.image_url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
             <LinearGradient colors={['transparent', 'rgba(0,0,0,0.35)']} style={StyleSheet.absoluteFill} />
+            <Animated.View style={[styles.stamp, styles.likeStamp, { opacity: likeOpacity }]} pointerEvents="none">
+              <Text style={[styles.stampText, styles.likeStampText]}>좋아요</Text>
+            </Animated.View>
+            <Animated.View style={[styles.stamp, styles.passStamp, { opacity: passOpacity }]} pointerEvents="none">
+              <Text style={[styles.stampText, styles.passStampText]}>넘기기</Text>
+            </Animated.View>
           </Animated.View>
           {swiping && (
             <View style={[StyleSheet.absoluteFill, styles.swipingOverlay]} pointerEvents="none">
@@ -278,6 +287,21 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     backgroundColor: colors.border,
   },
+  // 틴더류 앱에 흔한 스와이프 방향 도장 — Figma 시안엔 없는 UX 추가라 색은 임의 지정
+  // (넘기기는 기존 danger 토큰 재사용, 좋아요는 이 화면 전용 초록)
+  stamp: {
+    position: 'absolute',
+    top: 24,
+    borderWidth: 3,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  likeStamp: { left: 24, borderColor: '#2fb463', transform: [{ rotate: '-16deg' }] },
+  passStamp: { right: 24, borderColor: colors.danger, transform: [{ rotate: '16deg' }] },
+  stampText: { fontFamily: fonts.semiBold, fontSize: 22, letterSpacing: 1 },
+  likeStampText: { color: '#2fb463' },
+  passStampText: { color: colors.danger },
   swipingOverlay: {
     borderRadius: 28,
     alignItems: 'center',
