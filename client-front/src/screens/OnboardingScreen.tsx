@@ -20,29 +20,19 @@ const SWIPE_THRESHOLD = 120;
 export function OnboardingScreen({ onComplete }: Props) {
   const insets = useSafeAreaInsets();
   const [card, setCard] = useState<OnboardingCard | null>(null);
-  // 지금 카드를 보여주는 동안 화면 전환 없이 미리 받아두는 다음 카드 — 스와이프하는 순간
-  // 이 카드를 바로 보여줘서 매 스와이프마다 API 왕복을 기다리는 로딩 화면이 뜨지 않게 함
-  const [nextCard, setNextCard] = useState<OnboardingCard | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true); // 최초 로딩/리셋 전용 — 스와이프 사이에는 안 씀
   const [swiping, setSwiping] = useState(false);
   const [totalSeen, setTotalSeen] = useState(0);
 
   // PanResponder는 마운트 시 한 번만 생성되므로, 콜백 안에서 최신 state를 읽으려면 ref로 미러링해야 함
   const cardRef = useRef(card);
-  const nextCardRef = useRef(nextCard);
   const swipingRef = useRef(swiping);
   useEffect(() => {
     cardRef.current = card;
   }, [card]);
   useEffect(() => {
-    nextCardRef.current = nextCard;
-  }, [nextCard]);
-  useEffect(() => {
     swipingRef.current = swiping;
   }, [swiping]);
-  // 다음 카드 프리패치 요청(진행 중이면 재사용) + 스와이프 기록 요청(완료 처리 전 전부 기다림 용도)
-  const prefetchPromiseRef = useRef<Promise<OnboardingCard | null> | null>(null);
-  const pendingSwipesRef = useRef<Promise<unknown>[]>([]);
 
   const position = useRef(new Animated.ValueXY()).current;
   const rotate = position.x.interpolate({ inputRange: [-300, 0, 300], outputRange: ['-12deg', '0deg', '12deg'] });
@@ -87,8 +77,6 @@ export function OnboardingScreen({ onComplete }: Props) {
         return;
       }
       setCard(next.card);
-      setNextCard(null);
-      prefetchNext(); // 이어서 보여줄 카드를 화면 전환 없이 미리 받아두기 시작 (기다리지 않음)
     } catch (e) {
       Alert.alert('온보딩을 불러오지 못했어요', e instanceof Error ? e.message : '알 수 없는 오류');
     } finally {
@@ -96,36 +84,7 @@ export function OnboardingScreen({ onComplete }: Props) {
     }
   }
 
-  // 화면엔 영향 없이 다음 카드를 미리 받아 nextCard에 채워둠. 이미 요청이 진행 중이면 그 promise를
-  // 그대로 재사용해서(GET /onboarding/next는 읽기 전용이라 여러 번 불러도 서버 부작용 없음) 중복
-  // 요청을 막는다 — handleSwipe의 폴백 경로도 이 함수를 그대로 기다리는 방식으로 재사용함.
-  function prefetchNext(): Promise<OnboardingCard | null> {
-    if (prefetchPromiseRef.current) return prefetchPromiseRef.current;
-    const p = onboardingApi
-      .getNext()
-      .then((next) => {
-        const c = next ? next.card : null;
-        setNextCard(c);
-        return c;
-      })
-      .catch(() => {
-        setNextCard(null);
-        return null;
-      })
-      .finally(() => {
-        prefetchPromiseRef.current = null;
-      });
-    prefetchPromiseRef.current = p;
-    return p;
-  }
-
   async function finishOnboarding() {
-    // 낙관적으로 다음 카드부터 보여주고 스와이프 기록은 백그라운드로 넘기기 때문에, 완료 처리
-    // 직전엔 아직 서버에 반영 안 된 스와이프가 없는지 반드시 다 기다려야 마지막 선택이 취향
-    // 분석에서 누락되지 않음
-    if (pendingSwipesRef.current.length > 0) {
-      await Promise.allSettled(pendingSwipesRef.current);
-    }
     try {
       await onboardingApi.complete();
     } catch (e) {
@@ -150,25 +109,21 @@ export function OnboardingScreen({ onComplete }: Props) {
   async function handleSwipe(action: 'like' | 'dislike') {
     // panResponder는 마운트 시(카드가 아직 null인 첫 렌더) 한 번만 생성돼서 이 함수를 클로저로
     // 캡처한다. 클로저 변수를 직접 읽으면 그 시점 값에 고정되는 stale closure 버그가 나서
-    // card/nextCard 전부 ref로 최신값을 읽는다.
+    // card는 cardRef로 최신값을 읽는다.
+    //
+    // (참고) 다음 카드를 스와이프 확정 전에 미리 받아두는 프리패치를 시도했다가 되돌렸음 —
+    // 서버 GET /onboarding/next는 실제 스와이프 로그가 반영된 것만 "이미 본 카드"로 제외하는데,
+    // 스와이프 응답을 기다리기 전에 먼저 호출하면 서버 입장에서 아무것도 안 바뀐 상태라 방금
+    // 보여준 카드를 그대로 또 돌려줌(특히 시드 카드 7장은 결정적으로 골라서 100% 재현됨).
+    // 그래서 다음 카드는 반드시 swipe() 응답을 받은 뒤에만 요청해야 함 — 대신 그 사이엔 화면
+    // 전체를 로딩 화면으로 덮지 않고(아래 렌더 로직 참고) 카드 위에 작은 스피너만 겹쳐서
+    // 화면이 붕 뜨는 느낌만 없앤다.
     const curr = cardRef.current;
     if (!curr) return;
 
-    // 미리 받아둔 카드가 있으면 스와이프 기록 API 응답을 기다리지 않고 바로 다음 카드를 보여줌
-    // (기록 자체는 아래에서 백그라운드로 계속 진행). 없으면(막 로드된 직후라 프리패치가 아직
-    // 안 끝났거나 실패한 경우) 예전처럼 기다리는 폴백 경로로 빠진다.
-    const upcoming = nextCardRef.current;
-    if (upcoming) {
-      setCard(upcoming);
-      setNextCard(null);
-      setSwiping(false);
-      prefetchNext(); // 파이프라인 보충, 기다리지 않음
-    }
-
-    const swipePromise = onboardingApi.swipe(curr.id, action);
-    pendingSwipesRef.current.push(swipePromise);
+    setSwiping(true);
     try {
-      const result = await swipePromise;
+      const result = await onboardingApi.swipe(curr.id, action);
       setTotalSeen(result.total_seen);
 
       if (result.is_converged) {
@@ -176,26 +131,22 @@ export function OnboardingScreen({ onComplete }: Props) {
         return;
       }
 
-      if (!upcoming) {
-        const next = await prefetchNext(); // 진행 중인 프리패치가 있으면 그걸 그대로 기다림
-        if (!next) {
-          if (result.total_seen < MIN_SWIPES_TO_FINISH) {
-            Alert.alert(
-              '보여드릴 사진이 더 없어요',
-              `아직 ${MIN_SWIPES_TO_FINISH}장을 채우지 못했지만(${result.total_seen}장 진행) 준비된 사진을 모두 확인했어요. 지금까지의 선택으로 취향을 분석할게요.`,
-            );
-          }
-          await finishOnboarding();
-          return;
+      const next = await onboardingApi.getNext();
+      if (!next) {
+        if (result.total_seen < MIN_SWIPES_TO_FINISH) {
+          Alert.alert(
+            '보여드릴 사진이 더 없어요',
+            `아직 ${MIN_SWIPES_TO_FINISH}장을 채우지 못했지만(${result.total_seen}장 진행) 준비된 사진을 모두 확인했어요. 지금까지의 선택으로 취향을 분석할게요.`,
+          );
         }
-        setCard(next);
-        setNextCard(null);
+        await finishOnboarding();
+        return;
       }
+      setCard(next.card);
     } catch (e) {
       Alert.alert('스와이프에 실패했어요', e instanceof Error ? e.message : '알 수 없는 오류');
     } finally {
-      pendingSwipesRef.current = pendingSwipesRef.current.filter((p) => p !== swipePromise);
-      if (!upcoming) setSwiping(false);
+      setSwiping(false);
     }
   }
 
@@ -212,7 +163,6 @@ export function OnboardingScreen({ onComplete }: Props) {
             await onboardingApi.reset();
             setTotalSeen(0);
             setCard(null);
-            setNextCard(null);
             await loadNext();
           } catch (e) {
             Alert.alert('초기화에 실패했어요', e instanceof Error ? e.message : '알 수 없는 오류');
@@ -225,6 +175,8 @@ export function OnboardingScreen({ onComplete }: Props) {
 
   const canFinishEarly = totalSeen >= MIN_SWIPES_TO_FINISH;
 
+  // loading은 최초 진입/리셋 때만 true가 됨 — 스와이프 사이엔 건드리지 않아서 헤더/카드/버튼이
+  // 계속 화면에 남아있고, 그 사이 대기는 아래 cardArea 안의 작은 스피너 오버레이로만 표시함
   if (loading || !card) {
     return (
       <View style={styles.center}>
@@ -256,6 +208,11 @@ export function OnboardingScreen({ onComplete }: Props) {
             <Image source={{ uri: card.image_url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
             <LinearGradient colors={['transparent', 'rgba(0,0,0,0.35)']} style={StyleSheet.absoluteFill} />
           </Animated.View>
+          {swiping && (
+            <View style={[StyleSheet.absoluteFill, styles.swipingOverlay]} pointerEvents="none">
+              <ActivityIndicator color={colors.white} />
+            </View>
+          )}
         </View>
       </View>
 
@@ -320,6 +277,12 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     overflow: 'hidden',
     backgroundColor: colors.border,
+  },
+  swipingOverlay: {
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.15)',
   },
   actionsRow: { flexDirection: 'row', gap: 12, paddingHorizontal: 20 },
   finishButton: { flex: 1, height: 56, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
