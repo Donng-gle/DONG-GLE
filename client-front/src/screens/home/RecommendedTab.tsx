@@ -12,8 +12,8 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Polyline } from 'react-native-svg';
 import { CoursePlaceItem } from '../../api/course';
 import { SimilarCourseItem, SimilarLogItem, exploreApi } from '../../api/explore';
 import { AndongGlobe } from '../../components/AndongGlobe';
@@ -62,8 +62,12 @@ interface PreviewPoint {
 // (2026-09-07 결정, decision-log 참고)
 //
 // Figma 원안과 의도적으로 다르게 간 부분:
-// 1. 배경 지도: 평소엔 나의 일지와 동일한 AndongGlobe(사용자 명시 요청). "선택" 시엔 Figma의
-//    정적 출발/도착 일러스트 대신 실제 MapView+Polyline/마커로 대체
+// 1. 배경 지도: 평소엔 나의 일지와 동일한 AndongGlobe. "선택" 시엔 Figma의 정적 출발/도착
+//    일러스트 대신 실제 좌표 기반 경로+마커로 대체(RoutePreviewMap 참고) — 처음엔(2026-09-07)
+//    실제 MapView(구글맵)를 썼는데, 기본 스타일 그대로라 POI/라벨이 잔뜩 떠서 "대충 보여준다"는
+//    피드백(2026-09-09)으로 커스텀 스타일까지 입혀봤다가("별로"), StreetTab에서 이미 쓰고 있는
+//    AndongGlobe(interactive=false) 위에 좌표를 얹는 방식으로 다시 교체함(2026-09-09, 아래
+//    RoutePreviewMap 코멘트 참고)
 // 2. 사진 우상단 하트(좋아요) 버튼: ExploreScreen.tsx가 이미 "방문 기록 좋아요 개념이 스키마에
 //    없음"으로 생략한 선례를 그대로 따름
 export function RecommendedTab() {
@@ -240,33 +244,73 @@ export function RecommendedTab() {
   );
 }
 
-// "선택"된 항목의 좌표를 실제 지도 위에 마커(+2개 이상이면 경로)로 보여줌(2026-09-07 결정,
-// decision-log 참고). 코스든 개별 장소든 PreviewPoint 배열만 받으면 동일하게 그림
+// "선택"된 항목의 좌표를 지도 위에 마커(+2개 이상이면 경로)로 보여줌(2026-09-07 결정, decision-log
+// 참고). 코스든 개별 장소든 PreviewPoint 배열만 받으면 동일하게 그림.
+//
+// 원래(2026-09-07) 실제 MapView(구글맵)를 썼는데, 기본 스타일 그대로라 POI/도로 라벨이 잔뜩 떠서
+// "대충 보여준다"는 피드백(2026-09-09)으로 커스텀 지도 스타일까지 입혀봤다가("별로") — StreetTab이
+// 이미 쓰고 있는 AndongGlobe(안동시 행정구역 일러스트, interactive=false) 위에 좌표를 얹는 방식으로
+// 교체(2026-09-09). 문제는 이 일러스트가 정확히 어느 위경도 범위를 그린 건지 알려주는 기준점이 없어서
+// (실제 안동시 경계 좌표를 찾아봤지만 확인 불가) 절대 좌표를 이 그림 위 픽셀로 정확히 변환할 방법이
+// 없음 — 대신 이 코스/장소 "자기 자신"의 좌표 범위(바운딩 박스)만 그림 중앙의 여유 영역(60%)에 맞춰
+// 정규화해서 배치(사용자 확인, 2026-09-09). 즉 코스 내 지점들의 상대적 위치/방향(동서남북)은 정확히
+// 맞지만, 안동시 전체에서 실제로 어디쯤인지(절대 위치)는 반영 안 됨 — StreetTab의 카테고리 아이콘도
+// 애초에 실측 좌표가 아니라 Figma 눈대중 고정 위치라 같은 선상의 타협
 function RoutePreviewMap({ points, size }: { points: PreviewPoint[]; size: number }) {
   if (points.length === 0) {
     return <View style={[styles.mapFallback, { width: size, height: size }]} />;
   }
 
-  const coords = points.map((p) => ({ latitude: p.lat, longitude: p.lng }));
+  const placed = layoutPreviewPoints(points, size);
+  const linePoints = placed.map((p) => `${p.x},${p.y}`).join(' ');
 
   return (
-    <MapView
-      provider={PROVIDER_GOOGLE}
-      style={{ width: size, height: size }}
-      initialRegion={regionForCoords(coords)}
-    >
-      {coords.length > 1 && (
-        <Polyline coordinates={coords} strokeColor={colors.accentBlue} strokeWidth={3} />
-      )}
-      {points.map((p) => (
-        <Marker key={p.id} coordinate={{ latitude: p.lat, longitude: p.lng }}>
-          <View style={styles.previewPin}>
-            <Text style={styles.previewPinText}>{p.label}</Text>
+    <View>
+      <AndongGlobe size={size} interactive={false} />
+      <View style={[styles.previewMarkerLayer, { width: size, height: size }]} pointerEvents="none">
+        {placed.length > 1 && (
+          <Svg width={size} height={size} style={StyleSheet.absoluteFill}>
+            <Polyline
+              points={linePoints}
+              fill="none"
+              stroke={colors.accentBlue}
+              strokeWidth={3}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </Svg>
+        )}
+        {placed.map((p) => (
+          <View key={p.id} style={[styles.previewPinWrap, { left: p.x, top: p.y }]}>
+            <View style={styles.previewPin}>
+              <Text style={styles.previewPinText}>{p.label}</Text>
+            </View>
           </View>
-        </Marker>
-      ))}
-    </MapView>
+        ))}
+      </View>
+    </View>
   );
+}
+
+// 위경도 바운딩 박스를 size*size 이미지 중앙 60% 영역(INSET~1-INSET)에 정규화해서 배치 — 위 코멘트
+// 참고. 위도는 북쪽(큰 값)이 위로 가야 해서 반전(1 - frac), 경도는 그대로(동쪽=큰 값=오른쪽).
+// 점 1개뿐이거나 한 축의 범위가 0(전부 같은 위도/경도)이면 그 축은 정중앙(0.5)으로
+const PREVIEW_INSET = 0.2;
+const PREVIEW_SPAN = 1 - PREVIEW_INSET * 2;
+function layoutPreviewPoints(points: PreviewPoint[], size: number) {
+  const lats = points.map((p) => p.lat);
+  const lngs = points.map((p) => p.lng);
+  const minLat = Math.min(...lats);
+  const maxLat = Math.max(...lats);
+  const minLng = Math.min(...lngs);
+  const maxLng = Math.max(...lngs);
+  const latSpan = maxLat - minLat;
+  const lngSpan = maxLng - minLng;
+  return points.map((p) => {
+    const fracX = lngSpan === 0 ? 0.5 : (p.lng - minLng) / lngSpan;
+    const fracY = latSpan === 0 ? 0.5 : 1 - (p.lat - minLat) / latSpan;
+    return { ...p, x: size * (PREVIEW_INSET + fracX * PREVIEW_SPAN), y: size * (PREVIEW_INSET + fracY * PREVIEW_SPAN) };
+  });
 }
 
 // 코스 미리보기 전용 라벨 규칙 — 장소가 2곳이면 "출발"/"도착", 3곳 이상이면 중간은 방문 순서 번호.
@@ -276,24 +320,6 @@ function previewPinLabel(place: CoursePlaceItem, index: number, total: number): 
   if (index === 0) return '출발';
   if (index === total - 1) return '도착';
   return String(place.visit_order);
-}
-
-// 모든 좌표가 화면에 들어오도록 중심+델타를 계산 — 코스마다 장소 수/범위가 달라서 고정 리전 대신
-// 매번 bounding box로 계산(*1.6 여유는 CourseDetailScreen이 안 쓰는 값이라 이 화면 전용 조정).
-// 점이 1개뿐이면 delta가 0이 되므로 최소값(0.02)으로 바닥을 깜(개별 장소 미리보기용)
-function regionForCoords(coords: { latitude: number; longitude: number }[]) {
-  const lats = coords.map((c) => c.latitude);
-  const lngs = coords.map((c) => c.longitude);
-  const minLat = Math.min(...lats);
-  const maxLat = Math.max(...lats);
-  const minLng = Math.min(...lngs);
-  const maxLng = Math.max(...lngs);
-  return {
-    latitude: (minLat + maxLat) / 2,
-    longitude: (minLng + maxLng) / 2,
-    latitudeDelta: Math.max((maxLat - minLat) * 1.6, 0.02),
-    longitudeDelta: Math.max((maxLng - minLng) * 1.6, 0.02),
-  };
 }
 
 // 카드 하나에 표시할 사진(또는 장소 미리보기) + 캡션 슬라이드 — 코스/개별 장소 데이터 모양이 달라서
@@ -418,6 +444,12 @@ function clamp(value: number, min: number, max: number) {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   mapFallback: { backgroundColor: colors.backgroundMuted },
+  // AndongGlobe 위에 얹는 좌표 오버레이 — StreetTab.tsx의 markerLayer와 동일한 목적(구조는 그쪽
+  // 참고), pointerEvents="none"이라 아래 AndongGlobe/시트 터치를 안 가로챔
+  previewMarkerLayer: { position: 'absolute', top: 0 },
+  // 핀 폭이 라벨 길이(숫자 1자리 vs "출발"/"도착")마다 달라서 고정폭 오프셋으로 중앙 정렬 못 함 —
+  // translateX/Y -50%로 렌더된 실제 크기 기준 중앙 정렬(2026-09-09)
+  previewPinWrap: { position: 'absolute', transform: [{ translateX: '-50%' }, { translateY: '-50%' }] },
   previewPin: {
     paddingHorizontal: 8,
     height: 28,
