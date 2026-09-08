@@ -20,7 +20,6 @@ import { AndongGlobe } from '../../components/AndongGlobe';
 import { StarRating } from '../../components/StarRating';
 import { colors } from '../../theme/colors';
 import { fonts } from '../../theme/fonts';
-import { MUTED_MAP_STYLE, regionForCoords } from '../../theme/map';
 import { PlaceDetailScreen } from '../PlaceDetailScreen';
 import { PublicCourseDetailScreen } from '../PublicCourseDetailScreen';
 
@@ -242,13 +241,7 @@ export function RecommendedTab() {
 }
 
 // "선택"된 항목의 좌표를 실제 지도 위에 마커(+2개 이상이면 경로)로 보여줌(2026-09-07 결정,
-// decision-log 참고). 코스든 개별 장소든 PreviewPoint 배열만 받으면 동일하게 그림.
-// 기본 구글맵 스타일 그대로라 POI/라벨이 잔뜩 떠서 "대충 보여준다"는 피드백(2026-09-09) —
-// MUTED_MAP_STYLE(theme/map.ts)로 톤 다듬고, 터치는 막음(scrollEnabled/zoomEnabled false +
-// pointerEvents none). 이 지도는 바텀시트 뒤 배경 전체를 차지하는데 시트 핸들 드래그와 지도 팬
-// 제스처가 겹쳐서 시트를 열고 닫으려다 지도가 움직이는 충돌이 있었고, 어차피 "자세히 보기"를
-// 누르면 PublicCourseDetailScreen에서 완전히 인터랙티브한 지도를 볼 수 있어서 이 미리보기는
-// 터치를 막아도 손해가 없다고 판단(사용자 확인)
+// decision-log 참고). 코스든 개별 장소든 PreviewPoint 배열만 받으면 동일하게 그림
 function RoutePreviewMap({ points, size }: { points: PreviewPoint[]; size: number }) {
   if (points.length === 0) {
     return <View style={[styles.mapFallback, { width: size, height: size }]} />;
@@ -261,10 +254,6 @@ function RoutePreviewMap({ points, size }: { points: PreviewPoint[]; size: numbe
       provider={PROVIDER_GOOGLE}
       style={{ width: size, height: size }}
       initialRegion={regionForCoords(coords)}
-      customMapStyle={MUTED_MAP_STYLE}
-      scrollEnabled={false}
-      zoomEnabled={false}
-      pointerEvents="none"
     >
       {coords.length > 1 && (
         <Polyline coordinates={coords} strokeColor={colors.accentBlue} strokeWidth={3} />
@@ -287,6 +276,24 @@ function previewPinLabel(place: CoursePlaceItem, index: number, total: number): 
   if (index === 0) return '출발';
   if (index === total - 1) return '도착';
   return String(place.visit_order);
+}
+
+// 모든 좌표가 화면에 들어오도록 중심+델타를 계산 — 코스마다 장소 수/범위가 달라서 고정 리전 대신
+// 매번 bounding box로 계산(*1.6 여유는 CourseDetailScreen이 안 쓰는 값이라 이 화면 전용 조정).
+// 점이 1개뿐이면 delta가 0이 되므로 최소값(0.02)으로 바닥을 깜(개별 장소 미리보기용)
+function regionForCoords(coords: { latitude: number; longitude: number }[]) {
+  const lats = coords.map((c) => c.latitude);
+  const lngs = coords.map((c) => c.longitude);
+  const minLat = Math.min(...lats);
+  const maxLat = Math.max(...lats);
+  const minLng = Math.min(...lngs);
+  const maxLng = Math.max(...lngs);
+  return {
+    latitude: (minLat + maxLat) / 2,
+    longitude: (minLng + maxLng) / 2,
+    latitudeDelta: Math.max((maxLat - minLat) * 1.6, 0.02),
+    longitudeDelta: Math.max((maxLng - minLng) * 1.6, 0.02),
+  };
 }
 
 // 카드 하나에 표시할 사진(또는 장소 미리보기) + 캡션 슬라이드 — 코스/개별 장소 데이터 모양이 달라서
