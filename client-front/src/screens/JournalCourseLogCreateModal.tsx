@@ -38,11 +38,12 @@ interface PlaceFormEntry {
   title: string;
   oneLine: string;
   weather: string;
+  visitedAt: string; // YYYY-MM-DD — 며칠짜리 코스 지원(2026-09-08 결정, decision-log 참고)로 장소마다 따로 가짐
   assets: ImagePicker.ImagePickerAsset[];
 }
 
-function emptyEntry(): PlaceFormEntry {
-  return { title: '', oneLine: '', weather: '', assets: [] };
+function emptyEntry(defaultDate: string): PlaceFormEntry {
+  return { title: '', oneLine: '', weather: '', visitedAt: defaultDate, assets: [] };
 }
 
 function toDateOnly(iso: string) {
@@ -63,14 +64,17 @@ function formatDateLabel(dateKey: string) {
 // 디자인 미반영 버전 — 이 프로젝트 관례대로(feat/place-user-explore-client 등) 기능 먼저 붙이고
 // 나중에 디자인 나오면 교체함
 export function JournalCourseLogCreateModal({ visible, onClose, onCreated }: Props) {
-  // 사용자 요청(2026-09-08)으로 순서 변경: 날짜부터 정하고(코스 전체 공유) → 장소를 고르고 →
-  // 장소마다 사진/한줄리뷰/날씨 입력. CalendarPicker는 "직접 일정 만들기-날짜 선택"(Figma
-  // 316:4643)의 실제 구현체를 그대로 재사용(CourseManualBuilderScreen/CourseFlowScreen과 동일)
+  // 사용자 요청(2026-09-08)으로 순서 변경: 날짜(범위, 며칠짜리 코스 지원)부터 정하고 → 장소를
+  // 고르고 → 장소마다 사진/한줄리뷰/날씨+그 범위 안에서 실제 방문일 입력. CalendarPicker는
+  // "직접 일정 만들기-날짜 선택_다중 선택"(Figma 598:13849)의 실제 구현체를 그대로 재사용
+  // (CourseManualBuilderScreen/CourseFlowScreen과 동일 mode="range" 패턴)
   const [step, setStep] = useState<'date' | 'places' | 'form'>('date');
   const [selectedPlaces, setSelectedPlaces] = useState<PlaceListItem[]>([]);
   const [entries, setEntries] = useState<PlaceFormEntry[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [visitedAt, setVisitedAt] = useState(''); // 코스 전체 공유 날짜, YYYY-MM-DD
+  const [tripStart, setTripStart] = useState(''); // YYYY-MM-DD
+  const [tripEnd, setTripEnd] = useState(''); // YYYY-MM-DD, 하루짜리 코스면 tripStart와 같음
+  const [showDateForCurrent, setShowDateForCurrent] = useState(false);
   const [saving, setSaving] = useState(false);
 
   function resetAndClose() {
@@ -78,7 +82,8 @@ export function JournalCourseLogCreateModal({ visible, onClose, onCreated }: Pro
     setSelectedPlaces([]);
     setEntries([]);
     setCurrentIndex(0);
-    setVisitedAt('');
+    setTripStart('');
+    setTripEnd('');
     onClose();
   }
 
@@ -99,7 +104,7 @@ export function JournalCourseLogCreateModal({ visible, onClose, onCreated }: Pro
       ]);
       return;
     }
-    setEntries(selectedPlaces.map(() => emptyEntry()));
+    setEntries(selectedPlaces.map(() => emptyEntry(tripStart)));
     setCurrentIndex(0);
     setStep('form');
   }
@@ -169,7 +174,7 @@ export function JournalCourseLogCreateModal({ visible, onClose, onCreated }: Pro
             title: entry.title.trim() || undefined,
             one_line: entry.oneLine.trim() || undefined,
             weather: entry.weather.trim() || undefined,
-            visited_at: visitedAt ? `${visitedAt}T00:00:00` : undefined,
+            visited_at: entry.visitedAt ? `${entry.visitedAt}T00:00:00` : undefined,
           };
         }),
       );
@@ -207,10 +212,14 @@ export function JournalCourseLogCreateModal({ visible, onClose, onCreated }: Pro
     return (
       <CalendarPicker
         visible
-        value={visitedAt || toDateOnly(new Date().toISOString())}
+        mode="range"
+        value={tripStart || toDateOnly(new Date().toISOString())}
+        rangeEnd={tripEnd || undefined}
         onClose={resetAndClose}
-        onConfirm={(date) => {
-          setVisitedAt(date);
+        onConfirm={() => {}} // range 모드에선 안 씀(onConfirmRange만 호출됨)
+        onConfirmRange={(start, end) => {
+          setTripStart(start);
+          setTripEnd(end);
           setStep('places');
         }}
       />
@@ -295,11 +304,12 @@ export function JournalCourseLogCreateModal({ visible, onClose, onCreated }: Pro
               </Text>
             </View>
 
-            {/* 날짜는 코스 전체가 공유 — 앞 단계(step 'date')에서 이미 정했으므로 여기선 읽기 전용
-                표시만(2026-09-08 결정, decision-log 참고) */}
-            <View style={styles.fieldBox}>
-              <Text style={styles.fieldValue}>{formatDateLabel(visitedAt)}</Text>
-            </View>
+            {/* 날짜는 앞 단계(step 'date')에서 고른 범위(tripStart~tripEnd) 안 기본값으로 시작하되,
+                며칠짜리 코스면 장소마다 실제 방문일이 다를 수 있어서 여기서 다시 고를 수 있게 함
+                (2026-09-08 결정, decision-log 참고) */}
+            <TouchableOpacity style={styles.fieldBox} onPress={() => setShowDateForCurrent(true)} activeOpacity={0.8}>
+              <Text style={styles.fieldValue}>{formatDateLabel(entry.visitedAt)}</Text>
+            </TouchableOpacity>
 
             <View style={styles.fieldBox}>
               <TextInput
@@ -323,6 +333,17 @@ export function JournalCourseLogCreateModal({ visible, onClose, onCreated }: Pro
           </View>
         </Pressable>
       </Pressable>
+
+      <CalendarPicker
+        visible={showDateForCurrent}
+        value={entry.visitedAt}
+        minDate={tripStart || undefined}
+        onClose={() => setShowDateForCurrent(false)}
+        onConfirm={(date) => {
+          updateCurrentEntry({ visitedAt: date });
+          setShowDateForCurrent(false);
+        }}
+      />
     </Modal>
   );
 }
