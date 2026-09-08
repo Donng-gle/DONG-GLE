@@ -107,11 +107,16 @@ export function OnboardingScreen({ onComplete }: Props) {
   }
 
   async function handleSwipe(action: 'like' | 'dislike') {
-    if (!card) return;
+    // panResponder는 마운트 시(카드가 아직 null인 첫 렌더) 한 번만 생성돼서 이 함수를 클로저로
+    // 캡처한다. 클로저 변수 card를 직접 읽으면 그 시점의 null에 고정돼 매번 여기서 조용히 return하고,
+    // 그 위 forceSwipe에서 이미 true로 만든 swiping을 finally까지 못 가서 영영 못 내려 스와이프가
+    // 완전히 멈추는 버그가 있었음 — cardRef로 최신값을 읽는다.
+    const curr = cardRef.current;
+    if (!curr) return;
 
     setSwiping(true);
     try {
-      const result = await onboardingApi.swipe(card.id, action);
+      const result = await onboardingApi.swipe(curr.id, action);
       setTotalSeen(result.total_seen);
       setCard(null);
 
