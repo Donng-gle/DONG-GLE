@@ -53,6 +53,8 @@ function toMapItem(log: MockVisitLog): VisitLogMapItem {
     id: log.id,
     place_id: place.id,
     place_name: place.name,
+    course_id: log.courseId ?? null,
+    course_title: log.courseTitle ?? null,
     lat: place.lat,
     lng: place.lng,
     photos: toPhotos(log),
@@ -84,6 +86,8 @@ function toDetail(log: MockVisitLog): VisitLogDetail {
     id: log.id,
     place_id: place.id,
     place_name: place.name,
+    course_id: log.courseId ?? null,
+    course_title: log.courseTitle ?? null,
     photos: toPhotos(log),
     title: log.title ?? null,
     one_line: log.oneLine,
@@ -293,6 +297,63 @@ export function resolveMock<T>(method: string, path: string, body: unknown): Moc
     };
     visitLogs = [newLog, ...visitLogs];
     return ok(toDetail(newLog) as T);
+  }
+
+  // POST /logs/course (나의 일지 "기록하기"에서 장소 2개 이상 골랐을 때 — 2026-09-08 추가,
+  // decision-log 참고). 실제 백엔드처럼 course(source=journal) + 장소마다 visit_log를 만들어서
+  // 같은 course_id로 묶고, 스크랩북 "내 코스" 목록에도 노출되게 courseList에도 추가함
+  if (method === 'POST' && pathname === '/logs/course') {
+    const req = (body ?? {}) as {
+      places: {
+        place_id: number;
+        photos?: { url: string; caption?: string }[];
+        title?: string;
+        one_line?: string;
+        weather?: string;
+        rating?: number;
+        visited_at?: string;
+      }[];
+      course_title?: string;
+    };
+    const courseId = nextCourseId++;
+    const firstVisitedAt = req.places.find((p) => p.visited_at)?.visited_at ?? new Date().toISOString();
+    const d = new Date(firstVisitedAt);
+    const courseTitle = req.course_title?.trim() || `${d.getMonth() + 1}월 ${d.getDate()}일의 코스`;
+
+    const newLogs: MockVisitLog[] = req.places.map((p) => ({
+      id: nextLogId++,
+      placeId: p.place_id,
+      mine: true,
+      authorId: null,
+      courseId,
+      courseTitle,
+      photos: p.photos ?? [],
+      title: p.title ?? null,
+      oneLine: p.one_line ?? null,
+      weather: p.weather ?? null,
+      rating: p.rating ?? null,
+      visitedAt: p.visited_at ?? new Date().toISOString(),
+      tags: [],
+    }));
+    visitLogs = [...newLogs, ...visitLogs];
+
+    const places = newLogs.map((l) => MOCK_PLACES.find((mp) => mp.id === l.placeId)!);
+    courseList = [
+      {
+        id: courseId,
+        title: courseTitle,
+        travel_date: firstVisitedAt.slice(0, 10),
+        end_date: null,
+        source: 'journal',
+        place_count: places.length,
+        thumbnail_url: places[0]?.main_image_url ?? null,
+        place_thumbnails: places.slice(0, 3).map((p) => p.main_image_url).filter((url): url is string => url != null),
+        created_at: new Date().toISOString(),
+      },
+      ...courseList,
+    ];
+
+    return ok({ course_id: courseId, logs: newLogs.map(toDetail) } as T);
   }
 
   // GET /users/me/preferences (마이페이지 취향 레이더 차트) — ssot.md 7개 태그, 0.5가 중립 기준선
