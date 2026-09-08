@@ -301,11 +301,11 @@ export function StreetTab() {
 }
 
 // Figma 재실측(2026-09-08, 노드 ID가 334:3255에서 334:3373~334:3392로 바뀐 새 버전 — 이전 실측이
-// 낡은 스냅샷이었음): "장소 카드" 324x316, 카드 자체엔 배경색/그림자 없음(시트 배경(f7f7fb) 위에
-// 사진+텍스트만 바로 얹힘 — fills/effects 둘 다 없는 것까지 실측으로 확인, 기존엔 흰 카드+그림자로
-// 잘못 구현돼 있었음). 사진(324x256, radius20) 위에 반투명 흰 배지(10%)+하트버튼(10%), 아래 20%
-// 검정 그라디언트로 배지/버튼 대비 확보. 이름(20/Medium)→주소(14/Regular, 둘 다 검정, gap 4)
-// 원본엔 이름 옆에 별점(★4.0)도 있는데 PlaceListItem엔 rating 필드가 없어서(PlaceDetail에만
+// 낡은 스냅샷이었음): "장소 카드" 324x316. 사진(324x256, radius20) 위에 반투명 흰 배지(10%)+
+// 하트버튼(10%), 아래 20% 검정 그라디언트로 배지/버튼 대비 확보. 이름(20/Medium)→주소(14/Regular,
+// 둘 다 검정, gap 4). 실측대로면 카드 자체는 배경/그림자가 없지만, 사용자가 "취향 맞춤 코스"
+// 리스트처럼 카드별로 구분되게 해달라고 요청(2026-09-09)해서 흰 카드+그림자를 다시 추가함(styles.card
+// 참고). 원본엔 이름 옆에 별점(★4.0)도 있는데 PlaceListItem엔 rating 필드가 없어서(PlaceDetail에만
 // 있음) 생략 — 없는 데이터를 지어내지 않기 위한 선택(다른 화면들과 동일 원칙, 사용자 확인)
 function PlaceCategoryCard({
   place,
@@ -397,13 +397,25 @@ const styles = StyleSheet.create({
   listContent: { paddingHorizontal: 18, paddingBottom: 100 },
   emptyText: { textAlign: 'center', color: colors.gray400, fontFamily: fonts.regular, fontSize: 13, marginTop: 40 },
   footerLoading: { marginVertical: 16 },
-  // 카드 자체엔 배경/그림자 없음 — 시트 배경(backgroundMuted) 위에 사진+텍스트가 바로 얹히는
-  // 구조(2026-09-08 재실측으로 확인, 이전엔 흰 카드+그림자로 잘못 구현돼 있었음)
-  card: { marginBottom: 20 },
+  // Figma 실측대로면 카드 자체는 배경/그림자가 없지만(2026-09-08), 사용자가 "취향 맞춤 코스"
+  // 리스트처럼 카드별로 구분되게 해달라고 요청(2026-09-09) — RecommendedTab/JournalTab과 동일한
+  // 흰 카드+옅은 그림자 패턴 적용. 사진에 4px 패딩을 줘서 흰 테두리가 살짝 보이게 하고, 안쪽
+  // radius는 바깥 radius(20)에서 패딩(4)만큼 뺀 16으로(JournalTab 카드와 동일한 중첩 규칙)
+  card: {
+    backgroundColor: colors.white,
+    borderRadius: 20,
+    padding: 4,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
+  },
   cardImageWrap: {
     width: '100%',
     aspectRatio: 324 / 256,
-    borderRadius: 20,
+    borderRadius: 16,
     overflow: 'hidden',
     backgroundColor: colors.border,
   },
