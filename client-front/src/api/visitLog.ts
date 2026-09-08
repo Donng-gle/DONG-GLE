@@ -56,6 +56,9 @@ export interface VisitLogSummary {
   rating: number | null;
   visited_at: string;
   tags: string[];
+  // 관광지 상세 페이지 리뷰 카드용 작성자 정보 (2026-09-09 추가, decision-log 참고)
+  nickname: string;
+  profile_image_url: string | null;
 }
 
 export interface VisitLogMapItem {

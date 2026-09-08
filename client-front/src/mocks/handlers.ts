@@ -67,7 +67,12 @@ function toMapItem(log: MockVisitLog): VisitLogMapItem {
   };
 }
 
+// mine:true 기록엔 fixture에 작성자가 없어서(나 자신이니까) 목업 전용 고정 프로필을 씀 —
+// 관광지 상세 페이지 리뷰 카드(2026-09-09 추가, decision-log 참고)가 작성자 정보를 항상 요구해서 필요
+const MOCK_ME = { nickname: '나', profile_image_url: null as string | null };
+
 function toSummary(log: MockVisitLog): VisitLogSummary {
+  const author = findMockAuthorForLog(log);
   return {
     id: log.id,
     photos: toPhotos(log),
@@ -77,6 +82,8 @@ function toSummary(log: MockVisitLog): VisitLogSummary {
     rating: log.rating,
     visited_at: log.visitedAt,
     tags: log.tags,
+    nickname: author?.nickname ?? MOCK_ME.nickname,
+    profile_image_url: author?.profile_image_url ?? MOCK_ME.profile_image_url,
   };
 }
 
