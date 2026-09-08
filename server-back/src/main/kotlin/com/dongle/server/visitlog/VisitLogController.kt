@@ -2,6 +2,8 @@ package com.dongle.server.visitlog
 
 import com.dongle.server.visitlog.dto.MyLogsResponse
 import com.dongle.server.visitlog.dto.PlaceLogsResponse
+import com.dongle.server.visitlog.dto.VisitLogCourseCreateRequest
+import com.dongle.server.visitlog.dto.VisitLogCourseCreateResponse
 import com.dongle.server.visitlog.dto.VisitLogCreateRequest
 import com.dongle.server.visitlog.dto.VisitLogDetailResponse
 import com.dongle.server.visitlog.dto.VisitLogUpdateRequest
@@ -30,6 +32,16 @@ class VisitLogController(
     ): ResponseEntity<VisitLogDetailResponse> =
         ResponseEntity.status(HttpStatus.CREATED)
             .body(visitLogService.create(authentication.userId(), placeId, request))
+
+    // 장소를 2개 이상 묶어서 기록 — course(source=journal) + 장소마다 visit_log를 한 번에 생성
+    // (2026-09-08 결정, decision-log 참고). 장소 1개면 프론트가 위 POST /places/{placeId}/logs를 씀
+    @PostMapping("/logs/course")
+    fun createCourseLog(
+        authentication: Authentication,
+        @Valid @RequestBody request: VisitLogCourseCreateRequest,
+    ): ResponseEntity<VisitLogCourseCreateResponse> =
+        ResponseEntity.status(HttpStatus.CREATED)
+            .body(visitLogService.createCourseLog(authentication.userId(), request))
 
     @GetMapping("/users/me/logs")
     fun myLogs(

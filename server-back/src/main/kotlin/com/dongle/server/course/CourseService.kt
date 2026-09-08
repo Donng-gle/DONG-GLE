@@ -70,10 +70,15 @@ class CourseService(
 
     @Transactional
     fun save(userId: Long, request: CourseSaveRequest): CourseSaveResponse {
+        val source = requireNotNull(request.source)
+        // journal은 나의 일지 "기록하기"(POST /logs/course)에서만 서버가 직접 부여하는 값 —
+        // 이 범용 저장 API로 흉내낼 수 없게 막음(2026-09-08 결정, decision-log 참고)
+        if (source == CourseSource.journal) throw InvalidCourseSourceException("source는 ai, ai_edited, user 중 하나여야 합니다.")
+
         val course = Course(
             user = userRepository.getReferenceById(userId),
             title = request.title,
-            source = requireNotNull(request.source),
+            source = source,
             travelDate = request.travelDate,
             transport = request.transport,
         )
@@ -155,7 +160,7 @@ class CourseService(
 
         request.title?.let { course.title = it }
         request.source?.let {
-            if (it == CourseSource.ai) throw InvalidCourseSourceException()
+            if (it == CourseSource.ai || it == CourseSource.journal) throw InvalidCourseSourceException()
             course.source = it
         }
         request.places?.let { applyPlaces(course, it) }
