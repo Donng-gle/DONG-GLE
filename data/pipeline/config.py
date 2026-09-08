@@ -45,6 +45,20 @@ def get_google_config() -> GoogleConfig:
     return GoogleConfig(api_key=api_key)
 
 
+@dataclass(frozen=True)
+class KakaoConfig:
+    rest_api_key: str
+    base_url: str = "https://dapi.kakao.com/v2/local"
+
+
+def get_kakao_config() -> KakaoConfig:
+    rest_api_key = os.getenv("KAKAO_REST_API_KEY", "").strip()
+    if not rest_api_key:
+        raise ValueError("KAKAO_REST_API_KEY is required")
+
+    return KakaoConfig(rest_api_key=rest_api_key)
+
+
 def get_image_proxy_base_url() -> str:
     # Google Places 사진 URL은 API 키가 필요해 DB에 직접 저장할 수 없어서,
     # 백엔드가 제공하는 프록시(GET /images/proxy?ref=photo_reference)를 거쳐야 한다.
