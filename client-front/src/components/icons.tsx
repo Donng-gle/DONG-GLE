@@ -199,3 +199,20 @@ export function CircleCloseIcon({ size = 20 }: { size?: number }) {
     </View>
   );
 }
+
+// 관광지 상세 페이지 헤더의 북마크(찜) 버튼 — Figma 아이콘 컴포넌트 내부 벡터까지는 실측이 안 돼서
+// (아이콘 export가 이 세션에서 안 됨) 흔한 리본형 북마크 모양으로 근사(2026-09-09 추가).
+// filled=true면 찜한 상태(채워짐), false면 테두리만
+export function BookmarkIcon({ size = 24, color = colors.black, filled = false }: { size?: number; color?: string; filled?: boolean }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M6 4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16l-6-4-6 4V4Z"
+        fill={filled ? color : 'none'}
+        stroke={color}
+        strokeWidth={1.8}
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
