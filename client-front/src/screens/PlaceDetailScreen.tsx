@@ -360,8 +360,11 @@ const styles = StyleSheet.create({
   heroPage: { width: HERO_IMAGE_WIDTH, paddingHorizontal: 20 },
   // 그라디언트(투명->검정20%)를 이미지 위에 정확히 겹치려고 이미지+그라디언트를 이 wrap 안에서
   // absoluteFill로 얹음(2026-09-09 추가) — heroPage의 paddingHorizontal 때문에 absolute 자식을
-  // heroPage에 바로 두면 패딩을 무시하고 어긋나서 이 wrap을 한 겹 더 둠
-  heroImageWrap: { width: '100%', height: 234, borderRadius: 20, overflow: 'hidden', backgroundColor: colors.border },
+  // heroPage에 바로 두면 패딩을 무시하고 어긋나서 이 wrap을 한 겹 더 둠.
+  // height를 Figma 실측값(234)으로 고정해뒀었는데, 실기기 화면 폭이 Figma 목업 기준(360)과
+  // 다르면(대부분 다름) width만 늘어나고 height는 그대로라 비율이 깨지는 버그였음(2026-09-09
+  // 사용자 리포트로 발견) — height 고정 대신 실측 비율(320/234) 그대로 aspectRatio로 전환
+  heroImageWrap: { width: '100%', aspectRatio: 320 / 234, borderRadius: 20, overflow: 'hidden', backgroundColor: colors.border },
   heroImagePlaceholder: { backgroundColor: colors.border },
   // 2026-09-09 재실측: 점 크기 6->8, 비활성 투명도 0.5->0.4
   dotRow: { flexDirection: 'row', justifyContent: 'center', gap: 6, marginTop: -24, marginBottom: 8 },
