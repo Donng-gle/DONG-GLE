@@ -216,3 +216,27 @@ export function BookmarkIcon({ size = 24, color = colors.black, filled = false }
     </Svg>
   );
 }
+
+// 관광지 상세 페이지 이름 옆 찜(하트) 버튼 — 기존엔 유니코드 글리프(♥/♡)를 Text로 그려서 Figma의
+// 둥근 하트 벡터(354:4731 "heart" 인스턴스, export로 확인)와 모양이 많이 달랐음(글리프는 끝이 뾰족한
+// 좁은 하트, 시안은 위쪽 둘레가 훨씬 둥글고 통통함) — react-native-svg로 직접 그려서 교체(2026-09-09).
+// 인스턴스 내부 벡터 path 자체는 export가 PNG/PNG형 SVG만 내려줘서 실측 불가 — 흔히 쓰이는 하트
+// path(Feather 아이콘 세트 등)로 근사, export 이미지와 비교해 비율 확인함. filled=true면 찜한 상태
+// (StreetTab 카드 하트와 동일하게 red #ff4d4d로 채움 — 앱이 흑백 톤이지만 찜만 유일하게 색을 씀,
+// 이미 있던 패턴)
+export function HeartIcon({ size = 24, color = colors.black, filled = false }: { size?: number; color?: string; filled?: boolean }) {
+  const fillColor = filled ? '#ff4d4d' : 'none';
+  const strokeColor = filled ? '#ff4d4d' : color;
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78Z"
+        fill={fillColor}
+        stroke={strokeColor}
+        strokeWidth={1.6}
+        strokeLinejoin="round"
+        strokeLinecap="round"
+      />
+    </Svg>
+  );
+}
