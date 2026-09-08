@@ -135,8 +135,13 @@ export function PlaceDetailScreen({ placeId, onExit }: Props) {
   // 화면을 새로 만드는 방안도 검토했지만 사용자가 실제로 원하는 길찾기/실시간 교통정보는 결국
   // 구글맵 고유 기능이라 그대로 넘기는 쪽이 공수 대비 효용이 제일 좋다고 판단(2026-09-09 사용자와
   // 논의 후 결정)
-  async function openInGoogleMaps(lat: number, lng: number) {
-    const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+  // destination에 이름을 넘기면 구글맵이 그 이름으로 재검색해서 목적지를 잡음 — 좌표만 넘길 때
+  // 핀 라벨이 "위도, 경도" 숫자로만 뜨던 걸 실제 장소명("월영교" 등)으로 보여주기 위함(2026-09-09
+  // 사용자 요청). 흔한 이름이면 엉뚱한 곳이 잡힐 이론적 위험은 있지만, TourAPI 관광지 목록은 대부분
+  // 고유한 이름이라 실사용 리스크는 낮다고 판단 — name이 없으면 기존대로 좌표로 폴백
+  async function openInGoogleMaps(lat: number, lng: number, name?: string) {
+    const destination = name ? encodeURIComponent(name) : `${lat},${lng}`;
+    const url = `https://www.google.com/maps/dir/?api=1&destination=${destination}`;
     try {
       await Linking.openURL(url);
     } catch (e) {
@@ -266,7 +271,7 @@ export function PlaceDetailScreen({ placeId, onExit }: Props) {
             <TouchableOpacity
               activeOpacity={0.85}
               style={styles.previewMapWrap}
-              onPress={() => openInGoogleMaps(place.lat!, place.lng!)}
+              onPress={() => openInGoogleMaps(place.lat!, place.lng!, place.name)}
             >
               <MapView
                 provider={PROVIDER_GOOGLE}
