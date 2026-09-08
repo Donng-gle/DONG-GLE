@@ -192,7 +192,14 @@ export function PlaceDetailScreen({ placeId, onExit }: Props) {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={styles.content}>
+      {/* 이 화면을 여는 부모(StreetTab/RecommendedTab)가 HomeScreen의 tabContent 안에 있고,
+          HomeScreen은 그 뒤에 FloatingNav(position:absolute, 화면 하단에 항상 떠 있는 바)를
+          형제로 렌더함 — 이 화면을 꽉 채워 렌더해도 FloatingNav는 그 위에 계속 겹쳐 보임. 끝까지
+          스크롤했을 때 마지막 리뷰 하단 텍스트가 그 바에 가려 안 읽히는 문제(2026-09-09 사용자
+          리포트) — FloatingNav.tsx와 같은 공식(바 자체의 화면 하단 오프셋 Math.max(20,
+          insets.bottom+12) + 중앙 버튼이 위로 튀어나온 높이까지 포함한 바 전체 높이 66)만큼 여유를
+          더 주고, 바로 위에 딱 붙지 않게 20 여백을 추가로 둠 */}
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: Math.max(20, insets.bottom + 12) + 66 + 20 }]}>
         {/* "소개" 블록(히어로+이름+칩+개요+평점) — 흰 풀블리드 카드로 묶어서 회색 페이지 배경(container)
             위에 얹음. 기본정보/리뷰 카드와 marginTop 12로 같은 간격을 둠(위 코멘트 3번 참고) */}
         <View style={styles.topCard}>
