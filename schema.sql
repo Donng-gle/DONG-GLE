@@ -170,10 +170,13 @@ CREATE INDEX idx_place_like_place ON place_like (place_id);
 
 
 -- 방문 로그
+-- course_id: 코스 단위 기록(장소 2개 이상)일 때만 값 있음, nullable. course 테이블이 아래에서
+-- 정의되므로 FK 제약은 course 생성 뒤에 별도 ALTER로 추가함. 2026-09-08 추가, decision-log 참고
 CREATE TABLE visit_log (
     id         BIGSERIAL    PRIMARY KEY,
     user_id    BIGINT       NOT NULL REFERENCES "user" (id) ON DELETE CASCADE,
     place_id   BIGINT       NOT NULL REFERENCES place (id) ON DELETE CASCADE,
+    course_id  BIGINT,
     title      VARCHAR(50),   -- 기록 제목. 2026-09-05 추가(메인 페이지-나의 일지-기록하기), decision-log 참고
     one_line   VARCHAR(100),
     weather    VARCHAR(20),   -- 자유 입력 텍스트(선택지 코드 없음). 2026-09-05 추가, decision-log 참고
@@ -184,6 +187,7 @@ CREATE TABLE visit_log (
 
 CREATE INDEX idx_visit_log_user    ON visit_log (user_id);
 CREATE INDEX idx_visit_log_place   ON visit_log (place_id);
+CREATE INDEX idx_visit_log_course  ON visit_log (course_id);
 CREATE INDEX idx_visit_log_visited ON visit_log (visited_at);
 
 
@@ -217,12 +221,13 @@ CREATE INDEX idx_log_emotion_tag_log ON log_emotion_tag (visit_log_id);
 
 
 -- 코스
--- source: 'ai'=AI 추천 저장, 'ai_edited'=AI 추천 후 유저 수정, 'user'=유저 직접 생성
+-- source: 'ai'=AI 추천 저장, 'ai_edited'=AI 추천 후 유저 수정, 'user'=유저 직접 생성,
+-- 'journal'=나의 일지 기록하기에서 장소 2개 이상 골라 사후 생성 (2026-09-08 결정, decision-log 참고)
 CREATE TABLE course (
     id          BIGSERIAL    PRIMARY KEY,
     user_id     BIGINT       NOT NULL REFERENCES "user" (id) ON DELETE CASCADE,
     title       VARCHAR(200) NOT NULL,
-    source      VARCHAR(20)  NOT NULL CHECK (source IN ('ai', 'ai_edited', 'user')),
+    source      VARCHAR(20)  NOT NULL CHECK (source IN ('ai', 'ai_edited', 'user', 'journal')),
     travel_date DATE,
     end_date    DATE,  -- 여러 날 범위 지원. "직접 코스 만들기"에서만 입력받음(2026-09-06 결정, decision-log 참고)
     transport   VARCHAR(10)  CHECK (transport IN ('car', 'walk', 'public')),  -- 구글맵 경로 재계산용, nullable(과거 데이터/미입력 허용)
@@ -232,6 +237,9 @@ CREATE TABLE course (
 );
 
 CREATE INDEX idx_course_user ON course (user_id);
+
+-- visit_log.course_id는 course보다 먼저 정의돼서 인라인 FK를 못 걸었음 — 여기서 추가
+ALTER TABLE visit_log ADD CONSTRAINT fk_visit_log_course FOREIGN KEY (course_id) REFERENCES course (id) ON DELETE SET NULL;
 
 
 -- 코스 장소 (TMAP 경로는 장기 저장 안 함 → 코스 열 때 재호출)
