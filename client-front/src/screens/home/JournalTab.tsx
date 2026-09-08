@@ -15,6 +15,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { VisitLogMapItem, visitLogApi } from '../../api/visitLog';
 import { AndongGlobe } from '../../components/AndongGlobe';
+import { ChoiceBottomSheet, ChoiceOption } from '../../components/ChoiceBottomSheet';
 import { PlusIcon } from '../../components/icons';
 import { colors } from '../../theme/colors';
 import { fonts } from '../../theme/fonts';
@@ -107,18 +108,17 @@ export function JournalTab(_props: Props) {
   const listRef = useRef<FlatList<JournalEntry>>(null);
   const [createVisible, setCreateVisible] = useState(false);
   const [courseCreateVisible, setCourseCreateVisible] = useState(false);
+  const [addChoiceVisible, setAddChoiceVisible] = useState(false);
 
   const entries = useMemo(() => groupLogsIntoEntries(logs ?? []), [logs]);
 
   // "+"를 누르면 장소 하나만 기록할지, 여러 장소를 코스로 묶어 기록할지 먼저 고르게 함
-  // (2026-09-08 결정, decision-log 참고) — 아직 Figma 시안이 없어서 네이티브 Alert로 임시 구현
-  function handlePressAdd() {
-    Alert.alert('무엇을 기록할까요?', undefined, [
-      { text: '장소 기록', onPress: () => setCreateVisible(true) },
-      { text: '코스 작성', onPress: () => setCourseCreateVisible(true) },
-      { text: '취소', style: 'cancel' },
-    ]);
-  }
+  // (2026-09-08 결정, decision-log 참고) — FloatingNav의 "일정 생성" 바텀시트(601:15506)와
+  // 같은 모양을 ChoiceBottomSheet로 재사용
+  const addChoiceOptions: ChoiceOption[] = [
+    { label: '장소 기록', onPress: () => setCreateVisible(true) },
+    { label: '코스 작성', onPress: () => setCourseCreateVisible(true) },
+  ];
 
   function loadLogs() {
     visitLogApi
@@ -203,7 +203,7 @@ export function JournalTab(_props: Props) {
                 {/* "+"는 탭이라 PanResponder(handleArea 전체에 걸려있음)와 겹치는데, RN 터치
                     협상은 가장 안쪽(TouchableOpacity)이 먼저 응답자가 될 기회를 가져서(캡처
                     단계 핸들러를 안 쓰는 한) 드래그와 안 충돌함(2026-09-05 실기기 확인) */}
-                <TouchableOpacity onPress={handlePressAdd} hitSlop={8}>
+                <TouchableOpacity onPress={() => setAddChoiceVisible(true)} hitSlop={8}>
                   <PlusIcon />
                 </TouchableOpacity>
               </View>
@@ -230,6 +230,12 @@ export function JournalTab(_props: Props) {
         </View>
       )}
 
+      <ChoiceBottomSheet
+        visible={addChoiceVisible}
+        label="기록하기"
+        options={addChoiceOptions}
+        onClose={() => setAddChoiceVisible(false)}
+      />
       <JournalLogCreateModal
         visible={createVisible}
         onClose={() => setCreateVisible(false)}
