@@ -282,7 +282,9 @@ const styles = StyleSheet.create({
   thumbItem: { width: 44, height: 44, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(255,255,255,0.6)' },
   thumbMoreBadge: { backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center', borderColor: 'transparent' },
   thumbMoreText: { fontFamily: fonts.medium, fontSize: 13, color: colors.white },
-  placeCard: { height: 168, borderRadius: 16, overflow: 'hidden', marginBottom: 20, backgroundColor: colors.border },
+  // 사용자 요청으로 세로 높이 확대(168->200, 2026-09-09) — 텍스트/하트 버튼은 전부 상하 가장자리
+  // 기준 absolute 배치라 높이만 키워도 레이아웃 안 깨짐
+  placeCard: { height: 200, borderRadius: 16, overflow: 'hidden', marginBottom: 20, backgroundColor: colors.border },
   placeCardText: { position: 'absolute', left: 20, right: 56, bottom: 16 },
   placeName: { fontFamily: fonts.medium, fontSize: 20, letterSpacing: -0.5, color: colors.white },
   placeAddr: { fontFamily: fonts.regular, fontSize: 12, letterSpacing: -0.3, color: '#cccccc', marginTop: 4 },
