@@ -17,7 +17,7 @@ import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PlaceDetail, placeApi } from '../api/place';
 import { PlaceLogsResponse, VisitLogSummary, visitLogApi } from '../api/visitLog';
-import { BookmarkIcon, SearchIcon } from '../components/icons';
+import { BookmarkIcon, HeartIcon, SearchIcon } from '../components/icons';
 import { StarRating } from '../components/StarRating';
 import { colors } from '../theme/colors';
 import { fonts } from '../theme/fonts';
@@ -36,22 +36,12 @@ const WEEKDAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
 // 어긋나서 다음 이미지 앞부분이 계속 붙어 보이는 문제가 있었음 (2026-09-05, decision-log 참고)
 const HERO_IMAGE_WIDTH = Dimensions.get('window').width;
 
-// 리뷰 카드 사진 콜라주 치수 — Figma 실측(354:1345 "Group 1707481351"): 320폭 카드 안에서
-// 큰 사진 216x204 + 작은 사진(100x100) 2장을 오른쪽에 4 간격으로 쌓음. 카드 자체 폭이 기기
-// 폭마다 달라질 수 있어서(REVIEW_CARD_PADDING 뺀 값 기준) 비율로 환산
-const REVIEW_COLLAGE_GAP = 4;
-const REVIEW_CARD_PADDING = 16;
-const REVIEW_COLLAGE_WIDTH = HERO_IMAGE_WIDTH - 40 - REVIEW_CARD_PADDING * 2; // 화면 좌우 20 + 카드 패딩 16씩
-const REVIEW_COLLAGE_BIG_WIDTH = REVIEW_COLLAGE_WIDTH * (216 / 320);
-const REVIEW_COLLAGE_SMALL_WIDTH = REVIEW_COLLAGE_WIDTH - REVIEW_COLLAGE_BIG_WIDTH - REVIEW_COLLAGE_GAP;
-const REVIEW_COLLAGE_HEIGHT = REVIEW_COLLAGE_BIG_WIDTH * (204 / 216);
-
-// Figma 리뷰 카드는 "2026년 6월 여행"처럼 일자 없이 연/월만 보여줌 — 실제 visited_at(정확한 날짜)을
-// 그 표기 그대로 가공한 것뿐, 없는 데이터를 지어낸 건 아님
-function formatVisitMonth(visitedAt: string) {
-  const d = new Date(visitedAt);
-  return `${d.getFullYear()}년 ${d.getMonth() + 1}월 여행`;
-}
+// 리뷰 포토 그리드 치수 — Figma 실측(458:2474 "리뷰" 섹션, 602:15528 카드 등, 2026-09-09 재실측,
+// 채널 vvw77yh5): 2열 그리드, 카드 156x216(비율 216/156), 열/행 간격 모두 8. 화면 좌우 패딩(20씩)
+// 뺀 폭을 기기 폭에 맞춰 비율로 환산
+const REVIEW_GRID_GAP = 8;
+const REVIEW_GRID_ITEM_WIDTH = (HERO_IMAGE_WIDTH - 40 - REVIEW_GRID_GAP) / 2;
+const REVIEW_GRID_ITEM_HEIGHT = REVIEW_GRID_ITEM_WIDTH * (216 / 156);
 
 function formatHours(hours: PlaceDetail['hours']) {
   return hours.map((h) => {
@@ -62,14 +52,32 @@ function formatHours(hours: PlaceDetail['hours']) {
   });
 }
 
-// Figma 노드 354:1345/458:2474/358:5134("관광지 상세 페이지") 중 354:1345를 기준으로 재실측
-// (2026-09-09, 채널 i1yleec3). "가는 방법"은 여전히 대응하는 백엔드 데이터가 없어서 생략(TourAPI에
-// 그런 필드 자체가 없음) — 없는 데이터를 지어내지 않기 위한 선택 (2026-09-01 결정, decision-log
-// 참고). 별점(avg_rating)은 이미 있음. 헤더 돋보기/북마크는 2026-09-07에 한 번 추가했다가 뒤로가기만
-// 남기는 걸로 되돌렸었는데, 2026-09-09 새 시안(354:1345)에 다시 있어서 사용자 확인 후 재추가함.
-// 리뷰 카드도 작성자 프로필(닉네임/아바타, 2026-09-09 백엔드에 VisitLogSummary.nickname/
-// profile_image_url 추가)+별점+글+사진 카드형으로 전면 교체(사진 그리드+텍스트 오버레이였던
-// 이전 458:2474 버전은 폐기)
+// Figma 노드 354:1345/458:2474/358:5134("관광지 상세 페이지") 재실측(2026-09-09, 채널 vvw77yh5,
+// 같은 날 앞선 세션의 i1yleec3 실측을 이어받아 정정). "가는 방법"은 여전히 대응하는 백엔드 데이터가
+// 없어서 생략(TourAPI에 그런 필드 자체가 없음) — 없는 데이터를 지어내지 않기 위한 선택(2026-09-01
+// 결정, decision-log 참고). 별점(avg_rating)은 이미 있음.
+//
+// 이번 세션 변경 4가지(전부 사용자 확인):
+// 1) 이름-태그칩 간격: chipRow marginTop을 16 그대로 뒀었는데, titleRow가 하트+개수 컬럼(~41 높이)
+//    때문에 이름 텍스트 한 줄(29 높이)보다 실제로 더 큰 높이를 차지해서 marginTop이 그 위에 또
+//    쌓여 체감 간격이 Figma 실측치보다 훨씬 컸음 — marginTop 16→8로 축소
+// 2) 이름 옆 하트: 유니코드 글리프(♥/♡) 대신 Figma 벡터에 맞춘 HeartIcon(components/icons.tsx)으로
+//    교체
+// 3) "소개"(히어로+이름+칩+개요+평점)/"기본정보"/"리뷰" 세 블록 사이 경계 — Figma엔 테두리선이
+//    아니라 페이지 배경을 옅은 회색(#f1f1f5, colors.rowDivider)으로 깔고 각 블록을 흰 배경 풀블리드
+//    카드로 얹어 12 간격으로 띄우는 방식이었음(354:1345 "콘텐츠"/"리뷰" 프레임 실측) — 지금까지는
+//    화면 전체가 흰 배경 하나라 블록 구분이 아예 안 보였던 것. topCard/section 스타일에 흰 배경+
+//    marginTop 12 추가, container 배경을 rowDivider로 변경
+// 4) 기본정보 지도: 183 높이/8 radius였던 걸 사용자 요청으로 확대+더 둥글게(220/16) — Figma엔
+//    이 크기의 변형이 없어서(세 프레임 다 320x183/radius8 동일) 임의 조정
+//
+// 리뷰 카드는 지난 세션(같은 날 앞선 대화)에 458:2474의 사진 그리드+텍스트 오버레이 디자인을
+// "옛날 시안"으로 보고 354:1345의 아바타+닉네임+별점+본문 카드형으로 이미 한 번 바꿨었는데, 이번
+// 세션에 사용자가 그 판단을 뒤집어 "사진이 더 메인인" 458:2474 스타일(사진 위 하단 그라디언트+
+// 아바타/닉네임/본문 오버레이, 2열 그리드)로 다시 교체해달라고 명시적으로 요청함 — 458:2474
+// "리뷰" 섹션(602:15528 카드 등) 실측대로 재구현, 354:1345의 아바타+별점 카드 버전은 폐기.
+// 별점은 이 그리드 디자인엔 아예 표시 자리가 없어서(Figma 실측 확인) 생략 — 데이터 자체는
+// VisitLogSummary.rating에 남아있으니 추후 디자인이 다시 바뀌면 복원 가능
 export function PlaceDetailScreen({ placeId, onExit }: Props) {
   const insets = useSafeAreaInsets();
   const [place, setPlace] = useState<PlaceDetail | null>(null);
@@ -163,67 +171,71 @@ export function PlaceDetailScreen({ placeId, onExit }: Props) {
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
-        {photos.length > 0 ? (
-          <View>
-            <ScrollView
-              horizontal
-              pagingEnabled
-              showsHorizontalScrollIndicator={false}
-              onMomentumScrollEnd={(e) =>
-                setActivePhoto(Math.round(e.nativeEvent.contentOffset.x / HERO_IMAGE_WIDTH))
-              }
-            >
-              {photos.map((url, idx) => (
-                <View key={idx} style={styles.heroPage}>
-                  <View style={styles.heroImageWrap}>
-                    <Image source={{ uri: url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
-                    <LinearGradient colors={['transparent', 'rgba(0,0,0,0.2)']} style={StyleSheet.absoluteFill} pointerEvents="none" />
+        {/* "소개" 블록(히어로+이름+칩+개요+평점) — 흰 풀블리드 카드로 묶어서 회색 페이지 배경(container)
+            위에 얹음. 기본정보/리뷰 카드와 marginTop 12로 같은 간격을 둠(위 코멘트 3번 참고) */}
+        <View style={styles.topCard}>
+          {photos.length > 0 ? (
+            <View>
+              <ScrollView
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                onMomentumScrollEnd={(e) =>
+                  setActivePhoto(Math.round(e.nativeEvent.contentOffset.x / HERO_IMAGE_WIDTH))
+                }
+              >
+                {photos.map((url, idx) => (
+                  <View key={idx} style={styles.heroPage}>
+                    <View style={styles.heroImageWrap}>
+                      <Image source={{ uri: url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+                      <LinearGradient colors={['transparent', 'rgba(0,0,0,0.2)']} style={StyleSheet.absoluteFill} pointerEvents="none" />
+                    </View>
                   </View>
+                ))}
+              </ScrollView>
+              {photos.length > 1 && (
+                <View style={styles.dotRow}>
+                  {photos.map((_, idx) => (
+                    <View key={idx} style={[styles.dot, idx === activePhoto && styles.dotActive]} />
+                  ))}
+                </View>
+              )}
+            </View>
+          ) : (
+            <View style={styles.heroPage}>
+              <View style={[styles.heroImageWrap, styles.heroImagePlaceholder]} />
+            </View>
+          )}
+
+          <View style={styles.titleRow}>
+            <Text style={styles.placeName}>{place.name}</Text>
+            {/* Figma는 하트 밑에 좋아요 수(587)를 보여주는데 place_like엔 개수 API가 없음 — 대신
+                실제로 있는 방문 기록 수(visit_log_count)를 같은 자리에 넣음(가짜 숫자 아님) */}
+            <TouchableOpacity onPress={toggleLike} disabled={likeBusy} hitSlop={8} style={styles.likeButton}>
+              <HeartIcon size={24} filled={!!place.is_liked} />
+              <Text style={styles.likeCount}>{place.visit_log_count}</Text>
+            </TouchableOpacity>
+          </View>
+
+          {chips.length > 0 && (
+            <View style={styles.chipRow}>
+              {chips.map((chip) => (
+                <View key={chip} style={styles.chip}>
+                  <Text style={styles.chipText}>{chip}</Text>
                 </View>
               ))}
-            </ScrollView>
-            {photos.length > 1 && (
-              <View style={styles.dotRow}>
-                {photos.map((_, idx) => (
-                  <View key={idx} style={[styles.dot, idx === activePhoto && styles.dotActive]} />
-                ))}
-              </View>
-            )}
-          </View>
-        ) : (
-          <View style={styles.heroPage}>
-            <View style={[styles.heroImageWrap, styles.heroImagePlaceholder]} />
-          </View>
-        )}
+            </View>
+          )}
 
-        <View style={styles.titleRow}>
-          <Text style={styles.placeName}>{place.name}</Text>
-          {/* Figma는 하트 밑에 좋아요 수(587)를 보여주는데 place_like엔 개수 API가 없음 — 대신
-              실제로 있는 방문 기록 수(visit_log_count)를 같은 자리에 넣음(가짜 숫자 아님) */}
-          <TouchableOpacity onPress={toggleLike} disabled={likeBusy} hitSlop={8} style={styles.likeButton}>
-            <Text style={styles.likeIcon}>{place.is_liked ? '♥' : '♡'}</Text>
-            <Text style={styles.likeCount}>{place.visit_log_count}</Text>
-          </TouchableOpacity>
+          {place.overview && <Text style={styles.overview}>{place.overview}</Text>}
+
+          {place.avg_rating != null && (
+            <View style={styles.avgRatingRow}>
+              <StarRating rating={place.avg_rating} size={16} />
+              <Text style={styles.avgRatingValue}>{place.avg_rating.toFixed(1)}</Text>
+            </View>
+          )}
         </View>
-
-        {chips.length > 0 && (
-          <View style={styles.chipRow}>
-            {chips.map((chip) => (
-              <View key={chip} style={styles.chip}>
-                <Text style={styles.chipText}>{chip}</Text>
-              </View>
-            ))}
-          </View>
-        )}
-
-        {place.overview && <Text style={styles.overview}>{place.overview}</Text>}
-
-        {place.avg_rating != null && (
-          <View style={styles.avgRatingRow}>
-            <StarRating rating={place.avg_rating} size={16} />
-            <Text style={styles.avgRatingValue}>{place.avg_rating.toFixed(1)}</Text>
-          </View>
-        )}
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>기본정보</Text>
@@ -260,15 +272,16 @@ export function PlaceDetailScreen({ placeId, onExit }: Props) {
 
           {logs && logs.logs.length === 0 && <Text style={styles.emptyText}>아직 방문 기록이 없어요</Text>}
 
-          {/* 2026-09-09 재실측(354:1345)으로 사진 그리드+텍스트 오버레이(458:2474 기준) 대신 프로필
-              (아바타+닉네임+방문월)+별점 헤더, 그 아래 리뷰 본문, 사진이 있으면 그 아래 콜라주를
-              보여주는 카드형으로 전면 교체. 작성자 정보는 백엔드에 새로 추가한
-              VisitLogSummary.nickname/profile_image_url을 씀(explore.similarLogs와 동일 패턴,
-              2026-09-09 결정, decision-log 참고). 좋아요/댓글 수는 이 기록에 대응하는 백엔드
-              데이터가 없어서(그런 기능 자체가 없음) 계속 생략 */}
-          {logs?.logs.map((log) => (
-            <ReviewCard key={log.id} log={log} />
-          ))}
+          {/* 458:2474 "리뷰" 섹션 실측대로 사진이 메인인 2열 그리드로 교체(위 코멘트 참고). 작성자
+              정보는 백엔드 VisitLogSummary.nickname/profile_image_url을 씀(explore.similarLogs와
+              동일 패턴) */}
+          {logs && logs.logs.length > 0 && (
+            <View style={styles.reviewGrid}>
+              {logs.logs.map((log) => (
+                <PhotoReviewCard key={log.id} log={log} />
+              ))}
+            </View>
+          )}
         </View>
       </ScrollView>
 
@@ -288,54 +301,57 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-// Figma 실측(354:1345 "Frame 2147227140"): 프로필(아바타40+닉네임+방문월, 우측에 별점)→본문→
-// (있으면) 사진 콜라주. 사진 1장이면 꽉 채운 한 장, 2장 이상이면 큰 사진 하나+작은 사진 최대 2장을
-// 오른쪽에 쌓는 콜라주로(Figma "Group 1707481351" 그대로) — 3장 넘는 사진은 이 카드에선 앞 3장만
-function ReviewCard({ log }: { log: VisitLogSummary }) {
-  const photos = log.photos;
+// Figma 실측(458:2474 "리뷰" 섹션, 602:15528 카드): 156x216(비율 216/156) 카드, 사진을 배경 전체에
+// 깔고 하단 절반에 투명→#111 그라디언트(opacity 0.8)를 얹어 그 위에 아바타16+닉네임(12 medium
+// 흰색), 그 아래 본문(8 regular #cccccc, 최대 2줄)을 오버레이. 사진이 없는 기록은 이 디자인이
+// 애초에 상정하지 않는 상태라(Figma에 그런 변형이 없음) 사진 없이도 카드 자체는 그리되, 어두운
+// 사진 배경이 없으니 텍스트를 흰색 대신 검정 계열로 바꿔 가독성만 확보(문의 대비 목적, 레이아웃은
+// 동일). 별점은 이 디자인엔 없어서 생략(위 파일 상단 코멘트 참고)
+function PhotoReviewCard({ log }: { log: VisitLogSummary }) {
+  const photo = log.photos[0];
   return (
-    <View style={styles.reviewCard}>
-      <View style={styles.reviewCardHeader}>
-        <View style={styles.reviewProfileRow}>
+    <View style={styles.gridCard}>
+      {photo ? (
+        <>
+          <Image source={{ uri: photo.url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+          <LinearGradient
+            colors={['transparent', 'rgba(17,17,17,0.8)']}
+            locations={[0.5, 1]}
+            style={StyleSheet.absoluteFill}
+            pointerEvents="none"
+          />
+        </>
+      ) : (
+        <View style={[StyleSheet.absoluteFill, styles.gridCardPlaceholder]} />
+      )}
+
+      <View style={styles.gridCardProfile}>
+        <View style={styles.gridCardProfileRow}>
           {log.profile_image_url ? (
-            <Image source={{ uri: log.profile_image_url }} style={styles.reviewAvatar} />
+            <Image source={{ uri: log.profile_image_url }} style={styles.gridCardAvatar} />
           ) : (
-            <View style={[styles.reviewAvatar, styles.reviewAvatarPlaceholder]} />
+            <View style={[styles.gridCardAvatar, styles.gridCardAvatarPlaceholder]} />
           )}
-          <View>
-            <Text style={styles.reviewNickname}>{log.nickname}</Text>
-            <Text style={styles.reviewVisitMonth}>{formatVisitMonth(log.visited_at)}</Text>
-          </View>
+          <Text style={[styles.gridCardNickname, !photo && styles.gridCardTextOnLight]} numberOfLines={1}>
+            {log.nickname}
+          </Text>
         </View>
-        {log.rating != null && (
-          <View style={styles.reviewRatingRow}>
-            <StarRating rating={log.rating} size={16} />
-            <Text style={styles.reviewRatingValue}>{log.rating.toFixed(1)}</Text>
-          </View>
+        {log.one_line && (
+          <Text style={[styles.gridCardBody, !photo && styles.gridCardBodyOnLight]} numberOfLines={2}>
+            {log.one_line}
+          </Text>
         )}
       </View>
-
-      {log.one_line && <Text style={styles.reviewBody}>{log.one_line}</Text>}
-
-      {photos.length === 1 && (
-        <Image source={{ uri: photos[0].url }} style={styles.reviewSinglePhoto} resizeMode="cover" />
-      )}
-      {photos.length >= 2 && (
-        <View style={styles.reviewCollageRow}>
-          <Image source={{ uri: photos[0].url }} style={styles.reviewCollageBig} resizeMode="cover" />
-          <View style={styles.reviewCollageSmallCol}>
-            {photos.slice(1, 3).map((p, i) => (
-              <Image key={i} source={{ uri: p.url }} style={styles.reviewCollageSmall} resizeMode="cover" />
-            ))}
-          </View>
-        </View>
-      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.white },
+  // Figma 실측(354:1345): 페이지 배경은 옅은 회색(rowDivider, PlaceMapPickerScreen의 구분선과 같은
+  // 값이라 재사용)이고 그 위에 흰 카드(topCard/section)를 얹어 카드 사이 회색 여백으로 섹션 경계를
+  // 표현함 — 지금까지는 이 값이 없어서(흰 배경 하나) "소개"/"기본정보"/"리뷰" 사이 경계가 전혀
+  // 안 보였음(2026-09-09, 사용자 리포트로 발견)
+  container: { flex: 1, backgroundColor: colors.rowDivider },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.white },
   // 뒤로가기만 있는 헤더 — 아이콘(24) 기준 위아래 8씩 패딩(고정 height 안 씀, 위 주석 참고)
   header: {
@@ -351,8 +367,10 @@ const styles = StyleSheet.create({
   // Figma 실측(354:1345 "Frame 1707481424"): 아이콘 2개 사이 간격16
   headerIcons: { flexDirection: 'row', alignItems: 'center', gap: 16 },
   headerIconButton: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
-  // gap12 — 헤더 아래 히어로 사진까지의 여백(2026-09-09 재실측)
-  content: { paddingBottom: 40, paddingTop: 12 },
+  content: { paddingBottom: 40 },
+  // "소개" 카드 — 흰 풀블리드 배경(회색 페이지 위, 위 container 코멘트 참고). paddingTop12는 헤더
+  // 아래 히어로 사진까지의 여백(기존 content.paddingTop 그대로 이 카드 안으로 옮김)
+  topCard: { backgroundColor: colors.white, paddingTop: 12, paddingBottom: 20 },
   // Figma 실측(354:1345 "Group 1707481350"): 사진 자체는 320폭(팬널 360 안에서 좌우 20씩 여백),
   // 화면 꽉 채우는 게 아님 — 그런데 가로 스크롤 pagingEnabled는 컨테이너(=페이지 폭) 단위로 스냅해서
   // 페이지 폭을 320으로 하면(HERO_PAGE_WIDTH 참고) 이미지 자체 폭은 그보다 좁은 HERO_IMAGE_WIDTH를
@@ -379,10 +397,12 @@ const styles = StyleSheet.create({
   },
   placeName: { flex: 1, fontFamily: fonts.semiBold, fontSize: 20, letterSpacing: -0.5, lineHeight: 29, color: colors.black },
   likeButton: { alignItems: 'center', paddingLeft: 12 },
-  likeIcon: { fontSize: 24, color: colors.black },
   // 2026-09-09 재실측: 11->12, gray500->gray700
   likeCount: { fontFamily: fonts.regular, fontSize: 12, color: colors.gray700, marginTop: 2 },
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 20, marginTop: 16 },
+  // marginTop을 Figma 실측치(16) 그대로 뒀었는데, titleRow가 하트+개수 컬럼(~41 높이) 때문에 이름
+  // 한 줄(29 높이)보다 커서 그 여분 위에 16이 또 쌓여 체감 간격이 훨씬 컸음 — 8로 축소(2026-09-09,
+  // 파일 상단 코멘트 1번 참고)
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 20, marginTop: 8 },
   chip: {
     paddingHorizontal: 12,
     paddingVertical: 5,
@@ -409,60 +429,46 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   avgRatingValue: { fontFamily: fonts.medium, fontSize: 13, color: colors.gray700 },
-  section: { marginTop: 32, paddingHorizontal: 20 },
+  // 기본정보/리뷰 카드 — topCard와 같은 흰 풀블리드+marginTop12(위 container 코멘트 참고).
+  // paddingTop/Bottom은 Figma 실측(354:1345 "콘텐츠"/"리뷰" 프레임, 제목 위 20 여백)
+  section: { marginTop: 12, backgroundColor: colors.white, paddingHorizontal: 20, paddingTop: 20, paddingBottom: 24 },
   sectionTitle: { fontFamily: fonts.semiBold, fontSize: 20, letterSpacing: -0.5, color: colors.black, marginBottom: 12 },
-  previewMap: { width: '100%', height: 183, borderRadius: 8, marginBottom: 12 },
+  // 사용자 요청으로 확대+더 둥글게(183/8 -> 220/16, 파일 상단 코멘트 4번 참고 — Figma엔 이 크기
+  // 변형이 없어서 임의 조정)
+  previewMap: { width: '100%', height: 220, borderRadius: 16, marginBottom: 12 },
   infoList: { gap: 8 },
   infoRow: { flexDirection: 'row' },
   infoLabel: { width: 64, fontFamily: fonts.medium, fontSize: 12, letterSpacing: -0.3, color: colors.black },
   // 2026-09-09 재실측: gray500->gray700
   infoValue: { flex: 1, fontFamily: fonts.regular, fontSize: 12, letterSpacing: -0.3, lineHeight: 17, color: colors.gray700 },
   emptyText: { fontFamily: fonts.regular, fontSize: 14, color: colors.gray500 },
-  // Figma 실측(354:1345 "Frame 2147227140"): 흰 카드+테두리(그림자/배경색 없음). 카드 안쪽
-  // 패딩은 실측 좌표상 0에 가까웠지만(자식 x좌표가 카드 x좌표와 거의 같음) 글/사진이 테두리에
-  // 바로 붙어 답답해 보여서 여유 있게 16으로 둠(2026-09-09, StreetTab 카드와 같은 판단)
-  reviewCard: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    padding: REVIEW_CARD_PADDING,
-    marginBottom: 16,
+  // Figma 실측(458:2474 "리뷰" 섹션, 602:15528 카드 등, 2026-09-09) — 2열 그리드, 카드마다 사진
+  // 배경+하단 그라디언트+아바타/닉네임/본문 오버레이(파일 상단 코멘트 참고)
+  reviewGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: REVIEW_GRID_GAP },
+  gridCard: {
+    width: REVIEW_GRID_ITEM_WIDTH,
+    height: REVIEW_GRID_ITEM_HEIGHT,
+    borderRadius: 8,
+    overflow: 'hidden',
+    backgroundColor: colors.backgroundMuted,
   },
-  reviewCardHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
-  reviewProfileRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
-  reviewAvatar: { width: 40, height: 40, borderRadius: 8 },
-  reviewAvatarPlaceholder: { backgroundColor: colors.border },
-  reviewNickname: { fontFamily: fonts.semiBold, fontSize: 16, color: colors.black },
-  reviewVisitMonth: { fontFamily: fonts.regular, fontSize: 12, color: colors.gray700, marginTop: 2 },
-  reviewRatingRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  reviewRatingValue: { fontFamily: fonts.regular, fontSize: 14, color: colors.black },
-  reviewBody: {
+  gridCardPlaceholder: { backgroundColor: colors.backgroundMuted },
+  // Figma 실측: 카드 좌우 8, 하단 11 인셋
+  gridCardProfile: { position: 'absolute', left: 8, right: 8, bottom: 11 },
+  gridCardProfileRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  gridCardAvatar: { width: 16, height: 16, borderRadius: 8 },
+  gridCardAvatarPlaceholder: { backgroundColor: colors.border },
+  gridCardNickname: { flex: 1, fontFamily: fonts.medium, fontSize: 12, lineHeight: 14, color: colors.white },
+  // 사진 없는 카드는 어두운 배경/그라디언트가 없어서 흰 글자가 안 보임 — 검정 계열로 전환(위
+  // PhotoReviewCard 코멘트 참고)
+  gridCardTextOnLight: { color: colors.black },
+  gridCardBody: {
     fontFamily: fonts.regular,
-    fontSize: 16,
-    lineHeight: 24,
-    letterSpacing: -0.4,
-    color: colors.black,
-    marginTop: 16,
+    fontSize: 8,
+    lineHeight: 9.6,
+    letterSpacing: -0.2,
+    color: '#cccccc',
+    marginTop: 4,
   },
-  reviewSinglePhoto: {
-    width: '100%',
-    aspectRatio: REVIEW_COLLAGE_WIDTH / REVIEW_COLLAGE_HEIGHT,
-    borderRadius: 4,
-    marginTop: 8,
-    backgroundColor: colors.backgroundMuted,
-  },
-  reviewCollageRow: { flexDirection: 'row', gap: REVIEW_COLLAGE_GAP, marginTop: 8 },
-  reviewCollageBig: {
-    width: REVIEW_COLLAGE_BIG_WIDTH,
-    height: REVIEW_COLLAGE_HEIGHT,
-    borderRadius: 4,
-    backgroundColor: colors.backgroundMuted,
-  },
-  reviewCollageSmallCol: { gap: REVIEW_COLLAGE_GAP },
-  reviewCollageSmall: {
-    width: REVIEW_COLLAGE_SMALL_WIDTH,
-    height: (REVIEW_COLLAGE_HEIGHT - REVIEW_COLLAGE_GAP) / 2,
-    borderRadius: 4,
-    backgroundColor: colors.backgroundMuted,
-  },
+  gridCardBodyOnLight: { color: colors.gray700 },
 });
