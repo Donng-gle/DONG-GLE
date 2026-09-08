@@ -305,7 +305,7 @@ class VisitLogApiIntegrationTest {
     }
 
     @Test
-    fun `장소별 기록 목록은 비인증으로도 조회 가능하다`() {
+    fun `장소별 기록 목록은 비인증으로도 조회 가능하고 작성자 닉네임이 포함된다`() {
         val owner = user("log_user_2", "kakao-log-2")
         val place = place("LOG002", "테스트전용기록장소B")
         log(owner, place, oneLine = "테스트전용한줄리뷰-장소별")
@@ -313,6 +313,7 @@ class VisitLogApiIntegrationTest {
         mockMvc.perform(get("/places/${place.id}/logs"))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.logs[?(@.one_line == '테스트전용한줄리뷰-장소별')]").exists())
+            .andExpect(jsonPath("$.logs[?(@.one_line == '테스트전용한줄리뷰-장소별')].nickname").value("테스터"))
     }
 
     @Test

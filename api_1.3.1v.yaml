@@ -606,6 +606,13 @@ components:
           type: array
           items:
             type: string
+        nickname:
+          type: string
+          description: 작성자 닉네임. 관광지 상세 페이지 리뷰 카드용(2026-09-09 추가, decision-log 참고)
+        profile_image_url:
+          type: string
+          nullable: true
+          description: 작성자 프로필 사진. 2026-09-09 추가, decision-log 참고
 
     PlaceDetail:
       type: object
