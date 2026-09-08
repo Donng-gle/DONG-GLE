@@ -4,6 +4,7 @@ import {
   Alert,
   Dimensions,
   Image,
+  Linking,
   Modal,
   ScrollView,
   StyleSheet,
@@ -127,6 +128,22 @@ export function PlaceDetailScreen({ placeId, onExit }: Props) {
     }
   }
 
+  // 기본정보의 지도 미리보기는 pointerEvents="none"이라 그 자체론 이동/줌이 안 됨(의도적 — 아래
+  // openInGoogleMaps 코멘트 참고) — 대신 탭하면 구글맵 앱(설치 안 돼있으면 브라우저)의 길찾기로
+  // 넘김. 미리보기 박스 안에서 직접 팬/핀치되게 하는 방안도 검토했는데, 이 박스가 ScrollView 안에
+  // 있어서 지도가 제스처를 가로채면 페이지 스크롤이 막히는 흔한 문제가 있고, 인앱에 별도 큰 지도
+  // 화면을 새로 만드는 방안도 검토했지만 사용자가 실제로 원하는 길찾기/실시간 교통정보는 결국
+  // 구글맵 고유 기능이라 그대로 넘기는 쪽이 공수 대비 효용이 제일 좋다고 판단(2026-09-09 사용자와
+  // 논의 후 결정)
+  async function openInGoogleMaps(lat: number, lng: number) {
+    const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+    try {
+      await Linking.openURL(url);
+    } catch (e) {
+      Alert.alert('지도 앱을 열지 못했어요', e instanceof Error ? e.message : '알 수 없는 오류');
+    }
+  }
+
   if (!place) {
     return (
       <View style={styles.center}>
@@ -243,8 +260,14 @@ export function PlaceDetailScreen({ placeId, onExit }: Props) {
           {place.lat != null && place.lng != null && (
             // MapView 자체에 borderRadius를 줘도 안드로이드 네이티브 지도 뷰는 그걸 무시하고 각진
             // 사각형 그대로 그림(RN 네이티브 컴포넌트 공통 이슈) — overflow:hidden인 감싸는 View로
-            // 잘라내는 방식으로 우회(2026-09-09, 사용자가 "테두리가 각지다"고 리포트해서 발견)
-            <View style={styles.previewMapWrap}>
+            // 잘라내는 방식으로 우회(2026-09-09, 사용자가 "테두리가 각지다"고 리포트해서 발견).
+            // 탭하면 구글맵 앱 길찾기로 연결(openInGoogleMaps 코멘트 참고) — MapView는 여전히
+            // pointerEvents="none"으로 둬서 탭이 이 TouchableOpacity로 그대로 전달되게 함
+            <TouchableOpacity
+              activeOpacity={0.85}
+              style={styles.previewMapWrap}
+              onPress={() => openInGoogleMaps(place.lat!, place.lng!)}
+            >
               <MapView
                 provider={PROVIDER_GOOGLE}
                 style={styles.previewMap}
@@ -260,7 +283,7 @@ export function PlaceDetailScreen({ placeId, onExit }: Props) {
               >
                 <Marker coordinate={{ latitude: place.lat, longitude: place.lng }} />
               </MapView>
-            </View>
+            </TouchableOpacity>
           )}
 
           <View style={styles.infoList}>
