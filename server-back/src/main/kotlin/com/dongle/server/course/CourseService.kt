@@ -122,6 +122,14 @@ class CourseService(
         val sessionId = requireNotNull(request.sessionId)
         val travelDate = requireNotNull(request.travelDate)
         val transport = requireNotNull(request.transport)
+        // 여행일정 등록 화면(TimePicker)에서 받은 시작/종료 시간 — 안 고르면 기존 기본값(DAY_START~
+        // DAY_END)으로 폴백(2026-09-09 추가, decision-log 참고). 둘 다 있을 때만 순서 검증(하나만
+        // 오면 나머지는 기본값을 쓰므로 역전 비교가 의미 없음)
+        val startTime = request.startTime ?: DAY_START
+        val endTime = request.endTime ?: DAY_END
+        if (request.startTime != null && request.endTime != null && endTime <= startTime) {
+            throw InvalidCourseTimeRangeException()
+        }
 
         val candidates = swipeService.likedOrMustCandidates(userId, sessionId)
         val vectors = placeService.semanticVectorsByPlaceId(candidates.map { it.place.id })
@@ -129,8 +137,8 @@ class CourseService(
         if (optimizerCandidates.size < MIN_VISIT_COUNT) throw NotEnoughSwipeCandidatesException(optimizerCandidates.size)
 
         val tripInput = TripInput(
-            startTime = travelDate.atTime(DAY_START),
-            endTime = travelDate.atTime(DAY_END),
+            startTime = travelDate.atTime(startTime),
+            endTime = travelDate.atTime(endTime),
             transportMode = transport.toOptimizerMode(),
             origin = DEFAULT_ORIGIN,
             candidates = optimizerCandidates,
