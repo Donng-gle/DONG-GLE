@@ -11,6 +11,7 @@ data class CoursePlaceItemResponse(
     // 구글맵 Directions 연동 전까지는 항상 null (스프린트3 스코프 외, TODO)
     val distanceFromPrevKm: Double?,
     val durationFromPrevMin: Int?,
-    // 여러 날 코스 지원(2026-09-06 결정, decision-log 참고) — "직접 코스 만들기"에서만 채워짐
+    // 여러 날 코스 지원(2026-09-06 결정, decision-log 참고) — "직접 코스 만들기"뿐 아니라
+    // AI 코스 생성(POST /courses/generate)도 2026-09-10부터 endDate를 주면 날짜별로 채워서 줌
     val visitDate: String?,
 )
