@@ -216,3 +216,53 @@ export function HeartIcon({ size = 24, color = colors.black, filled = false }: {
     </Svg>
   );
 }
+
+// CourseDetailScreen "직접 일정 만들기-기본화면"(501:12088) 장소 리스트 행 왼쪽 아이콘("location"
+// 인스턴스, export로 확인) — 링 구멍이 있는 아웃라인 핀. 인스턴스 내부 벡터도 export가 PNG만 내려줘서
+// 실측 불가, 흔히 쓰이는 pin outline path(Lucide "map-pin" 등)로 근사(2026-09-09)
+export function MapPinOutlineIcon({ size = 18, color = colors.gray500 }: { size?: number; color?: string }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"
+        stroke={color}
+        strokeWidth={1.8}
+        strokeLinejoin="round"
+      />
+      <Circle cx={12} cy={10} r={3} stroke={color} strokeWidth={1.8} />
+    </Svg>
+  );
+}
+
+// 같은 화면의 "이전 장소에서 X km" 아이콘("navigation-map" 인스턴스) — 핀+구불구불한 길. 근사(2026-09-09)
+export function DistanceIcon({ size = 18, color = colors.gray500 }: { size?: number; color?: string }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 18 18" fill="none">
+      <Path
+        d="M13 1.5c-2.15 0-3.9 1.75-3.9 3.9 0 2.93 3.9 6.35 3.9 6.35s3.9-3.42 3.9-6.35c0-2.15-1.75-3.9-3.9-3.9Z"
+        stroke={color}
+        strokeWidth={1.4}
+        strokeLinejoin="round"
+      />
+      <Circle cx={13} cy={5.4} r={1.3} stroke={color} strokeWidth={1.4} />
+      <Path d="M1 15c1.8 0 1.8-3 3.6-3s1.8 3 3.6 3" stroke={color} strokeWidth={1.4} strokeLinecap="round" fill="none" />
+    </Svg>
+  );
+}
+
+// 같은 화면의 "약 N분" 아이콘("Run" 인스턴스) — 뛰는 사람. 근사(2026-09-09)
+export function WalkIcon({ size = 18, color = colors.gray500 }: { size?: number; color?: string }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 18 18" fill="none">
+      <Circle cx={11} cy={3.2} r={1.6} fill={color} />
+      <Path
+        d="M7.2 16l2.3-3-.9-2.8-2-1.8M9.6 10.2l3 .5 2 3.6M9.6 10.2l-1.4 2.5 1 3.5"
+        stroke={color}
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
+    </Svg>
+  );
+}
