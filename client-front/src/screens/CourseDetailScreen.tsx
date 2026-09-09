@@ -235,12 +235,12 @@ export function CourseDetailScreen({ courseId, onEdit, onDeleted, onExit, onCrea
                 {place.distance_from_prev_km != null && (
                   <View style={styles.placeMetaRow}>
                     <View style={styles.placeMetaItem}>
-                      <DistanceIcon size={16} />
+                      <DistanceIcon size={18} />
                       <Text style={styles.placeMetaText}>{place.distance_from_prev_km.toFixed(1)} KM</Text>
                     </View>
                     {place.duration_from_prev_min != null && (
                       <View style={styles.placeMetaItem}>
-                        <WalkIcon size={16} />
+                        <WalkIcon size={18} />
                         <Text style={styles.placeMetaText}>{place.duration_from_prev_min}분</Text>
                       </View>
                     )}
@@ -308,7 +308,8 @@ const styles = StyleSheet.create({
   dateTabWeekday: { fontFamily: fonts.regular, fontSize: 16, letterSpacing: -0.4, color: colors.gray700 },
   dateTabDay: { fontFamily: fonts.regular, fontSize: 16, letterSpacing: -0.4, color: colors.gray700 },
   dateTabTextSelected: { color: colors.white },
-  map: { width: '100%', height: 166 },
+  // Figma 실측값(166)에서 사용자 요청으로 확대(2026-09-09)
+  map: { width: '100%', height: 200 },
   // Figma 실측: 파스텔 핑크 원(#fcf3f6, colors.pinBackground — 이 프레임 전용으로 이미 토큰화돼있던
   // 값) + 파란 굵은 번호 + 파란 반투명 꼬리. CourseManualBuilderScreen의 지도 핀과 동일 스타일
   pinWrap: { alignItems: 'center' },
@@ -318,20 +319,23 @@ const styles = StyleSheet.create({
   listSection: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 20, backgroundColor: colors.white },
   dayHeader: { fontFamily: fonts.semiBold, fontSize: 16, color: colors.black, marginBottom: 12 },
   placeRow: { flexDirection: 'row' },
-  placeRowLeft: { width: 24, alignItems: 'center' },
+  // Figma 실측(501:12088 "Frame 1464203431"): 왼쪽 아이콘 컬럼 32(핀 아이콘을 담은 32x32 원 기준),
+  // 오른쪽 콘텐츠는 바로 그 뒤에 붙음(marginLeft 없음) — 처음엔 24+marginLeft8로 대충 맞췄다가
+  // 사용자가 "사진/글자 위치가 안 맞는다"고 지적해서 재실측 후 정정(2026-09-09)
+  placeRowLeft: { width: 32, alignItems: 'center' },
   placeConnector: { flex: 1, width: 1, backgroundColor: colors.border, marginVertical: 4, minHeight: 30 },
-  placeRowRight: { flex: 1, marginLeft: 8, paddingBottom: 16 },
+  placeRowRight: { flex: 1, paddingBottom: 16 },
   placeCard: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   placeThumbnail: { width: 48, height: 48, borderRadius: 4 },
   placeThumbnailPlaceholder: { backgroundColor: colors.border },
   placeName: { flex: 1, fontFamily: fonts.medium, fontSize: 16, letterSpacing: -0.4, color: colors.black },
-  // Figma: 핀+길 아이콘·거리 텍스트는 왼쪽, 뛰는사람 아이콘·시간 텍스트는 오른쪽 끝(space-between)
+  // Figma: 거리/시간 메타 행은 이름 텍스트가 아니라 썸네일 왼쪽 끝(콘텐츠 컬럼 시작점)에 맞춰
+  // 들여쓰기 없이 시작함 — marginLeft 60(썸네일+gap만큼 들여쓰기)으로 잘못 맞췄던 것 정정(2026-09-09)
   placeMetaRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     marginTop: 12,
-    marginLeft: 60, // 썸네일(48)+gap(12)만큼 들여써서 이름 텍스트 시작 위치에 맞춤
   },
   placeMetaItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   placeMetaText: { fontFamily: fonts.regular, fontSize: 12, color: colors.gray500 },
