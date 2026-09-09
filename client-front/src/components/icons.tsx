@@ -266,3 +266,34 @@ export function WalkIcon({ size = 18, color = colors.gray500 }: { size?: number;
     </Svg>
   );
 }
+
+// "AI로 코스 만들기" 세부사항 화면(691:12580/691:12626, 시작/종료시간 인풋 우측) — 흔히 쓰이는
+// 시계 아이콘(원+짧은/긴 바늘)으로 근사(2026-09-09)
+export function ClockIcon({ size = 20, color = colors.gray500 }: { size?: number; color?: string }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Circle cx={12} cy={12} r={9} stroke={color} strokeWidth={1.8} />
+      <Path d="M12 7v5l3.5 2" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+
+// 같은 화면의 "이동수단" 셀렉트박스 화살표("화살표_아래" 인스턴스) — ChevronRightIcon과 같은
+// 테두리 회전 기법, 아래를 가리키게 각도만 다르게 함. open=true면 위로 뒤집음(펼친 상태 표시)
+export function ChevronDownIcon({ size = 16, color = colors.gray500, open = false }: { size?: number; color?: string; open?: boolean }) {
+  return (
+    <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+      <View
+        style={{
+          width: size * 0.35,
+          height: size * 0.35,
+          borderBottomWidth: 1.5,
+          borderRightWidth: 1.5,
+          borderColor: color,
+          transform: [{ rotate: open ? '225deg' : '45deg' }],
+          marginTop: open ? size * 0.15 : -size * 0.15,
+        }}
+      />
+    </View>
+  );
+}
