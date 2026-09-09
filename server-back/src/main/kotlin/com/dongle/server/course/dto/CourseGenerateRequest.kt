@@ -21,4 +21,9 @@ data class CourseGenerateRequest(
     // endTime < startTime이면 CourseService에서 400(InvalidCourseTimeRangeException)
     val startTime: LocalTime? = null,
     val endTime: LocalTime? = null,
+
+    // 여행 날짜 다중 선택 지원(2026-09-10 추가, decision-log 참고) — 없으면 travelDate 하루짜리로
+    // 취급(기존 동작 그대로). travelDate보다 이전이면 CourseService에서 400(InvalidCourseDateRangeException)
+    // — CourseManualRequest.endDate와 동일 규칙
+    val endDate: LocalDate? = null,
 )

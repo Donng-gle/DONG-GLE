@@ -298,6 +298,111 @@ class CourseGenerateApiIntegrationTest {
     }
 
     @Test
+    fun `end_date를 주면 날짜마다 course_optimizer를 따로 호출해 장소가 겹치지 않게 나눈다`() {
+        val owner = user("course_gen_user_5", "kakao-course-gen-5")
+        val token = jwtTokenProvider.generateAccessToken(owner.id)
+        val placeA = place("COURSEGEN008", "테스트전용코스생성장소G")
+        val placeB = place("COURSEGEN009", "테스트전용코스생성장소H")
+        val placeC = place("COURSEGEN010", "테스트전용코스생성장소I")
+        val placeD = place("COURSEGEN011", "테스트전용코스생성장소J")
+        listOf(placeA, placeB, placeC, placeD).forEach { semanticVector(it.id) }
+        val session = sessionWithLikedCandidates(owner, listOf(placeA, placeB, placeC, placeD))
+        // 매 호출마다 그 시점 후보 풀의 앞 2개만 골라서 돌려줌 — 실제 course_optimizer가 날짜별로
+        // 다른(중복 없는) 장소를 고르는 상황을 흉내냄. 이전 날에 뽑힌 장소는 CourseService가 다음
+        // 호출 전에 풀에서 미리 빼므로, 이 스텁은 그냥 "받은 후보 중 앞 2개"만 고르면 됨
+        given(courseOptimizerClient.optimizeCourse(anyKt())).willAnswer { invocation ->
+            val input = invocation.getArgument<com.dongle.server.course.optimizer.TripInput>(0)
+            val picked = input.candidates.take(2)
+            CourseOptimizationResult(
+                selectedRoute = ScoredRoute(
+                    stops = picked.map { c ->
+                        VisitStop(
+                            placeId = c.placeId,
+                            arrivalTime = input.startTime,
+                            visitStartTime = input.startTime,
+                            departureTime = input.startTime.plusHours(1),
+                            actualStayMinutes = 60,
+                        )
+                    },
+                    score = RouteScoreBreakdown(
+                        timeScore = 0.8,
+                        transitionScore = 0.7,
+                        balanceScore = 0.6,
+                        experienceScore = 0.75,
+                        totalTravelMinutes = 25,
+                        travelScore = 0.9,
+                        totalScore = 0.82,
+                    ),
+                ),
+                candidateRouteCount = 1,
+                evaluatedRouteCount = 1,
+                targetVisitCount = picked.size,
+                freeTimeMinutes = 30,
+                promptVersion = "course-eval-v1",
+                modelName = "gpt-4.1-mini",
+            )
+        }
+        stubDirectionsRoute()
+
+        mockMvc.perform(
+            post("/courses/generate")
+                .header("Authorization", "Bearer $token")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """{"session_id":"${session.id}","travel_date":"2026-09-01","end_date":"2026-09-02",""" +
+                        """"transport":"walk"}"""
+                )
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.candidates[0].title").value("안동 1박 2일 코스"))
+            .andExpect(jsonPath("$.candidates[0].places.length()").value(4))
+            .andExpect(jsonPath("$.candidates[0].places[0].visit_date").value("2026-09-01"))
+            .andExpect(jsonPath("$.candidates[0].places[1].visit_date").value("2026-09-01"))
+            .andExpect(jsonPath("$.candidates[0].places[2].visit_date").value("2026-09-02"))
+            .andExpect(jsonPath("$.candidates[0].places[3].visit_date").value("2026-09-02"))
+            // visit_order는 날짜와 무관하게 코스 전체에서 계속 이어짐(직접 코스 만들기와 동일 컨벤션)
+            .andExpect(jsonPath("$.candidates[0].places[0].visit_order").value(1))
+            .andExpect(jsonPath("$.candidates[0].places[3].visit_order").value(4))
+            // 이틀치 장소 4곳이 서로 겹치지 않아야 함
+            .andExpect(
+                jsonPath("$.candidates[0].places[*].place_id").value(
+                    org.hamcrest.Matchers.containsInAnyOrder(
+                        placeA.id.toInt(), placeB.id.toInt(), placeC.id.toInt(), placeD.id.toInt()
+                    )
+                )
+            )
+    }
+
+    @Test
+    fun `날짜 범위 안에서 좋아요한 장소가 먼저 소진되면 그만큼만 생성한다`() {
+        val owner = user("course_gen_user_6", "kakao-course-gen-6")
+        val token = jwtTokenProvider.generateAccessToken(owner.id)
+        val placeA = place("COURSEGEN012", "테스트전용코스생성장소K")
+        val placeB = place("COURSEGEN013", "테스트전용코스생성장소L")
+        semanticVector(placeA.id)
+        semanticVector(placeB.id)
+        // 좋아요한 장소가 2곳뿐이라 하루치(2곳)를 다 쓰면 다음 날엔 후보가 0개 남음 —
+        // 3일 범위를 요청해도 첫째 날만 생성되고 나머지 날은 생략돼야 함(200으로는 응답)
+        val session = sessionWithLikedCandidates(owner, listOf(placeA, placeB))
+        stubOptimize(placeA.id, placeB.id)
+        stubDirectionsRoute()
+
+        mockMvc.perform(
+            post("/courses/generate")
+                .header("Authorization", "Bearer $token")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """{"session_id":"${session.id}","travel_date":"2026-09-01","end_date":"2026-09-03",""" +
+                        """"transport":"walk"}"""
+                )
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.candidates[0].places.length()").value(2))
+            .andExpect(jsonPath("$.candidates[0].places[0].visit_date").value("2026-09-01"))
+            .andExpect(jsonPath("$.candidates[0].places[1].visit_date").value("2026-09-01"))
+    }
+
+    @Test
     fun `좋아요한 장소가 부족하면 400을 반환한다`() {
         val owner = user("course_gen_user_2", "kakao-course-gen-2")
         val token = jwtTokenProvider.generateAccessToken(owner.id)
