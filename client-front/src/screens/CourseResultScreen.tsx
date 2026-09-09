@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { CourseCandidate, CoursePlaceRequest, courseApi } from '../api/course';
+import { CourseCandidate, CoursePlaceItem, CoursePlaceRequest, courseApi } from '../api/course';
 import { SwipeTransport } from '../api/swipe';
 import { colors } from '../theme/colors';
 import { fonts } from '../theme/fonts';
@@ -11,6 +11,8 @@ import { fonts } from '../theme/fonts';
 interface Props {
   sessionId: string;
   travelDate: string;
+  // 여행 날짜 다중 선택 지원(2026-09-10 추가) — 없으면 travelDate 하루짜리(기존과 동일)
+  endDate?: string | null;
   transport: SwipeTransport;
   // "여행일정 등록" 화면(CourseFlowScreen)에서 받은 시작/종료 시간 — 없으면(둘 다 null) 서버가
   // 09:00~21:00으로 폴백(2026-09-09 추가, api/course.ts 참고)
@@ -21,15 +23,37 @@ interface Props {
 }
 
 const ANDONG_REGION = { latitude: 36.5684, longitude: 128.7294, latitudeDelta: 0.1, longitudeDelta: 0.1 };
+const WEEKDAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
+
+function formatDayTabLabel(dateKey: string) {
+  const d = new Date(dateKey + 'T00:00:00');
+  return { weekday: WEEKDAY_LABELS[d.getDay()], day: d.getDate() };
+}
 
 // Figma 노드 510:11285("AI 일정 만들기-화면") 반영 — 번호 핀 지도 + Day별 장소 리스트.
 // 디자인의 카드별 카테고리 라벨(예: "관광명소")은 CoursePlaceItem에 카테고리 필드가 없어서 생략,
-// "장소 추가" 버튼은 이 화면(결과 확인→저장)의 책임이 아니라 CourseEditScreen 몫이라 생략함
-export function CourseResultScreen({ sessionId, travelDate, transport, startTime, endTime, onSaved, onCancel }: Props) {
+// "장소 추가" 버튼은 이 화면(결과 확인→저장)의 책임이 아니라 CourseEditScreen 몫이라 생략함.
+//
+// 여러 날 여행(endDate) 지원(2026-09-10 추가, 사용자 확인 — 날짜별로 따로 AI 추천해서 N박N일로
+// 합침) — 서버가 날짜마다 course_optimizer를 따로 불러 만든 CoursePlaceItem.visit_date를 그대로
+// 써서 CourseDetailScreen.tsx와 동일한 날짜 탭 UI로 필터링. 서버가 후보 부족으로 요청한 기간보다
+// 적은 날짜만 만들었을 수 있어서(CourseService.generate 참고) 탭은 요청한 endDate가 아니라 실제
+// 응답에 들어있는 visit_date들만으로 만듦
+export function CourseResultScreen({
+  sessionId,
+  travelDate,
+  endDate,
+  transport,
+  startTime,
+  endTime,
+  onSaved,
+  onCancel,
+}: Props) {
   const insets = useSafeAreaInsets();
   const [candidate, setCandidate] = useState<CourseCandidate | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [selectedDateTab, setSelectedDateTab] = useState('');
 
   useEffect(() => {
     generate();
@@ -43,18 +67,31 @@ export function CourseResultScreen({ sessionId, travelDate, transport, startTime
       const response = await courseApi.generate({
         session_id: sessionId,
         travel_date: travelDate,
+        end_date: endDate,
         transport,
         start_time: startTime,
         end_time: endTime,
       });
       // 스펙상 최대 3개지만 course_optimizer 한계로 지금은 항상 1개 (decision-log 2026-08-30 참고)
-      setCandidate(response.candidates[0] ?? null);
+      const result = response.candidates[0] ?? null;
+      setCandidate(result);
+      setSelectedDateTab(result?.places[0]?.visit_date ?? travelDate);
     } catch (e) {
       Alert.alert('코스 생성에 실패했어요', e instanceof Error ? e.message : '알 수 없는 오류');
     } finally {
       setLoading(false);
     }
   }
+
+  // 실제 응답에 들어있는 visit_date만 모아서 정렬 — 위 코멘트 참고(요청한 기간보다 적게 만들어질 수 있음)
+  const dateTabs = useMemo(() => {
+    if (!candidate) return [];
+    const unique = Array.from(new Set(candidate.places.map((p) => p.visit_date).filter((d): d is string => d != null)));
+    return unique.sort();
+  }, [candidate]);
+
+  const placesForTab: CoursePlaceItem[] =
+    candidate == null ? [] : dateTabs.length === 0 ? candidate.places : candidate.places.filter((p) => p.visit_date === selectedDateTab);
 
   async function handleSave() {
     if (!candidate) return;
@@ -64,11 +101,16 @@ export function CourseResultScreen({ sessionId, travelDate, transport, startTime
         place_id: place.place_id,
         visit_order: place.visit_order,
         planned_time: place.planned_time,
+        visit_date: place.visit_date,
       }));
+      // 요청한 endDate가 아니라 실제로 만들어진 마지막 날짜를 저장 — 후보 부족으로 서버가 요청한
+      // 기간보다 적게 만들었을 수 있어서(위 코멘트 참고), 실제 장소 데이터와 어긋나지 않게 함
+      const actualEndDate = dateTabs.length > 0 ? dateTabs[dateTabs.length - 1] : null;
       await courseApi.save({
         candidate_id: candidate.candidate_id,
         title: candidate.title,
         travel_date: travelDate,
+        end_date: actualEndDate,
         transport,
         source: 'ai',
         places,
@@ -103,7 +145,7 @@ export function CourseResultScreen({ sessionId, travelDate, transport, startTime
     );
   }
 
-  const pinnedPlaces = candidate.places.filter((p) => p.lat != null && p.lng != null);
+  const pinnedPlaces = placesForTab.filter((p) => p.lat != null && p.lng != null);
 
   return (
     <View style={styles.container}>
@@ -119,15 +161,36 @@ export function CourseResultScreen({ sessionId, travelDate, transport, startTime
         <View style={styles.backButton} />
       </View>
 
+      {dateTabs.length > 1 && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dateTabRow}>
+          {dateTabs.map((dateKey) => {
+            const selected = dateKey === selectedDateTab;
+            const { weekday, day } = formatDayTabLabel(dateKey);
+            return (
+              <TouchableOpacity
+                key={dateKey}
+                style={[styles.dateTab, selected && styles.dateTabSelected]}
+                onPress={() => setSelectedDateTab(dateKey)}
+              >
+                <Text style={[styles.dateTabWeekday, selected && styles.dateTabTextSelected]}>{weekday}</Text>
+                <Text style={[styles.dateTabDay, selected && styles.dateTabTextSelected]}>{day}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      )}
+
       <ScrollView contentContainerStyle={styles.content}>
         {pinnedPlaces.length > 0 && (
           <MapView provider={PROVIDER_GOOGLE} style={styles.map} initialRegion={ANDONG_REGION}>
-            <Polyline
-              coordinates={pinnedPlaces.map((p) => ({ latitude: p.lat as number, longitude: p.lng as number }))}
-              strokeColor={colors.black}
-              strokeWidth={2}
-              lineDashPattern={[6, 6]}
-            />
+            {pinnedPlaces.length > 1 && (
+              <Polyline
+                coordinates={pinnedPlaces.map((p) => ({ latitude: p.lat as number, longitude: p.lng as number }))}
+                strokeColor={colors.black}
+                strokeWidth={2}
+                lineDashPattern={[6, 6]}
+              />
+            )}
             {pinnedPlaces.map((p) => (
               <Marker key={p.place_id} coordinate={{ latitude: p.lat as number, longitude: p.lng as number }}>
                 <View style={styles.pin}>
@@ -140,6 +203,7 @@ export function CourseResultScreen({ sessionId, travelDate, transport, startTime
 
         {(candidate.total_distance_km != null || candidate.total_duration_min != null) && (
           <Text style={styles.summary}>
+            {dateTabs.length > 1 ? '전체 여정 · ' : ''}
             {candidate.total_distance_km != null ? `총 ${candidate.total_distance_km.toFixed(1)}km` : ''}
             {candidate.total_distance_km != null && candidate.total_duration_min != null ? ' · ' : ''}
             {candidate.total_duration_min != null ? `약 ${candidate.total_duration_min}분` : ''}
@@ -147,13 +211,13 @@ export function CourseResultScreen({ sessionId, travelDate, transport, startTime
         )}
 
         <View style={styles.placeList}>
-          {candidate.places.map((place, idx) => (
+          {placesForTab.map((place, idx) => (
             <View key={place.place_id} style={styles.placeRow}>
               <View style={styles.placeRowLeft}>
                 <View style={styles.orderBadge}>
                   <Text style={styles.orderBadgeText}>{place.visit_order}</Text>
                 </View>
-                {idx < candidate.places.length - 1 && <View style={styles.connectingLine} />}
+                {idx < placesForTab.length - 1 && <View style={styles.connectingLine} />}
               </View>
 
               <View style={styles.placeCard}>
@@ -194,6 +258,14 @@ const styles = StyleSheet.create({
   backButton: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
   backIcon: { fontSize: 20, color: colors.black },
   headerTitle: { flex: 1, fontFamily: fonts.semiBold, fontSize: 17, letterSpacing: -0.4, color: colors.black, textAlign: 'center' },
+  // CourseDetailScreen.tsx의 날짜 탭과 동일 스타일(공용 컴포넌트로 뽑기엔 이 화면만 route가 candidate
+  // 응답 기준이라 각자 둠 — CourseDetailScreen 상단 코멘트와 같은 판단)
+  dateTabRow: { flexDirection: 'row', gap: 16, paddingHorizontal: 20, paddingTop: 12, paddingBottom: 12 },
+  dateTab: { width: 36, height: 56, borderRadius: 8, alignItems: 'center', justifyContent: 'center', gap: 4 },
+  dateTabSelected: { backgroundColor: colors.accentBlue },
+  dateTabWeekday: { fontFamily: fonts.regular, fontSize: 16, letterSpacing: -0.4, color: colors.gray700 },
+  dateTabDay: { fontFamily: fonts.regular, fontSize: 16, letterSpacing: -0.4, color: colors.gray700 },
+  dateTabTextSelected: { color: colors.white },
   content: { paddingBottom: 24 },
   map: { width: '100%', height: 200 },
   pin: {

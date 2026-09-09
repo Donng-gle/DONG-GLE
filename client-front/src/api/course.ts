@@ -27,6 +27,10 @@ export interface CourseGenerateRequest {
   // 2026-09-09 추가). end_time이 start_time보다 이르거나 같으면 400(INVALID_COURSE_TIME_RANGE)
   start_time?: string | null; // HH:mm
   end_time?: string | null; // HH:mm
+  // 여행 날짜 다중 선택 지원(2026-09-10 추가) — 없으면 travel_date 하루짜리 코스(기존과 동일).
+  // 있으면 travel_date~end_date 날짜마다 AI가 따로 코스를 짜서 이어붙임(장소 중복 없음).
+  // end_date가 travel_date보다 이르면 400(INVALID_COURSE_DATE_RANGE)
+  end_date?: string | null; // YYYY-MM-DD
 }
 
 export interface CourseCandidate {
@@ -56,6 +60,9 @@ export interface CourseSaveRequest {
   candidate_id?: string | null; // /courses/generate 결과를 그대로 저장할 때 사용
   title: string;
   travel_date?: string | null;
+  // 여러 날 AI 코스 저장 지원(2026-09-10 추가) — /courses/generate에 end_date를 줘서 만든 여러 날
+  // 코스를 그대로 저장할 때 사용(CourseManualRequest.end_date와 동일 규칙)
+  end_date?: string | null;
   transport?: SwipeTransport | null; // 없으면 조회 시 walk 기본값으로 경로 재계산
   source: CourseSource;
   places: CoursePlaceRequest[];
