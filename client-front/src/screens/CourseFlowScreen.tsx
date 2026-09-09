@@ -5,6 +5,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SwipeCandidate, SwipedResultItem, SwipeTransport, swipeApi } from '../api/swipe';
 import { swipeSessionStorage } from '../storage/swipeSessionStorage';
 import { CalendarPicker } from '../components/CalendarPicker';
+import { TimePicker } from '../components/TimePicker';
+import { ChevronDownIcon, ClockIcon } from '../components/icons';
 import { colors } from '../theme/colors';
 import { fonts } from '../theme/fonts';
 import { CourseSwipeScreen } from './CourseSwipeScreen';
@@ -28,16 +30,26 @@ type Step =
 
 const TODAY = new Date().toISOString().slice(0, 10);
 
+// Figma 드롭다운(691:12626) 순서 그대로(도보/대중교통/자동차) — 예전 버튼형 UI 때 순서(도보/자동차/
+// 대중교통)와 다름
 const TRANSPORT_OPTIONS: { value: SwipeTransport; label: string }[] = [
   { value: 'walk', label: '도보' },
-  { value: 'car', label: '자동차' },
   { value: 'public', label: '대중교통' },
+  { value: 'car', label: '자동차' },
 ];
 
 function formatDateLabel(dateStr: string) {
   const [y, m, d] = dateStr.split('-').map(Number);
   const weekday = ['일', '월', '화', '수', '목', '금', '토'][new Date(y, m - 1, d).getDay()];
   return `${y}년 ${m}월 ${d}일 (${weekday})`;
+}
+
+// "HH:mm"(24시간) -> "오전 7:55" — TimePicker.tsx의 12시간 표기 규칙과 맞춤
+function formatTimeLabel(time: string) {
+  const [h, m] = time.split(':').map(Number);
+  const isPM = h >= 12;
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${isPM ? '오후' : '오전'} ${h12}:${String(m).padStart(2, '0')}`;
 }
 
 // 코스 만들기 전체 흐름의 오케스트레이터: 조건 입력(setup) → 스와이프(swiping) → 코스 생성/저장(result)
@@ -48,6 +60,15 @@ export function CourseFlowScreen({ onExit }: Props) {
   const [transport, setTransport] = useState<SwipeTransport>('walk');
   const [showCalendar, setShowCalendar] = useState(false);
   const [loading, setLoading] = useState(false);
+  // 시작/종료 시간 — Figma "일정 만들기-세부 사항"(691:11920/691:12626, 채널 3ussd0cc)에 있는
+  // 필드인데, api/swipe.ts의 SwipeCandidatesRequest엔 이 값을 받는 필드 자체가 아직 없음(백엔드
+  // 미지원, 2026-09-09 확인) — 그래서 UI로 값은 받아두지만 startSwipe() 호출엔 안 실어 보냄.
+  // 백엔드에서 실제로 이 시간대로 후보를 거르거나 코스 시간을 맞추게 하려면 별도 API 작업 필요
+  // (사용자에게 확인 필요, decision-log 미기록 상태)
+  const [startTime, setStartTime] = useState<string | null>(null);
+  const [endTime, setEndTime] = useState<string | null>(null);
+  const [timePickerField, setTimePickerField] = useState<'start' | 'end' | null>(null);
+  const [transportOpen, setTransportOpen] = useState(false);
   const [checkingResume, setCheckingResume] = useState(true);
 
   useEffect(() => {
@@ -177,41 +198,65 @@ export function CourseFlowScreen({ onExit }: Props) {
         <TouchableOpacity onPress={onExit} hitSlop={8} style={styles.backButton}>
           <Text style={styles.backIcon}>←</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>AI로 코스 만들기</Text>
-        <View style={styles.backButton} />
       </View>
 
       <View style={styles.content}>
+        <Text style={styles.title}>여행일정 등록</Text>
+        <Text style={styles.subtitle}>선택해주신 정보들로 일정을 만들어드립니다.</Text>
+
+        {/* 여행 날짜 — Figma "세부 사항" 프레임엔 이 필드가 안 보이지만(날짜는 다른 화면에서 이미
+            고르고 들어온다는 전제로 보임), 이 흐름엔 date-first 단계가 따로 없고 travel_date는
+            API 필수값이라 생략할 수 없어서 기존 필드를 그대로 유지(CourseDetailScreen이 시안에 없는
+            "코스 삭제"를 유지한 것과 같은 판단, 2026-09-09) */}
         <Text style={styles.label}>여행 날짜</Text>
         <TouchableOpacity style={styles.fieldButton} onPress={() => setShowCalendar(true)}>
           <Text style={styles.fieldButtonText}>{formatDateLabel(travelDate)}</Text>
         </TouchableOpacity>
 
-        <Text style={[styles.label, styles.labelSpaced]}>이동 수단</Text>
-        <View style={styles.transportRow}>
-          {TRANSPORT_OPTIONS.map((option) => (
-            <TouchableOpacity
-              key={option.value}
-              style={[styles.transportOption, transport === option.value && styles.transportOptionSelected]}
-              onPress={() => setTransport(option.value)}
-            >
-              <Text
-                style={[styles.transportOptionText, transport === option.value && styles.transportOptionTextSelected]}
+        <Text style={[styles.label, styles.labelSpaced]}>시작시간</Text>
+        <TouchableOpacity style={styles.fieldButton} onPress={() => setTimePickerField('start')}>
+          <Text style={[styles.fieldButtonText, !startTime && styles.fieldButtonPlaceholder]}>
+            {startTime ? formatTimeLabel(startTime) : '-----'}
+          </Text>
+          <ClockIcon size={20} />
+        </TouchableOpacity>
+
+        <Text style={[styles.label, styles.labelSpaced]}>종료시간</Text>
+        <TouchableOpacity style={styles.fieldButton} onPress={() => setTimePickerField('end')}>
+          <Text style={[styles.fieldButtonText, !endTime && styles.fieldButtonPlaceholder]}>
+            {endTime ? formatTimeLabel(endTime) : '-----'}
+          </Text>
+          <ClockIcon size={20} />
+        </TouchableOpacity>
+
+        <View style={styles.divider} />
+
+        <Text style={styles.label}>이동수단</Text>
+        <TouchableOpacity style={styles.fieldButton} onPress={() => setTransportOpen(!transportOpen)}>
+          <Text style={styles.fieldButtonText}>{TRANSPORT_OPTIONS.find((o) => o.value === transport)?.label}</Text>
+          <ChevronDownIcon size={16} open={transportOpen} />
+        </TouchableOpacity>
+        {transportOpen && (
+          <View>
+            {TRANSPORT_OPTIONS.map((option) => (
+              <TouchableOpacity
+                key={option.value}
+                style={styles.dropdownItem}
+                onPress={() => {
+                  setTransport(option.value);
+                  setTransportOpen(false);
+                }}
               >
-                {option.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+                <Text style={styles.dropdownItemText}>{option.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
       </View>
 
       <View style={[styles.actions, { paddingBottom: Math.max(20, insets.bottom + 16) }]}>
         <TouchableOpacity style={styles.primaryButton} onPress={startSwipe} disabled={loading}>
-          {loading ? (
-            <ActivityIndicator color={colors.white} />
-          ) : (
-            <Text style={styles.primaryButtonText}>추천 장소 보기</Text>
-          )}
+          {loading ? <ActivityIndicator color={colors.white} /> : <Text style={styles.primaryButtonText}>선택하기</Text>}
         </TouchableOpacity>
       </View>
 
@@ -225,6 +270,17 @@ export function CourseFlowScreen({ onExit }: Props) {
           setShowCalendar(false);
         }}
       />
+
+      <TimePicker
+        visible={timePickerField != null}
+        value={(timePickerField === 'start' ? startTime : endTime) ?? (timePickerField === 'start' ? '09:00' : '18:00')}
+        onClose={() => setTimePickerField(null)}
+        onConfirm={(time) => {
+          if (timePickerField === 'start') setStartTime(time);
+          else if (timePickerField === 'end') setEndTime(time);
+          setTimePickerField(null);
+        }}
+      />
     </View>
   );
 }
@@ -232,34 +288,36 @@ export function CourseFlowScreen({ onExit }: Props) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.white },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.white },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingBottom: 8 },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingBottom: 8 },
   backButton: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
   backIcon: { fontSize: 20, color: colors.black },
-  headerTitle: { fontFamily: fonts.semiBold, fontSize: 17, letterSpacing: -0.4, color: colors.black },
   content: { flex: 1, paddingHorizontal: 20, paddingTop: 12 },
-  label: { fontFamily: fonts.medium, fontSize: 14, letterSpacing: -0.35, color: colors.black, marginBottom: 8 },
+  // Figma "일정 만들기-세부 사항"(691:11920/691:12626, 채널 3ussd0cc, 2026-09-09) 실측
+  title: { fontFamily: fonts.semiBold, fontSize: 20, color: colors.black },
+  subtitle: { fontFamily: fonts.regular, fontSize: 15, color: colors.gray500, marginTop: 8, marginBottom: 32 },
+  label: { fontFamily: fonts.regular, fontSize: 16, color: colors.black, marginBottom: 8 },
   labelSpaced: { marginTop: 28 },
   fieldButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     height: 52,
     borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 16,
+  },
+  fieldButtonText: { fontFamily: fonts.regular, fontSize: 16, letterSpacing: -0.4, color: colors.black },
+  fieldButtonPlaceholder: { color: colors.gray500 },
+  divider: { height: 1, backgroundColor: colors.border, marginVertical: 32 },
+  dropdownItem: {
+    height: 52,
     borderWidth: 1,
     borderColor: colors.border,
     justifyContent: 'center',
     paddingHorizontal: 16,
   },
-  fieldButtonText: { fontFamily: fonts.regular, fontSize: 15, color: colors.black },
-  transportRow: { flexDirection: 'row', gap: 8 },
-  transportOption: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: 'center',
-  },
-  transportOptionSelected: { backgroundColor: colors.black, borderColor: colors.black },
-  transportOptionText: { fontFamily: fonts.medium, fontSize: 14, color: colors.gray700 },
-  transportOptionTextSelected: { color: colors.white },
+  dropdownItemText: { fontFamily: fonts.regular, fontSize: 16, letterSpacing: -0.4, color: colors.black },
   actions: { paddingHorizontal: 20 },
   primaryButton: { height: 52, borderRadius: 8, backgroundColor: colors.black, alignItems: 'center', justifyContent: 'center' },
   primaryButtonText: { fontFamily: fonts.bold, fontSize: 16, letterSpacing: -0.24, color: colors.white },
