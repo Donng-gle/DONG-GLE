@@ -167,7 +167,12 @@ export function CourseDetailScreen({ courseId, onEdit, onDeleted, onExit, onCrea
         </View>
 
         {dateTabs.length > 0 && (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dateTabRow}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.dateTabScroll}
+            contentContainerStyle={styles.dateTabRow}
+          >
             {dateTabs.map((tab) => {
               const selected = tab.dateKey === selectedDateTab;
               return (
@@ -287,13 +292,16 @@ const styles = StyleSheet.create({
   },
   titleText: { fontFamily: fonts.semiBold, fontSize: 24, letterSpacing: -0.6, color: colors.black, flexShrink: 1 },
   pencilIcon: { fontSize: 15, color: colors.gray500 },
+  // 흰 배경은 ScrollView 자체(dateTabScroll)에 둬야 탭이 1개뿐이라 content가 화면 폭보다 좁을 때도
+  // 남는 공간이 페이지 배경(backgroundMuted)으로 비치지 않음 — contentContainerStyle에만 배경을
+  // 두면 실제 콘텐츠 크기만큼만 칠해짐(2026-09-09 실기기 확인)
+  dateTabScroll: { backgroundColor: colors.white },
   dateTabRow: {
     flexDirection: 'row',
     gap: 16,
     paddingHorizontal: 20,
     paddingTop: 22,
     paddingBottom: 16,
-    backgroundColor: colors.white,
   },
   dateTab: { width: 36, height: 56, borderRadius: 8, alignItems: 'center', justifyContent: 'center', gap: 4 },
   dateTabSelected: { backgroundColor: colors.accentBlue },
