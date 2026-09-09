@@ -12,6 +12,10 @@ interface Props {
   sessionId: string;
   travelDate: string;
   transport: SwipeTransport;
+  // "여행일정 등록" 화면(CourseFlowScreen)에서 받은 시작/종료 시간 — 없으면(둘 다 null) 서버가
+  // 09:00~21:00으로 폴백(2026-09-09 추가, api/course.ts 참고)
+  startTime?: string | null;
+  endTime?: string | null;
   onSaved: () => void;
   onCancel: () => void;
 }
@@ -21,7 +25,7 @@ const ANDONG_REGION = { latitude: 36.5684, longitude: 128.7294, latitudeDelta: 0
 // Figma 노드 510:11285("AI 일정 만들기-화면") 반영 — 번호 핀 지도 + Day별 장소 리스트.
 // 디자인의 카드별 카테고리 라벨(예: "관광명소")은 CoursePlaceItem에 카테고리 필드가 없어서 생략,
 // "장소 추가" 버튼은 이 화면(결과 확인→저장)의 책임이 아니라 CourseEditScreen 몫이라 생략함
-export function CourseResultScreen({ sessionId, travelDate, transport, onSaved, onCancel }: Props) {
+export function CourseResultScreen({ sessionId, travelDate, transport, startTime, endTime, onSaved, onCancel }: Props) {
   const insets = useSafeAreaInsets();
   const [candidate, setCandidate] = useState<CourseCandidate | null>(null);
   const [loading, setLoading] = useState(true);
@@ -36,7 +40,13 @@ export function CourseResultScreen({ sessionId, travelDate, transport, onSaved, 
     setLoading(true);
     try {
       // 세션 만료(24시간 초과) 시 410 — apiClient가 ApiError로 던짐, 아래 catch에서 메시지 그대로 노출
-      const response = await courseApi.generate({ session_id: sessionId, travel_date: travelDate, transport });
+      const response = await courseApi.generate({
+        session_id: sessionId,
+        travel_date: travelDate,
+        transport,
+        start_time: startTime,
+        end_time: endTime,
+      });
       // 스펙상 최대 3개지만 course_optimizer 한계로 지금은 항상 1개 (decision-log 2026-08-30 참고)
       setCandidate(response.candidates[0] ?? null);
     } catch (e) {
