@@ -121,6 +121,9 @@ export function ScrapbookScreen({ initialTab = 'course', onExit, onCreateManual,
           loadCourses();
         }}
         onExit={() => setOverlay(null)}
+        onCreateManual={onCreateManual}
+        onCreateAI={onCreateAI}
+        onProfile={onProfile}
       />
     );
   }
