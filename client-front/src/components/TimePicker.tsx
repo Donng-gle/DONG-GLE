@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Modal,
   NativeScrollEvent,
@@ -55,19 +55,33 @@ function to24Hour(ampmIndex: number, hourIndex: number) {
 // Figma "시간 선택" 바텀시트 그대로 — CalendarPicker.tsx와 같은 Modal(slide)+반투명 배경(0.5, 실측
 // 값 그대로 — 나머지 앱은 0.4를 관례로 쓰지만 이 프레임은 0.5로 별도 실측됨) 패턴 재사용
 export function TimePicker({ visible, value, onClose, onConfirm }: Props) {
-  const [hh, mm] = value.split(':').map(Number);
-  const initial = to12Hour(hh);
-  const ampmRef = useRef(initial.ampmIndex);
-  const hourRef = useRef(initial.hourIndex);
-  const minuteRef = useRef(mm);
+  const [ampmIndex, setAmpmIndex] = useState(0);
+  const [hourIndex, setHourIndex] = useState(0);
+  const [minute, setMinute] = useState(0);
+
+  // Modal은 visible=false여도 JS 트리는 계속 마운트돼있어서(react-native 공통 동작), useRef로 이
+  // 값들을 들고 있으면 최초 마운트 시점(시작/종료시간 어느 쪽도 아직 안 고른 시점, value가 엉뚱한
+  // 기본값)에 딱 한 번만 계산되고 이후로 절대 안 바뀌는 버그가 있었음(2026-09-09 실기기 확인 —
+  // 시(hour)는 스크롤한 대로 반영되는데 오전/오후는 항상 처음 계산값 그대로 붙어서 나옴). 열릴
+  // 때마다(visible=true로 바뀔 때) value 기준으로 다시 계산하도록 state+useEffect로 교체
+  useEffect(() => {
+    if (!visible) return;
+    const [hh, mm] = value.split(':').map(Number);
+    const initial = to12Hour(hh);
+    setAmpmIndex(initial.ampmIndex);
+    setHourIndex(initial.hourIndex);
+    setMinute(mm);
+  }, [visible, value]);
 
   function handleConfirm() {
-    const hour24 = to24Hour(ampmRef.current, hourRef.current);
-    onConfirm(`${String(hour24).padStart(2, '0')}:${String(minuteRef.current).padStart(2, '0')}`);
+    const hour24 = to24Hour(ampmIndex, hourIndex);
+    onConfirm(`${String(hour24).padStart(2, '0')}:${String(minute).padStart(2, '0')}`);
   }
 
-  // visible이 꺼졌다 켜질 때마다 새로 마운트되게 key를 줘서(아래 Modal 참고) 각 휠이 항상 최신
-  // value로 다시 초기화되도록 함 — 그렇지 않으면 이전에 스크롤해둔 위치가 다음에 열 때도 남아있음
+  // 휠 3개 다 key={visible}로 열릴 때마다 새로 마운트되게 함 — 그래야 각 ScrollView의 초기 스크롤
+  // 위치(contentOffset)와 내부 표시 상태가 위 useEffect로 갱신된 최신 값을 반영함. visible이
+  // false->true로 바뀔 때마다 key도 항상 직전과 달라지므로(문자열 "false"->"true") 매번 확실히
+  // 리마운트됨
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose}>
@@ -78,26 +92,26 @@ export function TimePicker({ visible, value, onClose, onConfirm }: Props) {
             <View style={styles.selectionBox} pointerEvents="none" />
             <View style={styles.wheelRow}>
               <WheelColumn
-                key={`ampm-${value}`}
+                key={`ampm-${visible}`}
                 items={AMPM_LABELS}
-                initialIndex={initial.ampmIndex}
+                initialIndex={ampmIndex}
                 width={64}
-                onSelect={(i) => (ampmRef.current = i)}
+                onSelect={setAmpmIndex}
               />
               <WheelColumn
-                key={`hour-${value}`}
+                key={`hour-${visible}`}
                 items={HOUR_LABELS}
-                initialIndex={initial.hourIndex}
+                initialIndex={hourIndex}
                 width={56}
-                onSelect={(i) => (hourRef.current = i)}
+                onSelect={setHourIndex}
               />
               <Text style={styles.colon}>:</Text>
               <WheelColumn
-                key={`minute-${value}`}
+                key={`minute-${visible}`}
                 items={MINUTE_LABELS}
-                initialIndex={mm}
+                initialIndex={minute}
                 width={56}
-                onSelect={(i) => (minuteRef.current = i)}
+                onSelect={setMinute}
               />
             </View>
           </View>
