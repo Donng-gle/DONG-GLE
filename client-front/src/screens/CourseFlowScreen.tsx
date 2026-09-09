@@ -25,8 +25,17 @@ type Step =
       initialResults: SwipedResultItem[];
       travelDate: string;
       transport: SwipeTransport;
+      startTime: string | null;
+      endTime: string | null;
     }
-  | { name: 'result'; sessionId: string; travelDate: string; transport: SwipeTransport };
+  | {
+      name: 'result';
+      sessionId: string;
+      travelDate: string;
+      transport: SwipeTransport;
+      startTime: string | null;
+      endTime: string | null;
+    };
 
 const TODAY = new Date().toISOString().slice(0, 10);
 
@@ -89,9 +98,19 @@ export function CourseFlowScreen({ onExit }: Props) {
       const detail = await swipeApi.getSession(savedSessionId);
 
       if (detail.candidates.length === 0) {
-        // 스와이프는 이미 다 끝났는데 코스 생성까지 못 갔던 경우 — 결과 화면으로 바로 이동
+        // 스와이프는 이미 다 끝났는데 코스 생성까지 못 갔던 경우 — 결과 화면으로 바로 이동.
+        // 시작/종료 시간은 세션 복원 시엔 원래 고른 값을 알 방법이 없어서(서버에 저장 안 됨,
+        // api/swipe.ts SwipeSessionDetail 참고) null로 두고 서버 기본값(09:00~21:00)에 맡김
+        // (2026-09-09 추가)
         await swipeSessionStorage.clear();
-        setStep({ name: 'result', sessionId: savedSessionId, travelDate: detail.travel_date, transport: detail.transport });
+        setStep({
+          name: 'result',
+          sessionId: savedSessionId,
+          travelDate: detail.travel_date,
+          transport: detail.transport,
+          startTime: null,
+          endTime: null,
+        });
         setCheckingResume(false);
         return;
       }
@@ -120,6 +139,9 @@ export function CourseFlowScreen({ onExit }: Props) {
               initialResults: detail.swiped_results,
               travelDate: detail.travel_date,
               transport: detail.transport,
+              // 위 result 분기와 동일한 이유로 복원 시엔 알 수 없음(서버 기본값에 맡김)
+              startTime: null,
+              endTime: null,
             });
             setCheckingResume(false);
           },
@@ -148,6 +170,8 @@ export function CourseFlowScreen({ onExit }: Props) {
         initialResults: [],
         travelDate,
         transport,
+        startTime,
+        endTime,
       });
     } catch (e) {
       Alert.alert('후보를 불러오지 못했어요', e instanceof Error ? e.message : '알 수 없는 오류');
@@ -172,7 +196,14 @@ export function CourseFlowScreen({ onExit }: Props) {
         initialResults={step.initialResults}
         onDone={async () => {
           await swipeSessionStorage.clear();
-          setStep({ name: 'result', sessionId: step.sessionId, travelDate: step.travelDate, transport: step.transport });
+          setStep({
+            name: 'result',
+            sessionId: step.sessionId,
+            travelDate: step.travelDate,
+            transport: step.transport,
+            startTime: step.startTime,
+            endTime: step.endTime,
+          });
         }}
       />
     );
@@ -184,6 +215,8 @@ export function CourseFlowScreen({ onExit }: Props) {
         sessionId={step.sessionId}
         travelDate={step.travelDate}
         transport={step.transport}
+        startTime={step.startTime}
+        endTime={step.endTime}
         onSaved={onExit}
         onCancel={onExit}
       />

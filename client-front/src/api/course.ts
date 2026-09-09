@@ -23,6 +23,10 @@ export interface CourseGenerateRequest {
   session_id: string; // POST /swipe/candidates에서 발급받은 세션 ID
   travel_date: string; // YYYY-MM-DD
   transport: SwipeTransport;
+  // 둘 다 없으면 서버가 09:00~21:00으로 폴백(server-back CourseService.DAY_START/DAY_END,
+  // 2026-09-09 추가). end_time이 start_time보다 이르거나 같으면 400(INVALID_COURSE_TIME_RANGE)
+  start_time?: string | null; // HH:mm
+  end_time?: string | null; // HH:mm
 }
 
 export interface CourseCandidate {
