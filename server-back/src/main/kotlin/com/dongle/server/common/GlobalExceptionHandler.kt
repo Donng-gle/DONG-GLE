@@ -8,6 +8,7 @@ import com.dongle.server.course.CourseNotFoundException
 import com.dongle.server.course.CourseNotPublicException
 import com.dongle.server.course.InvalidCourseDateRangeException
 import com.dongle.server.course.InvalidCourseSourceException
+import com.dongle.server.course.InvalidCourseTimeRangeException
 import com.dongle.server.course.NotEnoughSwipeCandidatesException
 import com.dongle.server.course.optimizer.CourseOptimizerUpstreamException
 import com.dongle.server.image.ImageProxyUpstreamException
@@ -120,6 +121,11 @@ class GlobalExceptionHandler {
     fun handleInvalidCourseDateRange(ex: InvalidCourseDateRangeException): ResponseEntity<ErrorResponse> =
         ResponseEntity.status(HttpStatus.BAD_REQUEST)
             .body(ErrorResponse(code = "INVALID_COURSE_DATE_RANGE", message = ex.message ?: "잘못된 날짜 범위입니다."))
+
+    @ExceptionHandler(InvalidCourseTimeRangeException::class)
+    fun handleInvalidCourseTimeRange(ex: InvalidCourseTimeRangeException): ResponseEntity<ErrorResponse> =
+        ResponseEntity.status(HttpStatus.BAD_REQUEST)
+            .body(ErrorResponse(code = "INVALID_COURSE_TIME_RANGE", message = ex.message ?: "잘못된 시간 범위입니다."))
 
     @ExceptionHandler(VisitLogNotFoundException::class)
     fun handleVisitLogNotFound(ex: VisitLogNotFoundException): ResponseEntity<ErrorResponse> =

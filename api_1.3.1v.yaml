@@ -837,6 +837,19 @@ components:
           type: string
           enum: [car, walk, public]
           description: 이동 수단. 구글맵 Directions API 경유지 최적화(waypoints optimize) 호출 시 사용됨.
+        start_time:
+          type: string
+          nullable: true
+          description: >-
+            여행 시작 시간(HH:mm). 없으면 09:00로 폴백. course_optimizer TripInput.start_time으로
+            전달됨(travel_date와 합쳐짐). end_time과 함께 있을 때 end_time이 start_time보다 이르거나
+            같으면 400(INVALID_COURSE_TIME_RANGE).
+          example: '10:30'
+        end_time:
+          type: string
+          nullable: true
+          description: 여행 종료 시간(HH:mm). 없으면 21:00로 폴백. start_time 설명 참고.
+          example: '18:00'
 
     CoursePlaceItem:
       type: object
@@ -2721,6 +2734,14 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/CourseGenerateResponse'
+        '400':
+          description: >-
+            좋아요/필수 표시한 장소가 부족(NOT_ENOUGH_SWIPE_CANDIDATES) 또는
+            end_time이 start_time보다 이르거나 같음(INVALID_COURSE_TIME_RANGE)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '401':
           description: 인증 필요
           content:
