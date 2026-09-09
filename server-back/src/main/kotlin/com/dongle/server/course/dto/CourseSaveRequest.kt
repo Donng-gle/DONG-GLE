@@ -18,6 +18,11 @@ data class CourseSaveRequest(
 
     val travelDate: LocalDate? = null,
 
+    // 여러 날 AI 코스 저장 지원(2026-09-10 추가, decision-log 참고) — POST /courses/generate에
+    // end_date를 줘서 여러 날 코스를 만든 뒤 그대로 저장할 때 씀. CourseManualRequest.endDate와
+    // 동일 규칙: endDate < travelDate면 400(InvalidCourseDateRangeException)
+    val endDate: LocalDate? = null,
+
     // 구글맵 경로 재계산에 쓸 이동수단. 없으면 GET /courses/{courseId} 조회 시 기본값(walk)으로 계산
     val transport: SwipeTransport? = null,
 

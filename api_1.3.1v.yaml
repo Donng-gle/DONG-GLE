@@ -962,6 +962,14 @@ components:
           format: date
           nullable: true
           description: 여행 예정일. 이 날짜를 기준으로 course_reminder 알림이 발송됨.
+        end_date:
+          type: string
+          format: date
+          nullable: true
+          description: >-
+            [2026-09-10 추가] 여러 날 AI 코스 저장용. POST /courses/generate에 end_date를 줘서
+            여러 날 코스를 만든 결과를 그대로 저장할 때 씀(CourseManualRequest.end_date와 동일 규칙).
+            travel_date보다 이르면 400(INVALID_COURSE_DATE_RANGE).
         transport:
           type: string
           enum: [car, walk, public]
