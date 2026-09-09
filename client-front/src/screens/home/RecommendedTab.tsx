@@ -282,12 +282,35 @@ function RoutePreviewMap({ points, size }: { points: PreviewPoint[]; size: numbe
           </Svg>
         )}
         {placed.map((p) => (
-          <View key={p.id} style={[styles.previewPinWrap, { left: p.x, top: p.y }]}>
-            <View style={styles.previewPin}>
-              <Text style={styles.previewPinText}>{p.label}</Text>
-            </View>
-          </View>
+          <PreviewPin key={p.id} x={p.x} y={p.y} label={p.label} />
         ))}
+      </View>
+    </View>
+  );
+}
+
+// 핀 폭이 라벨 길이(숫자 1자리 vs "출발"/"도착")마다 달라서 고정폭 오프셋으로 중앙 정렬을 못 함 —
+// 처음엔 transform: translateX/Y '-50%'로 렌더된 크기 기준 중앙 정렬을 시도했는데, 실기기에서
+// 퍼센트 트랜스폼이 적용 안 돼서(핀의 좌상단 모서리가 좌표에 찍혀 경로선 끝점이 핀 가운데가 아니라
+// 왼쪽 위 구석에 붙어보이는 버그로 발견, 2026-09-09) onLayout으로 실제 렌더 크기를 측정해서
+// 좌표에서 그 절반만큼 빼는 방식으로 교체. 측정 전(첫 렌더) 잘못된 위치에서 잠깐 보이는 깜빡임을
+// 막으려고 측정 전엔 opacity:0으로 숨김
+function PreviewPin({ x, y, label }: { x: number; y: number; label: string }) {
+  const [layout, setLayout] = useState<{ width: number; height: number } | null>(null);
+  return (
+    <View
+      onLayout={(e) => setLayout({ width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height })}
+      style={[
+        styles.previewPinWrap,
+        {
+          left: x - (layout?.width ?? 0) / 2,
+          top: y - (layout?.height ?? 0) / 2,
+          opacity: layout ? 1 : 0,
+        },
+      ]}
+    >
+      <View style={styles.previewPin}>
+        <Text style={styles.previewPinText}>{label}</Text>
       </View>
     </View>
   );
@@ -463,9 +486,8 @@ const styles = StyleSheet.create({
   // AndongGlobe 위에 얹는 좌표 오버레이 — StreetTab.tsx의 markerLayer와 동일한 목적(구조는 그쪽
   // 참고), pointerEvents="none"이라 아래 AndongGlobe/시트 터치를 안 가로챔
   previewMarkerLayer: { position: 'absolute', top: 0 },
-  // 핀 폭이 라벨 길이(숫자 1자리 vs "출발"/"도착")마다 달라서 고정폭 오프셋으로 중앙 정렬 못 함 —
-  // translateX/Y -50%로 렌더된 실제 크기 기준 중앙 정렬(2026-09-09)
-  previewPinWrap: { position: 'absolute', transform: [{ translateX: '-50%' }, { translateY: '-50%' }] },
+  // 중앙 정렬 로직은 PreviewPin 컴포넌트(onLayout 기반) 참고 — 여기선 위치 잡기만
+  previewPinWrap: { position: 'absolute' },
   previewPin: {
     paddingHorizontal: 8,
     height: 28,
