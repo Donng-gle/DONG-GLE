@@ -188,6 +188,7 @@ class CourseService(
                     distanceFromPrevKm = leg?.distanceMeters?.let { it / 1000.0 },
                     durationFromPrevMin = leg?.durationSeconds?.let { Math.round(it / 60.0).toInt() },
                     visitDate = date.toString(),
+                    category = place?.category?.name,
                 )
             }
             route?.totalDistanceMeters?.let { totalDistanceKm = (totalDistanceKm ?: 0.0) + it / 1000.0 }
@@ -394,6 +395,7 @@ private fun Course.toDetailResponse(sortedPlaces: List<CoursePlace>, route: Rout
             distanceFromPrevKm = leg?.distanceMeters?.let { it / 1000.0 },
             durationFromPrevMin = leg?.durationSeconds?.let { Math.round(it / 60.0).toInt() },
             visitDate = cp.visitDate?.toString(),
+            category = cp.place.category.name,
         )
     },
     totalDistanceKm = route?.totalDistanceMeters?.let { it / 1000.0 },

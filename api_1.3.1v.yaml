@@ -904,6 +904,14 @@ components:
             [2026-09-06 추가, 2026-09-10 AI 코스로 확장] 이 장소가 코스의 며칠째 방문지인지
             (YYYY-MM-DD). "직접 코스 만들기"로 여러 날 코스를 만들 때, 또는 POST /courses/generate에
             end_date를 줬을 때 채워짐. 하루짜리 코스(둘 다 단일 날짜)면 null.
+        category:
+          type: string
+          enum: [관광지, 식당, 카페, 액티비티, 문화공간, 축제행사]
+          nullable: true
+          description: |
+            [2026-09-11 추가] PLACE.category 그대로(PlaceListItem.category와 동일 값). POST
+            /courses/generate가 course_optimizer 응답의 placeId를 요청 풀에서 못 찾는 예외적인
+            경우에만 null.
 
     CourseCandidate:
       type: object
