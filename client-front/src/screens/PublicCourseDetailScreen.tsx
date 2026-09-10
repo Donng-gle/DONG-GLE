@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CourseDetail, CoursePlaceItem } from '../api/course';
 import { exploreApi } from '../api/explore';
 import { BookmarkIcon, DistanceIcon, HeartIcon, MapPinOutlineIcon, SearchIcon, WalkIcon } from '../components/icons';
+import { FloatingNav } from '../components/FloatingNav';
 import { colors } from '../theme/colors';
 import { fonts } from '../theme/fonts';
 import { SearchScreen } from './SearchScreen';
@@ -13,6 +14,11 @@ import { SearchScreen } from './SearchScreen';
 interface Props {
   courseId: number;
   onExit: () => void;
+  // FloatingNav 전달용(2026-09-10 추가) — HomeScreen이 이 화면을 전체 화면 overlay로 띄우게 되면서
+  // (course-manual/CourseResultScreen과 동일 구조) 배경에 다른 FloatingNav가 없어서 직접 그려야 함
+  onCreateManual: () => void;
+  onCreateAI: () => void;
+  onProfile: () => void;
 }
 
 const ANDONG_REGION = { latitude: 36.5684, longitude: 128.7294, latitudeDelta: 0.1, longitudeDelta: 0.1 };
@@ -27,9 +33,11 @@ const ANDONG_REGION = { latitude: 36.5684, longitude: 128.7294, latitudeDelta: 0
 // CourseResultScreen과 동일하게 맞춤. 이 화면만의 차이:
 // - 읽기 전용이라 제목 옆 연필(이름 수정) 없음, 저장 버튼 없음, "장소 추가" 버튼 없음(사용자 확인,
 //   CourseResultScreen과 동일 판단 — 이 화면은 원래도 CourseEditScreen 책임이 아님)
-// - 하단 플로팅 네비 없음 — 이 화면은 HomeScreen "취향 맞춤 코스" 탭 콘텐츠 영역 안에서 교체되는
-//   화면이라(RecommendedTab.tsx), HomeScreen이 이미 바깥에 FloatingNav를 그려두고 있음(2026-09-10
-//   확인 — 여기서 또 그리면 두 개가 겹침)
+// - 하단 플로팅 네비 있음 — 처음엔 탭 콘텐츠 영역 안에서 로컬 state로만 바꾸는 화면이라 HomeScreen이
+//   바깥에 그리는 FloatingNav와 겹칠까봐 뺐는데, 그러면 AppHeader/탭바가 위에 그대로 남아있어서
+//   "팝업"처럼 보인다는 지적(2026-09-10) — HomeScreen이 course-manual/CourseResultScreen과 동일하게
+//   이 화면을 전체 화면 overlay(courseDetailId state)로 띄우도록 바꾸고, FloatingNav도 이 화면이
+//   직접 그리는 걸로 정정
 // - 여러 날 코스(end_date 있음)면 날짜별로 묶어서 보여줌 — 직접 일정 만들기 화면의 날짜 탭과 같은
 //   정보를 인터랙티브 탭 대신 스크롤 목록 안 날짜 구분 헤더로 단순화(2026-09-07 결정, decision-log
 //   참고: 이 화면은 읽기 전용이라 날짜별 지도 필터링까지는 필요 없다고 판단) — 기존 로직 유지
@@ -37,7 +45,7 @@ const ANDONG_REGION = { latitude: 36.5684, longitude: 128.7294, latitudeDelta: 0
 //   시안에 없음). 단, 여행 날짜만큼은 시안엔 없어도 뺴면 단일 날짜 코스에서 날짜 정보가 아예
 //   안 보이게 돼서(날짜 구분 헤더는 여러 날 코스에만 나옴) 제목 아래 작게 유지함(코스 삭제를 시안에
 //   없어도 CourseDetailScreen이 유지한 것과 같은 판단)
-export function PublicCourseDetailScreen({ courseId, onExit }: Props) {
+export function PublicCourseDetailScreen({ courseId, onExit, onCreateManual, onCreateAI, onProfile }: Props) {
   const insets = useSafeAreaInsets();
   const [course, setCourse] = useState<CourseDetail | null>(null);
   const [searchVisible, setSearchVisible] = useState(false);
@@ -172,6 +180,8 @@ export function PublicCourseDetailScreen({ courseId, onExit }: Props) {
         </View>
       </ScrollView>
 
+      <FloatingNav onHome={onExit} onCreateManual={onCreateManual} onCreateAI={onCreateAI} onProfile={onProfile} />
+
       <Modal visible={searchVisible} transparent animationType="none" onRequestClose={() => setSearchVisible(false)}>
         <SearchScreen onExit={() => setSearchVisible(false)} />
       </Modal>
@@ -210,7 +220,7 @@ function groupByDay(places: CoursePlaceItem[]): DayGroup[] {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.backgroundMuted },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.white },
-  scrollContent: { paddingBottom: 40 },
+  scrollContent: { paddingBottom: 140 }, // 플로팅 네비에 안 가리게 여유
   // Figma 실측(510:11285): 헤더+제목이 흰 풀블리드 블록(#ffffff, 페이지 배경 #f7f7fb 위), 지도/
   // 리스트도 각각 별도 흰 블록 — CourseDetailScreen/CourseResultScreen과 같은 카드 분리 패턴
   headerTop: {

@@ -19,6 +19,7 @@ import { MyLogsScreen } from './MyLogsScreen';
 import { NotificationSettingsScreen } from './NotificationSettingsScreen';
 import { PlaceListScreen } from './PlaceListScreen';
 import { ProfileScreen } from './ProfileScreen';
+import { PublicCourseDetailScreen } from './PublicCourseDetailScreen';
 import { ScrapbookScreen } from './ScrapbookScreen';
 import { SearchScreen } from './SearchScreen';
 import { TagsScreen } from './TagsScreen';
@@ -110,6 +111,11 @@ export function HomeScreen({ profile: initialProfile, onLogout, onRequireLogin, 
   // 유니온과 별개의 boolean 상태
   const [searchVisible, setSearchVisible] = useState(false);
   const [overlay, setOverlay] = useState<Overlay | null>(null);
+  // "취향 맞춤 코스" 탭 "자세히 보기"(RecommendedTab) — overlay 유니온과 별개로 둔 이유는 courseId를
+  // 실어야 해서(2026-09-10 추가, 사용자 지적 — 예전엔 RecommendedTab 로컬 state로만 화면을 바꿔서
+  // AppHeader/탭바가 위에 그대로 남아있는 "팝업"처럼 보였음. course-manual과 동일하게 여기서 전체
+  // 화면으로 띄움)
+  const [courseDetailId, setCourseDetailId] = useState<number | null>(null);
   const [profile, setProfile] = useState(initialProfile);
   const drawerAnim = useRef(new Animated.Value(0)).current;
 
@@ -164,6 +170,18 @@ export function HomeScreen({ profile: initialProfile, onLogout, onRequireLogin, 
   const openCreateManual = () => handleDrawerItemPress({ key: 'course-manual', authRequired: true });
   const openCreateAI = () => handleDrawerItemPress({ key: 'course-flow', authRequired: true });
   const openProfile = () => (profile ? openOverlay('profile') : requireLogin());
+
+  if (courseDetailId != null) {
+    return (
+      <PublicCourseDetailScreen
+        courseId={courseDetailId}
+        onExit={() => setCourseDetailId(null)}
+        onCreateManual={openCreateManual}
+        onCreateAI={openCreateAI}
+        onProfile={openProfile}
+      />
+    );
+  }
 
   switch (overlay) {
     case 'course-flow':
@@ -254,7 +272,7 @@ export function HomeScreen({ profile: initialProfile, onLogout, onRequireLogin, 
           ))}
         {tab === 'recommended' &&
           (profile ? (
-            <RecommendedTab />
+            <RecommendedTab onOpenCourseDetail={setCourseDetailId} />
           ) : (
             <GuestPrompt message="로그인하면 내 취향과 비슷한 다른 사람의 여행 기록을 볼 수 있어요" onLogin={requireLogin} />
           ))}

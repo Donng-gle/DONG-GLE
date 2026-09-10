@@ -21,7 +21,6 @@ import { StarRating } from '../../components/StarRating';
 import { colors } from '../../theme/colors';
 import { fonts } from '../../theme/fonts';
 import { PlaceDetailScreen } from '../PlaceDetailScreen';
-import { PublicCourseDetailScreen } from '../PublicCourseDetailScreen';
 
 const GLOBE_SIZE = Dimensions.get('window').width;
 
@@ -36,9 +35,17 @@ const PEEK_HEIGHT = 76;
 const NAV_CLEARANCE = 72;
 const SNAP_THRESHOLD_RATIO = 0.35;
 
+// 코스 "자세히 보기"는 HomeScreen이 전체 화면 overlay로 띄움(2026-09-10 변경, 사용자 지적 —
+// 이 탭 안에서 로컬 state로만 화면을 바꾸면 AppHeader/탭바가 위에 그대로 남아있어서 "팝업"처럼
+// 보임). 개별 장소(PlaceDetailScreen)는 이번 요청 범위가 아니라 기존처럼 로컬 state 유지
+interface Props {
+  onOpenCourseDetail: (courseId: number) => void;
+}
+
 // "취향 맞춤 코스" 탭 리스트 항목 — 코스(여러 장소)와 개별 장소(방문 기록 1건)를 같은 카드
 // 디자인으로 섞어서 보여줌(2026-09-07 결정, decision-log 참고). "선택"/"자세히 보기"의 목적지만
-// 다름 — 코스는 PublicCourseDetailScreen, 장소는 PlaceDetailScreen(관광지 상세)
+// 다름 — 코스는 PublicCourseDetailScreen(HomeScreen이 전체 화면으로 띄움), 장소는
+// PlaceDetailScreen(관광지 상세, 이 탭 로컬 state)
 type RecommendedItem =
   | { kind: 'course'; data: SimilarCourseItem }
   | { kind: 'place'; data: SimilarLogItem };
@@ -66,14 +73,13 @@ interface PreviewPoint {
 //    정적 출발/도착 일러스트 대신 실제 MapView+Polyline/마커로 대체
 // 2. 사진 우상단 하트(좋아요) 버튼: ExploreScreen.tsx가 이미 "방문 기록 좋아요 개념이 스키마에
 //    없음"으로 생략한 선례를 그대로 따름
-export function RecommendedTab() {
+export function RecommendedTab({ onOpenCourseDetail }: Props) {
   const insets = useSafeAreaInsets();
   const [items, setItems] = useState<RecommendedItem[] | null>(null);
   const [containerHeight, setContainerHeight] = useState<number | null>(null);
   const [expanded, setExpanded] = useState(false);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [previewPoints, setPreviewPoints] = useState<PreviewPoint[] | null>(null);
-  const [detailCourseId, setDetailCourseId] = useState<number | null>(null);
   const [detailPlaceId, setDetailPlaceId] = useState<number | null>(null);
 
   const translateY = useRef(new Animated.Value(0)).current;
@@ -190,9 +196,6 @@ export function RecommendedTab() {
     snapTo(false);
   }
 
-  if (detailCourseId != null) {
-    return <PublicCourseDetailScreen courseId={detailCourseId} onExit={() => setDetailCourseId(null)} />;
-  }
   if (detailPlaceId != null) {
     return <PlaceDetailScreen placeId={detailPlaceId} onExit={() => setDetailPlaceId(null)} />;
   }
@@ -228,7 +231,7 @@ export function RecommendedTab() {
                     item.kind === 'course' ? handleSelectCourse(item.data) : handleSelectPlace(item.data)
                   }
                   onViewDetail={() =>
-                    item.kind === 'course' ? setDetailCourseId(item.data.course_id) : setDetailPlaceId(item.data.place_id)
+                    item.kind === 'course' ? onOpenCourseDetail(item.data.course_id) : setDetailPlaceId(item.data.place_id)
                   }
                 />
               )}
