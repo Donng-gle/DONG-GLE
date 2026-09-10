@@ -14,6 +14,11 @@ import { CourseResultScreen } from './CourseResultScreen';
 
 interface Props {
   onExit: () => void;
+  // 결과 화면(CourseResultScreen)이 Figma 실측 반영(2026-09-10)으로 FloatingNav를 직접 그리게 돼서
+  // CourseManualBuilderScreen과 동일하게 HomeScreen에서 전달받아 한 단계 더 내려보냄
+  onCreateManual: () => void;
+  onCreateAI: () => void;
+  onProfile: () => void;
 }
 
 type Step =
@@ -72,7 +77,7 @@ function formatTimeLabel(time: string) {
 }
 
 // 코스 만들기 전체 흐름의 오케스트레이터: 조건 입력(setup) → 스와이프(swiping) → 코스 생성/저장(result)
-export function CourseFlowScreen({ onExit }: Props) {
+export function CourseFlowScreen({ onExit, onCreateManual, onCreateAI, onProfile }: Props) {
   const insets = useSafeAreaInsets();
   const [step, setStep] = useState<Step>({ name: 'setup' });
   const [travelDate, setTravelDate] = useState(TODAY);
@@ -239,6 +244,9 @@ export function CourseFlowScreen({ onExit }: Props) {
         endTime={step.endTime}
         onSaved={onExit}
         onCancel={onExit}
+        onCreateManual={onCreateManual}
+        onCreateAI={onCreateAI}
+        onProfile={onProfile}
       />
     );
   }
