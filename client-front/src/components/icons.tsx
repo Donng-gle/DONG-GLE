@@ -236,32 +236,43 @@ export function MapPinOutlineIcon({ size = 18, color = colors.gray500 }: { size?
   );
 }
 
-// 같은 화면의 "이전 장소에서 X km" 아이콘("navigation-map" 인스턴스) — 핀+구불구불한 길(2026-09-09
-// 근사). 핀 부분을 "AI 일정 만들기-화면"(510:11285) export 이미지로 다시 확인해보니 지도 핀과
-// 똑같이 둥근 물방울 모양이라(2026-09-11), MapPin.tsx와 동일한 "원+접선" 공식(r=3.9, d=1.23r)으로
-// 교체 — strokeLinejoin="round"라 접선-꼭짓점 이음매도 자동으로 둥글게 렌더됨(QuickLook로 확인)
+// 같은 화면의 "이전 장소에서 X km" 아이콘("navigation-map" 인스턴스) — 핀+구불구불한 길. 사용자가
+// 고화질 Figma 크롭을 다시 보내줘서(2026-09-11) 길 모양까지 정밀 재현: 왼쪽 끝 작은 고리 매듭 +
+// 오르내리는 파도 2개. 핀은 MapPin.tsx와 동일한 "원+접선" 공식(r=3.9, d=1.23r), 위치를 길 쪽으로
+// 당김(cx 13→11)해서 시안처럼 길 끝과 겹치게 함. QuickLook(qlmanage -t)로 로컬 렌더 확인 후 반영
 export function DistanceIcon({ size = 18, color = colors.gray500 }: { size?: number; color?: string }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 18 18" fill="none">
       <Path
-        d="M10.73 8.57 L13 10.2 L15.27 8.57 A3.9 3.9 0 1 0 10.73 8.57 Z"
+        d="M8.73 8.57 L11 10.2 L13.27 8.57 A3.9 3.9 0 1 0 8.73 8.57 Z"
         stroke={color}
         strokeWidth={1.4}
         strokeLinejoin="round"
       />
-      <Circle cx={13} cy={5.4} r={1.3} stroke={color} strokeWidth={1.4} />
-      <Path d="M1 15c1.8 0 1.8-3 3.6-3s1.8 3 3.6 3" stroke={color} strokeWidth={1.4} strokeLinecap="round" fill="none" />
+      <Circle cx={11} cy={5.4} r={1.3} stroke={color} strokeWidth={1.4} />
+      <Path
+        d="M2 16c-1.3 0-1.3-2 0-2 1.3 0 1.3 2 2.6 2 1.3 0 1.3-2 2.6-2 1.3 0 1.3 2 2.6 2"
+        stroke={color}
+        strokeWidth={1.4}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
     </Svg>
   );
 }
 
-// 같은 화면의 "약 N분" 아이콘("Run" 인스턴스) — 뛰는 사람. 근사(2026-09-09)
+// 같은 화면의 "약 N분" 아이콘("Run" 인스턴스) — 뛰는 사람. 기존 버전(2026-09-09)은 팔다리가 전부
+// 엉덩이 한 점에서 뻗어나가는 구조라 QuickLook으로 실제 렌더해보니 사람 형태를 거의 못 알아볼
+// 정도였음(2026-09-11 재검토 — 사용자가 보내준 고화질 Figma 크롭과 비교해서 발견). 목/엉덩이를
+// 분리하고 팔다리 4개를 각자 독립된 구간(허벅지+정강이, 팔뚝+손)으로 다시 그려서 뛰는 자세가
+// 뚜렷하게 보이도록 재설계 — QuickLook으로 로컬 렌더 확인 후 반영
 export function WalkIcon({ size = 18, color = colors.gray500 }: { size?: number; color?: string }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 18 18" fill="none">
-      <Circle cx={11} cy={3.2} r={1.6} fill={color} />
+      <Circle cx={11.3} cy={3} r={1.5} fill={color} />
       <Path
-        d="M7.2 16l2.3-3-.9-2.8-2-1.8M9.6 10.2l3 .5 2 3.6M9.6 10.2l-1.4 2.5 1 3.5"
+        d="M10 5L9.5 9M9.5 9L7 11L7.8 15.5M9.5 9L12 10L14.5 8.5M10 5L12 6L11 8.5M10 5L8 4L6.5 5.5"
         stroke={color}
         strokeWidth={1.5}
         strokeLinecap="round"
