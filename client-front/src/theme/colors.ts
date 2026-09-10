@@ -21,4 +21,7 @@ export const colors = {
   tabDivider: '#d1d3db',
   chipBorderMuted: '#f2f4fc',
   rowDivider: '#f1f1f5',
+  // "AI 일정 만들기-화면"(510:11285) "AI 추천 여행 코스" 섹션 타이틀 전용 색(2026-09-10 실측) —
+  // gray700(#505050)과 미묘하게 다른 값이라 별도 토큰화
+  sectionTitle: '#373b51',
 } as const;
