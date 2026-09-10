@@ -10,3 +10,4 @@
 !**/.env.example
 **/secrets/
 *.pem
+docs/submission-outline.md
