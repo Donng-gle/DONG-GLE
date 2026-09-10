@@ -26,7 +26,7 @@ export function MapPin({ number }: Props) {
   return (
     <View style={styles.wrap}>
       <View style={styles.pinBox}>
-        <Svg width={32} height={32} viewBox="0 0 40 40" style={StyleSheet.absoluteFill}>
+        <Svg width={38} height={38} viewBox="0 0 40 40" style={StyleSheet.absoluteFill}>
           <Path d={PIN_PATH} fill={colors.accentBlue} />
           <Circle cx={20} cy={16} r={10} fill={colors.pinBackground} />
         </Svg>
@@ -37,18 +37,20 @@ export function MapPin({ number }: Props) {
   );
 }
 
+// 핀은 살짝 키우고 안쪽 숫자는 줄여달라는 요청(2026-09-11) — pinBox 32→38(viewBox 40x40 그대로라
+// 원 비율 왜곡 없음), 숫자 fontSize 14→12
 const styles = StyleSheet.create({
   wrap: { alignItems: 'center' },
-  pinBox: { width: 32, height: 32 },
+  pinBox: { width: 38, height: 38 },
   pinText: {
     position: 'absolute',
-    top: 3,
+    top: 7,
     left: 0,
     right: 0,
     textAlign: 'center',
     fontFamily: fonts.bold,
-    fontSize: 14,
+    fontSize: 12,
     color: colors.accentBlue,
   },
-  pinShadow: { width: 25, height: 4, borderRadius: 2, backgroundColor: colors.accentBlue, opacity: 0.48, marginTop: 2 },
+  pinShadow: { width: 27, height: 4, borderRadius: 2, backgroundColor: colors.accentBlue, opacity: 0.48, marginTop: 2 },
 });
