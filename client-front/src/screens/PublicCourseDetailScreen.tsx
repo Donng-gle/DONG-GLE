@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
@@ -22,6 +22,30 @@ interface Props {
 }
 
 const ANDONG_REGION = { latitude: 36.5684, longitude: 128.7294, latitudeDelta: 0.1, longitudeDelta: 0.1 };
+const WEEKDAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
+
+function toDateKey(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// travel_date~end_date를 하루 단위로 나열 — CourseDetailScreen.tsx의 동명 함수와 동일 로직
+function buildDateTabs(start: string, end: string | null) {
+  const startDate = new Date(start + 'T00:00:00');
+  const endDate = end ? new Date(end + 'T00:00:00') : startDate;
+  const tabs: { dateKey: string; day: number; weekday: string }[] = [];
+  const cursor = new Date(startDate);
+  while (cursor <= endDate) {
+    tabs.push({ dateKey: toDateKey(cursor), day: cursor.getDate(), weekday: WEEKDAY_LABELS[cursor.getDay()] });
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return tabs;
+}
+
+function formatShortDateLabel(dateKey: string) {
+  const [, m, d] = dateKey.split('-').map(Number);
+  const weekday = WEEKDAY_LABELS[new Date(dateKey + 'T00:00:00').getDay()];
+  return `${m}/${d}(${weekday})`;
+}
 
 // "취향 맞춤 코스" 탭 "자세히 보기"(2026-09-07 결정, decision-log 참고) — 다른 사용자의 공개 코스를
 // 읽기 전용으로 보여줌.
@@ -44,18 +68,17 @@ const ANDONG_REGION = { latitude: 36.5684, longitude: 128.7294, latitudeDelta: 0
 //   "팝업"처럼 보인다는 지적(2026-09-10) — HomeScreen이 course-manual/CourseResultScreen과 동일하게
 //   이 화면을 전체 화면 overlay(courseDetailId state)로 띄우도록 바꾸고, FloatingNav도 이 화면이
 //   직접 그리는 걸로 정정
-// - 여러 날 코스(end_date 있음)면 날짜별로 묶어서 보여줌 — 직접 일정 만들기 화면의 날짜 탭과 같은
-//   정보를 인터랙티브 탭 대신 스크롤 목록 안 날짜 구분 헤더로 단순화(2026-09-07 결정, decision-log
-//   참고: 이 화면은 읽기 전용이라 날짜별 지도 필터링까지는 필요 없다고 판단) — 기존 로직 유지
-// - 카드별 카테고리 라벨/총 거리·시간 요약은 CourseResultScreen과 동일한 이유로 생략(데이터 없음/
-//   시안에 없음). 단, 여행 날짜만큼은 시안엔 없어도 뺴면 단일 날짜 코스에서 날짜 정보가 아예
-//   안 보이게 돼서(날짜 구분 헤더는 여러 날 코스에만 나옴) 제목 아래 작게 유지함(코스 삭제를 시안에
-//   없어도 CourseDetailScreen이 유지한 것과 같은 판단)
+// - 여러 날 코스(end_date 있음)면 날짜 탭으로 하루씩 골라볼 수 있게 함(2026-09-11 변경, 사용자 확인
+//   — "직접 일정 만들기-기본화면"(501:12088) 프레임처럼). 예전엔 스크롤 목록 안 날짜 구분 헤더로
+//   전체를 한 번에 보여줬는데, 코스마다 실제로 며칠짜리인지 인지하기 어렵다는 지적으로 정정 —
+//   CourseDetailScreen.tsx의 buildDateTabs/selectedDateTab 로직을 그대로 재사용
+// - 카드별 카테고리 라벨은 실제 백엔드 필드(2026-09-11 추가)를 그대로 보여줌
 export function PublicCourseDetailScreen({ courseId, onExit, onCreateManual, onCreateAI, onProfile }: Props) {
   const insets = useSafeAreaInsets();
   const [course, setCourse] = useState<CourseDetail | null>(null);
   const [liking, setLiking] = useState(false);
   const [liked, setLiked] = useState(false);
+  const [selectedDateTab, setSelectedDateTab] = useState('');
 
   useEffect(() => {
     load();
@@ -64,7 +87,9 @@ export function PublicCourseDetailScreen({ courseId, onExit, onCreateManual, onC
 
   async function load() {
     try {
-      setCourse(await exploreApi.getCourseDetail(courseId));
+      const detail = await exploreApi.getCourseDetail(courseId);
+      setCourse(detail);
+      if (detail.travel_date) setSelectedDateTab(detail.travel_date);
     } catch (e) {
       Alert.alert('코스를 불러오지 못했어요', e instanceof Error ? e.message : '알 수 없는 오류');
       onExit();
@@ -98,6 +123,20 @@ export function PublicCourseDetailScreen({ courseId, onExit, onCreateManual, onC
     }
   }
 
+  const dateTabs = useMemo(
+    () => (course?.travel_date ? buildDateTabs(course.travel_date, course.end_date) : []),
+    [course?.travel_date, course?.end_date],
+  );
+
+  // AI 코스처럼 visit_date가 아예 없는 경우엔 필터 없이 전체를 보여줌(CourseDetailScreen과 동일 판단)
+  const hasVisitDates = course?.places.some((p) => p.visit_date != null) ?? false;
+  const placesForTab: CoursePlaceItem[] = !course
+    ? []
+    : hasVisitDates
+      ? course.places.filter((p) => p.visit_date === selectedDateTab)
+      : course.places;
+  const pinnedPlaces = placesForTab.filter((p) => p.lat != null && p.lng != null);
+
   if (!course) {
     return (
       <View style={styles.center}>
@@ -106,9 +145,6 @@ export function PublicCourseDetailScreen({ courseId, onExit, onCreateManual, onC
       </View>
     );
   }
-
-  const pinnedPlaces = course.places.filter((p) => p.lat != null && p.lng != null);
-  const dayGroups = groupByDay(course.places);
 
   return (
     <View style={styles.container}>
@@ -133,11 +169,28 @@ export function PublicCourseDetailScreen({ courseId, onExit, onCreateManual, onC
             {course.title}
           </Text>
         </View>
-        {course.travel_date && (
-          <Text style={styles.dateLabel}>
-            {course.travel_date}
-            {course.end_date && course.end_date !== course.travel_date ? ` ~ ${course.end_date}` : ''}
-          </Text>
+
+        {dateTabs.length > 0 && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.dateTabScroll}
+            contentContainerStyle={styles.dateTabRow}
+          >
+            {dateTabs.map((tab) => {
+              const selected = tab.dateKey === selectedDateTab;
+              return (
+                <TouchableOpacity
+                  key={tab.dateKey}
+                  style={[styles.dateTab, selected && styles.dateTabSelected]}
+                  onPress={() => setSelectedDateTab(tab.dateKey)}
+                >
+                  <Text style={[styles.dateTabWeekday, selected && styles.dateTabTextSelected]}>{tab.weekday}</Text>
+                  <Text style={[styles.dateTabDay, selected && styles.dateTabTextSelected]}>{tab.day}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
         )}
 
         {pinnedPlaces.length > 0 && (
@@ -161,50 +214,47 @@ export function PublicCourseDetailScreen({ courseId, onExit, onCreateManual, onC
         <View style={styles.listSection}>
           <Text style={styles.sectionTitle}>AI 추천 여행 코스</Text>
 
-          {dayGroups.map((group) => (
-            <View key={group.dayLabel ?? 'all'}>
-              {group.dayLabel && <Text style={styles.dayHeader}>{group.dayLabel}</Text>}
-              {group.places.map((place, idx) => (
-                <View key={place.place_id} style={styles.placeRow}>
-                  <View style={styles.placeRowLeft}>
-                    <MapPinOutlineIcon size={18} />
-                    {idx < group.places.length - 1 && <View style={styles.placeConnector} />}
-                  </View>
-                  <View style={styles.placeRowRight}>
-                    <View style={styles.placeCard}>
-                      {place.main_image_url ? (
-                        <Image source={{ uri: place.main_image_url }} style={styles.placeThumbnail} resizeMode="cover" />
-                      ) : (
-                        <View style={[styles.placeThumbnail, styles.placeThumbnailPlaceholder]} />
-                      )}
-                      <View style={styles.placeNameCol}>
-                        <Text style={styles.placeName} numberOfLines={1}>
-                          {place.name}
-                        </Text>
-                        {place.category && (
-                          <Text style={styles.placeCategory} numberOfLines={1}>
-                            {place.category}
-                          </Text>
-                        )}
-                      </View>
-                    </View>
-                    {place.distance_from_prev_km != null && (
-                      <View style={styles.placeMetaRow}>
-                        <View style={styles.placeMetaItem}>
-                          <DistanceIcon size={18} />
-                          <Text style={styles.placeMetaText}>{place.distance_from_prev_km.toFixed(1)} KM</Text>
-                        </View>
-                        {place.duration_from_prev_min != null && (
-                          <View style={styles.placeMetaItem}>
-                            <WalkIcon size={18} />
-                            <Text style={styles.placeMetaText}>{place.duration_from_prev_min}분</Text>
-                          </View>
-                        )}
-                      </View>
+          {selectedDateTab && <Text style={styles.dayHeader}>{formatShortDateLabel(selectedDateTab)}</Text>}
+
+          {placesForTab.map((place, index) => (
+            <View key={place.place_id} style={styles.placeRow}>
+              <View style={styles.placeRowLeft}>
+                <MapPinOutlineIcon size={18} />
+                {index < placesForTab.length - 1 && <View style={styles.placeConnector} />}
+              </View>
+              <View style={styles.placeRowRight}>
+                <View style={styles.placeCard}>
+                  {place.main_image_url ? (
+                    <Image source={{ uri: place.main_image_url }} style={styles.placeThumbnail} resizeMode="cover" />
+                  ) : (
+                    <View style={[styles.placeThumbnail, styles.placeThumbnailPlaceholder]} />
+                  )}
+                  <View style={styles.placeNameCol}>
+                    <Text style={styles.placeName} numberOfLines={1}>
+                      {place.name}
+                    </Text>
+                    {place.category && (
+                      <Text style={styles.placeCategory} numberOfLines={1}>
+                        {place.category}
+                      </Text>
                     )}
                   </View>
                 </View>
-              ))}
+                {place.distance_from_prev_km != null && (
+                  <View style={styles.placeMetaRow}>
+                    <View style={styles.placeMetaItem}>
+                      <DistanceIcon size={18} />
+                      <Text style={styles.placeMetaText}>{place.distance_from_prev_km.toFixed(1)} KM</Text>
+                    </View>
+                    {place.duration_from_prev_min != null && (
+                      <View style={styles.placeMetaItem}>
+                        <WalkIcon size={18} />
+                        <Text style={styles.placeMetaText}>{place.duration_from_prev_min}분</Text>
+                      </View>
+                    )}
+                  </View>
+                )}
+              </View>
             </View>
           ))}
         </View>
@@ -213,34 +263,6 @@ export function PublicCourseDetailScreen({ courseId, onExit, onCreateManual, onC
       <FloatingNav onHome={onExit} onCreateManual={onCreateManual} onCreateAI={onCreateAI} onProfile={onProfile} />
     </View>
   );
-}
-
-interface DayGroup {
-  dayLabel: string | null; // null이면 날짜 구분 없이 전체를 하나로(단일 날짜/미정 코스)
-  places: CoursePlaceItem[];
-}
-
-const WEEKDAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
-
-function formatDayLabel(dateKey: string) {
-  const d = new Date(dateKey + 'T00:00:00');
-  return `${d.getMonth() + 1}/${d.getDate()}(${WEEKDAY_LABELS[d.getDay()]})`;
-}
-
-// 여러 날 코스(장소마다 visit_date가 있음, 2026-09-06 결정)만 날짜별로 묶고, 그 외(단일 날짜/과거
-// 데이터/AI 코스)는 CourseDetailScreen과 동일하게 전체를 하나의 목록으로 보여줌
-function groupByDay(places: CoursePlaceItem[]): DayGroup[] {
-  const hasVisitDates = places.some((p) => p.visit_date != null);
-  if (!hasVisitDates) return [{ dayLabel: null, places }];
-
-  const groups: DayGroup[] = [];
-  places.forEach((place) => {
-    const label = place.visit_date ? formatDayLabel(place.visit_date) : '날짜 미정';
-    const existing = groups.find((g) => g.dayLabel === label);
-    if (existing) existing.places.push(place);
-    else groups.push({ dayLabel: label, places: [place] });
-  });
-  return groups;
 }
 
 const styles = StyleSheet.create({
@@ -268,9 +290,21 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
   },
   titleText: { fontFamily: fonts.semiBold, fontSize: 24, letterSpacing: -0.6, color: colors.black, flexShrink: 1 },
-  // 시안엔 없지만 읽기 전용 화면이라 날짜 정보가 이거 하나뿐 — 없애면 단일 날짜 코스에서 날짜가
-  // 아예 안 보이게 돼서 유지함(코스 삭제를 CourseDetailScreen이 유지한 것과 같은 판단, 위 코멘트 참고)
-  dateLabel: { fontFamily: fonts.regular, fontSize: 13, color: colors.gray500, paddingHorizontal: 20, paddingTop: 4, paddingBottom: 15, backgroundColor: colors.white },
+  // 흰 배경은 ScrollView 자체(dateTabScroll)에 둬야 탭이 1개뿐이라 content가 화면 폭보다 좁을 때도
+  // 남는 공간이 페이지 배경(backgroundMuted)으로 비치지 않음 (CourseDetailScreen과 동일 이유)
+  dateTabScroll: { backgroundColor: colors.white },
+  dateTabRow: {
+    flexDirection: 'row',
+    gap: 16,
+    paddingHorizontal: 20,
+    paddingTop: 22,
+    paddingBottom: 16,
+  },
+  dateTab: { width: 36, height: 56, borderRadius: 8, alignItems: 'center', justifyContent: 'center', gap: 4 },
+  dateTabSelected: { backgroundColor: colors.accentBlue },
+  dateTabWeekday: { fontFamily: fonts.regular, fontSize: 16, letterSpacing: -0.4, color: colors.gray700 },
+  dateTabDay: { fontFamily: fonts.regular, fontSize: 16, letterSpacing: -0.4, color: colors.gray700 },
+  dateTabTextSelected: { color: colors.white },
   // 지도를 위아래로 더 보이게 확대(200→260, 사용자 요청 2026-09-10). 핀 모양은 components/MapPin.tsx
   // 참고(export_node_as_image로 실제 렌더 확인 후 물방울 핀 모양으로 재현)
   map: { width: '100%', height: 260 },
