@@ -7,6 +7,7 @@ import { CourseCandidate, CoursePlaceItem, CoursePlaceRequest, courseApi } from 
 import { SwipeTransport } from '../api/swipe';
 import { BookmarkIcon, DistanceIcon, HeartIcon, MapPinOutlineIcon, SearchIcon, WalkIcon } from '../components/icons';
 import { FloatingNav } from '../components/FloatingNav';
+import { MapPin } from '../components/MapPin';
 import { colors } from '../theme/colors';
 import { fonts } from '../theme/fonts';
 import { SearchScreen } from './SearchScreen';
@@ -268,12 +269,7 @@ export function CourseResultScreen({
             )}
             {pinnedPlaces.map((p) => (
               <Marker key={p.place_id} coordinate={{ latitude: p.lat as number, longitude: p.lng as number }}>
-                <View style={styles.pinWrap}>
-                  <View style={styles.pinCircle}>
-                    <Text style={styles.pinText}>{p.visit_order}</Text>
-                  </View>
-                  <View style={styles.pinShadow} />
-                </View>
+                <MapPin number={p.visit_order} />
               </Marker>
             ))}
           </MapView>
@@ -389,14 +385,9 @@ const styles = StyleSheet.create({
   dateTabWeekday: { fontFamily: fonts.regular, fontSize: 16, letterSpacing: -0.4, color: colors.gray700 },
   dateTabDay: { fontFamily: fonts.regular, fontSize: 16, letterSpacing: -0.4, color: colors.gray700 },
   dateTabTextSelected: { color: colors.white },
-  map: { width: '100%', height: 200 },
-  // Figma 실측: 파스텔 핑크 원(#fcf3f6, colors.pinBackground) + 파란 굵은 번호 + 파란 반투명 꼬리.
-  // CourseDetailScreen의 지도 핀과 동일 스타일(2026-09-10 재실측 — pinShadow 폭/투명도만 이 프레임
-  // 실측값(25x3.6, opacity 0.48)으로 미세 조정)
-  pinWrap: { alignItems: 'center' },
-  pinCircle: { width: 25, height: 25, borderRadius: 13, backgroundColor: colors.pinBackground, alignItems: 'center', justifyContent: 'center' },
-  pinText: { fontFamily: fonts.bold, fontSize: 14, color: colors.accentBlue },
-  pinShadow: { width: 25, height: 4, borderRadius: 2, backgroundColor: colors.accentBlue, opacity: 0.48, marginTop: 3 },
+  // 지도를 위아래로 더 보이게 확대(200→260, 사용자 요청 2026-09-10). 핀 모양은 components/MapPin.tsx
+  // 참고(export_node_as_image로 실제 렌더 확인 후 물방울 핀 모양으로 재현)
+  map: { width: '100%', height: 260 },
   // 헤더/제목은 좌우 여백 20이지만, 지도 아래 리스트 카드는 16 — Figma가 이 프레임에서 실제로
   // 다르게 쓴 값이라 그대로 따름(2026-09-10 실측, CourseDetailScreen의 20과 다른 부분)
   listSection: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 20, backgroundColor: colors.white },
