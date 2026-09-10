@@ -8,30 +8,27 @@ interface Props {
 }
 
 // 지도 위 코스 번호 핀 — Figma "AI 일정 만들기-화면"(510:11285) "Huge-icon/navigation maps/outline/
-// location" 재현(2026-09-10, 채널 h962fplg). get_node_info로 읽은 원시 노드 데이터(파스텔 핑크 원 +
-// 파란 번호 텍스트 + 파란 반투명 타원)만 보고 "원 + 텍스트"로 구현했었는데, 중첩된 벡터 자식이
-// children:[]로 잘려서 실제로는 "파란 물방울(핀) 모양 안에 핑크 원"이라는 걸 놓쳤음 — 이미지로
-// export_node_as_image 렌더 확인 후 재현(사용자 지적, 2026-09-10). CourseResultScreen.tsx/
-// PublicCourseDetailScreen.tsx 둘 다 이 컴포넌트를 씀(같은 시안 510:11285 기반). CourseDetailScreen
-// (다른 시안 501:12088)은 이번에 확인 안 해서 그대로 둠 — 같은 문제일 수 있어 별도 확인 필요.
-//
-// 정확한 베지어 패스는 MCP가 SVG 원본 텍스트를 안 줘서(export_node_as_image가 이미지로만 렌더되고
-// raw path는 못 읽음) 표준 "location pin" 물방울 실루엣(FontAwesome map-marker-alt)을 실측 비율에
-// 맞춰 사용 — 핀 원형부 중심에 안쪽 원(핀 폭의 약 58%, Figma 실측 25.08/43)이 오도록 배치.
-// "더 둥글둥글하게" 요청(2026-09-10) — 원본 패스(viewBox 384x512, 비율 0.75)는 꼬리가 길어서
-// 뾰족해 보임. 세로만 줄여서(height 40→34) 렌더하면 원 비율은 거의 그대로 유지되면서 꼬리만
-// 짧아져 더 둥근 느낌이 됨(패스 자체를 새로 만드는 대신 안전하게 렌더 크기만 조정) + 안쪽 원도
-// 살짝 키움(150→160)
-const PIN_PATH =
-  'M172.268 501.67C26.97 291.031 0 269.413 0 192 0 85.961 85.961 0 192 0s192 85.961 192 192c0 77.413-26.97 99.031-172.268 309.67-9.535 13.774-29.93 13.773-39.464 0z';
+// location" 재현. get_node_info로 읽은 원시 노드 데이터(파스텔 핑크 원 + 파란 번호 텍스트 + 파란
+// 반투명 타원)만 보고 처음엔 "원 + 텍스트"로 구현했었는데, 중첩된 벡터 자식이 children:[]로 잘려서
+// 실제로는 "파란 물방울(핀) 모양 안에 핑크 원"이라는 걸 놓쳤음(2026-09-10, 사용자 지적) —
+// export_node_as_image로 렌더 확인 후 표준 pin 실루엣(FontAwesome map-marker-alt)으로 재현했다가,
+// "더 둥글게" 재요청(2026-09-11)에 같은 노드를 scale 12로 다시 export해서 정밀 비교해보니 실제
+// 시안은 꼬리가 훨씬 짧고 뭉툭해서(원 중심~꼭짓점 거리가 반지름의 약 1.23배 — 거의 원에 가까움)
+// 기존 근사 패스로는 아무리 세로를 눌러도 한계가 있었음. 그래서 "원 + 꼭짓점으로 이어지는 두 접선"
+// 공식으로 직접 재구성(원점 기준 r=14, 접선 각도 β=arccos(r/d), d=1.227r):
+//   T1=(cx-r·sinβ, cy+r·cosβ), T2=(cx+r·sinβ, cy+r·cosβ), apex=(cx, cy+d)
+//   패스: T1 → L apex → L T2 → A(큰 호, 위쪽 절반) T1로 복귀
+// CourseResultScreen.tsx/PublicCourseDetailScreen.tsx 둘 다 이 컴포넌트를 씀(같은 시안 510:11285
+// 기반). CourseDetailScreen(다른 시안 501:12088)은 이번에도 확인 안 해서 그대로 둠
+const PIN_PATH = 'M11.89 27.41 L20 33.18 L28.11 27.41 A14 14 0 1 0 11.89 27.41 Z';
 
 export function MapPin({ number }: Props) {
   return (
     <View style={styles.wrap}>
       <View style={styles.pinBox}>
-        <Svg width={30} height={34} viewBox="0 0 384 512" style={StyleSheet.absoluteFill}>
+        <Svg width={32} height={32} viewBox="0 0 40 40" style={StyleSheet.absoluteFill}>
           <Path d={PIN_PATH} fill={colors.accentBlue} />
-          <Circle cx={192} cy={190} r={160} fill={colors.pinBackground} />
+          <Circle cx={20} cy={16} r={10} fill={colors.pinBackground} />
         </Svg>
         <Text style={styles.pinText}>{number}</Text>
       </View>
@@ -42,7 +39,7 @@ export function MapPin({ number }: Props) {
 
 const styles = StyleSheet.create({
   wrap: { alignItems: 'center' },
-  pinBox: { width: 30, height: 34 },
+  pinBox: { width: 32, height: 32 },
   pinText: {
     position: 'absolute',
     top: 3,
@@ -53,5 +50,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.accentBlue,
   },
-  pinShadow: { width: 25, height: 4, borderRadius: 2, backgroundColor: colors.accentBlue, opacity: 0.48, marginTop: 3 },
+  pinShadow: { width: 25, height: 4, borderRadius: 2, backgroundColor: colors.accentBlue, opacity: 0.48, marginTop: 2 },
 });
