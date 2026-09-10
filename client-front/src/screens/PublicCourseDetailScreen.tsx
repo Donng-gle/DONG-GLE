@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CourseDetail, CoursePlaceItem } from '../api/course';
 import { exploreApi } from '../api/explore';
+import { BookmarkIcon, DistanceIcon, HeartIcon, MapPinOutlineIcon, SearchIcon, WalkIcon } from '../components/icons';
 import { colors } from '../theme/colors';
 import { fonts } from '../theme/fonts';
+import { SearchScreen } from './SearchScreen';
 
 interface Props {
   courseId: number;
@@ -16,14 +18,29 @@ interface Props {
 const ANDONG_REGION = { latitude: 36.5684, longitude: 128.7294, latitudeDelta: 0.1, longitudeDelta: 0.1 };
 
 // "취향 맞춤 코스" 탭 "자세히 보기"(2026-09-07 결정, decision-log 참고) — 다른 사용자의 공개 코스를
-// 읽기 전용으로 보여줌. CourseDetailScreen(본인 코스, 수정/삭제 가능)과 지도+장소 리스트 렌더링은
-// 거의 동일하지만: (1) 수정/삭제 버튼 없음 (2) 작성자 닉네임 표시 (3) 여러 날 코스(end_date 있음)면
-// 날짜별로 묶어서 보여줌 — 직접 일정 만들기 화면의 날짜 탭과 같은 정보를 인터랙티브 탭 대신
-// 스크롤 목록 안 날짜 구분 헤더로 단순화(2026-09-07 결정, decision-log 참고: 이 화면은 읽기 전용이라
-// 날짜별 지도 필터링까지는 필요 없다고 판단)
+// 읽기 전용으로 보여줌.
+//
+// Figma 노드 510:11285("AI 일정 만들기-화면") 재실측 반영(2026-09-10, 채널 h962fplg, 사용자 확인 —
+// 이 화면이 바로 그 시안의 실제 대상 화면. CourseResultScreen.tsx(AI 코스 생성 직후 화면)도 같은
+// 시안을 참고해서 먼저 만들었고, 그때 검증한 헤더/핀/리스트 스타일을 여기서도 그대로 재사용함) —
+// 헤더 하트/돋보기/북마크, 파란 번호 핀, "AI 추천 여행 코스" 섹션 타이틀, 리스트 좌우 여백 16 등
+// CourseResultScreen과 동일하게 맞춤. 이 화면만의 차이:
+// - 읽기 전용이라 제목 옆 연필(이름 수정) 없음, 저장 버튼 없음, "장소 추가" 버튼 없음(사용자 확인,
+//   CourseResultScreen과 동일 판단 — 이 화면은 원래도 CourseEditScreen 책임이 아님)
+// - 하단 플로팅 네비 없음 — 이 화면은 HomeScreen "취향 맞춤 코스" 탭 콘텐츠 영역 안에서 교체되는
+//   화면이라(RecommendedTab.tsx), HomeScreen이 이미 바깥에 FloatingNav를 그려두고 있음(2026-09-10
+//   확인 — 여기서 또 그리면 두 개가 겹침)
+// - 여러 날 코스(end_date 있음)면 날짜별로 묶어서 보여줌 — 직접 일정 만들기 화면의 날짜 탭과 같은
+//   정보를 인터랙티브 탭 대신 스크롤 목록 안 날짜 구분 헤더로 단순화(2026-09-07 결정, decision-log
+//   참고: 이 화면은 읽기 전용이라 날짜별 지도 필터링까지는 필요 없다고 판단) — 기존 로직 유지
+// - 카드별 카테고리 라벨/총 거리·시간 요약은 CourseResultScreen과 동일한 이유로 생략(데이터 없음/
+//   시안에 없음). 단, 여행 날짜만큼은 시안엔 없어도 뺴면 단일 날짜 코스에서 날짜 정보가 아예
+//   안 보이게 돼서(날짜 구분 헤더는 여러 날 코스에만 나옴) 제목 아래 작게 유지함(코스 삭제를 시안에
+//   없어도 CourseDetailScreen이 유지한 것과 같은 판단)
 export function PublicCourseDetailScreen({ courseId, onExit }: Props) {
   const insets = useSafeAreaInsets();
   const [course, setCourse] = useState<CourseDetail | null>(null);
+  const [searchVisible, setSearchVisible] = useState(false);
 
   useEffect(() => {
     load();
@@ -55,83 +72,109 @@ export function PublicCourseDetailScreen({ courseId, onExit }: Props) {
     <View style={styles.container}>
       <StatusBar style="dark" />
 
-      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
-        <TouchableOpacity onPress={onExit} hitSlop={8} style={styles.backButton}>
-          <Text style={styles.backIcon}>←</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle} numberOfLines={1}>
-          {course.title}
-        </Text>
-        <View style={styles.backButton} />
-      </View>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <View style={[styles.headerTop, { paddingTop: insets.top + 12 }]}>
+          <TouchableOpacity onPress={onExit} hitSlop={8} style={styles.backButton}>
+            <Text style={styles.backIcon}>←</Text>
+          </TouchableOpacity>
+          <View style={styles.headerIcons}>
+            {/* 하트/북마크는 대응하는 백엔드 기능이 없어서 장식만 — CourseDetailScreen/
+                CourseResultScreen과 동일 판단 */}
+            <View style={styles.headerIconButton}>
+              <HeartIcon size={22} />
+            </View>
+            <TouchableOpacity onPress={() => setSearchVisible(true)} hitSlop={6} style={styles.headerIconButton}>
+              <SearchIcon size={22} />
+            </TouchableOpacity>
+            <View style={styles.headerIconButton}>
+              <BookmarkIcon size={22} />
+            </View>
+          </View>
+        </View>
 
-      <ScrollView contentContainerStyle={styles.content}>
+        <View style={styles.titleRow}>
+          <Text style={styles.titleText} numberOfLines={1}>
+            {course.title}
+          </Text>
+        </View>
+        {course.travel_date && (
+          <Text style={styles.dateLabel}>
+            {course.travel_date}
+            {course.end_date && course.end_date !== course.travel_date ? ` ~ ${course.end_date}` : ''}
+          </Text>
+        )}
+
         {pinnedPlaces.length > 0 && (
           <MapView provider={PROVIDER_GOOGLE} style={styles.map} initialRegion={ANDONG_REGION}>
-            <Polyline
-              coordinates={pinnedPlaces.map((p) => ({ latitude: p.lat as number, longitude: p.lng as number }))}
-              strokeColor={colors.black}
-              strokeWidth={2}
-              lineDashPattern={[6, 6]}
-            />
+            {pinnedPlaces.length > 1 && (
+              <Polyline
+                coordinates={pinnedPlaces.map((p) => ({ latitude: p.lat as number, longitude: p.lng as number }))}
+                strokeColor={colors.accentBlue}
+                strokeWidth={2}
+                lineDashPattern={[6, 6]}
+              />
+            )}
             {pinnedPlaces.map((p) => (
               <Marker key={p.place_id} coordinate={{ latitude: p.lat as number, longitude: p.lng as number }}>
-                <View style={styles.pin}>
-                  <Text style={styles.pinText}>{p.visit_order}</Text>
+                <View style={styles.pinWrap}>
+                  <View style={styles.pinCircle}>
+                    <Text style={styles.pinText}>{p.visit_order}</Text>
+                  </View>
+                  <View style={styles.pinShadow} />
                 </View>
               </Marker>
             ))}
           </MapView>
         )}
 
-        <View style={styles.summaryRow}>
-          <Text style={styles.meta}>
-            {course.travel_date ?? '날짜 미정'}
-            {course.end_date && course.end_date !== course.travel_date ? ` ~ ${course.end_date}` : ''}
-          </Text>
-          {(course.total_distance_km != null || course.total_duration_min != null) && (
-            <Text style={styles.summary}>
-              {course.total_distance_km != null ? `총 ${course.total_distance_km.toFixed(1)}km` : ''}
-              {course.total_distance_km != null && course.total_duration_min != null ? ' · ' : ''}
-              {course.total_duration_min != null ? `약 ${course.total_duration_min}분` : ''}
-            </Text>
-          )}
-        </View>
+        <View style={styles.listSection}>
+          <Text style={styles.sectionTitle}>AI 추천 여행 코스</Text>
 
-        {dayGroups.map((group) => (
-          <View key={group.dayLabel ?? 'all'}>
-            {group.dayLabel && <Text style={styles.dayHeader}>{group.dayLabel}</Text>}
-            <View style={[styles.placeList, group.dayLabel != null && styles.placeListWithHeader]}>
+          {dayGroups.map((group) => (
+            <View key={group.dayLabel ?? 'all'}>
+              {group.dayLabel && <Text style={styles.dayHeader}>{group.dayLabel}</Text>}
               {group.places.map((place, idx) => (
                 <View key={place.place_id} style={styles.placeRow}>
                   <View style={styles.placeRowLeft}>
-                    <View style={styles.orderBadge}>
-                      <Text style={styles.orderBadgeText}>{place.visit_order}</Text>
-                    </View>
-                    {idx < group.places.length - 1 && <View style={styles.connectingLine} />}
+                    <MapPinOutlineIcon size={18} />
+                    {idx < group.places.length - 1 && <View style={styles.placeConnector} />}
                   </View>
-
-                  <View style={styles.placeCard}>
-                    {place.main_image_url ? (
-                      <Image source={{ uri: place.main_image_url }} style={styles.placeThumbnail} resizeMode="cover" />
-                    ) : (
-                      <View style={[styles.placeThumbnail, styles.placeThumbnailPlaceholder]} />
-                    )}
-                    <View style={styles.placeInfo}>
-                      <Text style={styles.placeName}>{place.name}</Text>
-                      {place.duration_from_prev_min != null && (
-                        <Text style={styles.placeMeta}>
-                          이전 장소에서 {place.distance_from_prev_km?.toFixed(1)}km · 약 {place.duration_from_prev_min}분
-                        </Text>
+                  <View style={styles.placeRowRight}>
+                    <View style={styles.placeCard}>
+                      {place.main_image_url ? (
+                        <Image source={{ uri: place.main_image_url }} style={styles.placeThumbnail} resizeMode="cover" />
+                      ) : (
+                        <View style={[styles.placeThumbnail, styles.placeThumbnailPlaceholder]} />
                       )}
+                      <Text style={styles.placeName} numberOfLines={1}>
+                        {place.name}
+                      </Text>
                     </View>
+                    {place.distance_from_prev_km != null && (
+                      <View style={styles.placeMetaRow}>
+                        <View style={styles.placeMetaItem}>
+                          <DistanceIcon size={18} />
+                          <Text style={styles.placeMetaText}>{place.distance_from_prev_km.toFixed(1)} KM</Text>
+                        </View>
+                        {place.duration_from_prev_min != null && (
+                          <View style={styles.placeMetaItem}>
+                            <WalkIcon size={18} />
+                            <Text style={styles.placeMetaText}>{place.duration_from_prev_min}분</Text>
+                          </View>
+                        )}
+                      </View>
+                    )}
                   </View>
                 </View>
               ))}
             </View>
-          </View>
-        ))}
+          ))}
+        </View>
       </ScrollView>
+
+      <Modal visible={searchVisible} transparent animationType="none" onRequestClose={() => setSearchVisible(false)}>
+        <SearchScreen onExit={() => setSearchVisible(false)} />
+      </Modal>
     </View>
   );
 }
@@ -165,49 +208,58 @@ function groupByDay(places: CoursePlaceItem[]): DayGroup[] {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.white },
+  container: { flex: 1, backgroundColor: colors.backgroundMuted },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.white },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingBottom: 8 },
-  backButton: { width: 44, height: 32, alignItems: 'center', justifyContent: 'center' },
-  backIcon: { fontSize: 20, color: colors.black },
-  headerTitle: { flex: 1, fontFamily: fonts.semiBold, fontSize: 17, letterSpacing: -0.4, color: colors.black, textAlign: 'center' },
-  content: { paddingBottom: 40 },
-  map: { width: '100%', height: 200 },
-  pin: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: colors.black,
+  scrollContent: { paddingBottom: 40 },
+  // Figma 실측(510:11285): 헤더+제목이 흰 풀블리드 블록(#ffffff, 페이지 배경 #f7f7fb 위), 지도/
+  // 리스트도 각각 별도 흰 블록 — CourseDetailScreen/CourseResultScreen과 같은 카드 분리 패턴
+  headerTop: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: colors.white,
-  },
-  pinText: { fontFamily: fonts.semiBold, fontSize: 13, color: colors.white },
-  summaryRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, marginTop: 16, gap: 8 },
-  meta: { fontFamily: fonts.regular, fontSize: 13, color: colors.gray500 },
-  summary: { fontFamily: fonts.medium, fontSize: 14, color: colors.gray700 },
-  dayHeader: {
-    fontFamily: fonts.semiBold,
-    fontSize: 15,
-    letterSpacing: -0.4,
-    color: colors.black,
+    justifyContent: 'space-between',
     paddingHorizontal: 20,
-    marginTop: 20,
-    marginBottom: 4,
+    backgroundColor: colors.white,
   },
-  placeList: { paddingHorizontal: 20, marginTop: 20 },
-  // dayHeader가 이미 marginTop:20을 갖고 있어서 이어붙일 땐 이중 여백 생기지 않게 줄임
-  placeListWithHeader: { marginTop: 4 },
+  backButton: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
+  backIcon: { fontSize: 20, color: colors.black },
+  headerIcons: { flexDirection: 'row', gap: 16 },
+  headerIconButton: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    backgroundColor: colors.white,
+  },
+  titleText: { fontFamily: fonts.semiBold, fontSize: 24, letterSpacing: -0.6, color: colors.black, flexShrink: 1 },
+  // 시안엔 없지만 읽기 전용 화면이라 날짜 정보가 이거 하나뿐 — 없애면 단일 날짜 코스에서 날짜가
+  // 아예 안 보이게 돼서 유지함(코스 삭제를 CourseDetailScreen이 유지한 것과 같은 판단, 위 코멘트 참고)
+  dateLabel: { fontFamily: fonts.regular, fontSize: 13, color: colors.gray500, paddingHorizontal: 20, paddingTop: 4, paddingBottom: 15, backgroundColor: colors.white },
+  map: { width: '100%', height: 200 },
+  // Figma 실측: 파스텔 핑크 원(#fcf3f6, colors.pinBackground) + 파란 굵은 번호 + 파란 반투명 꼬리 —
+  // CourseDetailScreen/CourseResultScreen과 동일 스타일
+  pinWrap: { alignItems: 'center' },
+  pinCircle: { width: 25, height: 25, borderRadius: 13, backgroundColor: colors.pinBackground, alignItems: 'center', justifyContent: 'center' },
+  pinText: { fontFamily: fonts.bold, fontSize: 14, color: colors.accentBlue },
+  pinShadow: { width: 25, height: 4, borderRadius: 2, backgroundColor: colors.accentBlue, opacity: 0.48, marginTop: 3 },
+  // 헤더/제목은 좌우 여백 20이지만, 지도 아래 리스트 카드는 16 — CourseResultScreen과 동일 실측값
+  listSection: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 20, backgroundColor: colors.white },
+  sectionTitle: { fontFamily: fonts.semiBold, fontSize: 16, color: colors.sectionTitle, marginBottom: 12 },
+  dayHeader: { fontFamily: fonts.semiBold, fontSize: 16, color: colors.black, marginBottom: 12 },
   placeRow: { flexDirection: 'row' },
   placeRowLeft: { width: 32, alignItems: 'center' },
-  orderBadge: { width: 28, height: 28, borderRadius: 14, backgroundColor: colors.black, alignItems: 'center', justifyContent: 'center' },
-  orderBadgeText: { fontFamily: fonts.semiBold, fontSize: 13, color: colors.white },
-  connectingLine: { flex: 1, width: 1, backgroundColor: colors.border, marginVertical: 4, minHeight: 40 },
-  placeCard: { flex: 1, flexDirection: 'row', alignItems: 'center', paddingBottom: 20, marginLeft: 12 },
-  placeThumbnail: { width: 48, height: 48, borderRadius: 8, marginRight: 12 },
+  placeConnector: { flex: 1, width: 1, backgroundColor: colors.border, marginVertical: 4, minHeight: 30 },
+  placeRowRight: { flex: 1, paddingBottom: 16 },
+  placeCard: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  placeThumbnail: { width: 48, height: 48, borderRadius: 4 },
   placeThumbnailPlaceholder: { backgroundColor: colors.border },
-  placeInfo: { flex: 1 },
-  placeName: { fontFamily: fonts.medium, fontSize: 16, letterSpacing: -0.4, color: colors.black },
-  placeMeta: { fontFamily: fonts.regular, fontSize: 12, color: colors.gray500, marginTop: 4 },
+  placeName: { flex: 1, fontFamily: fonts.medium, fontSize: 16, letterSpacing: -0.4, color: colors.black },
+  placeMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 12,
+  },
+  placeMetaItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  placeMetaText: { fontFamily: fonts.regular, fontSize: 12, color: colors.gray500 },
 });
