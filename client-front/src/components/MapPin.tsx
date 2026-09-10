@@ -30,7 +30,9 @@ export function MapPin({ number }: Props) {
           <Path d={PIN_PATH} fill={colors.accentBlue} />
           <Circle cx={20} cy={16} r={10} fill={colors.pinBackground} />
         </Svg>
-        <Text style={styles.pinText}>{number}</Text>
+        <View style={styles.pinTextBox}>
+          <Text style={styles.pinText}>{number}</Text>
+        </View>
       </View>
       <View style={styles.pinShadow} />
     </View>
@@ -38,16 +40,24 @@ export function MapPin({ number }: Props) {
 }
 
 // 핀은 살짝 키우고 안쪽 숫자는 줄여달라는 요청(2026-09-11) — pinBox 32→38(viewBox 40x40 그대로라
-// 원 비율 왜곡 없음), 숫자 fontSize 14→12
+// 원 비율 왜곡 없음), 숫자 fontSize 14→12.
+// 숫자가 원 정중앙에서 미세하게 벗어나 보인다는 지적(2026-09-11) — top 픽셀값을 눈대중으로 조정하는
+// 대신(line-height 때문에 글자마다 미묘하게 다르게 보임), 원의 실제 바운딩 박스(cx=20,cy=16,r=10을
+// pinBox 38/viewBox 40 비율로 환산 → left 9.5, top 5.7, 19x19) 크기의 컨테이너를 만들고 그 안에서
+// flexbox center로 맞춤 — 픽셀값 추측보다 원의 기하학적 중심에 정확히 맞음
 const styles = StyleSheet.create({
   wrap: { alignItems: 'center' },
   pinBox: { width: 38, height: 38 },
-  pinText: {
+  pinTextBox: {
     position: 'absolute',
-    top: 7,
-    left: 0,
-    right: 0,
-    textAlign: 'center',
+    left: 9.5,
+    top: 5.7,
+    width: 19,
+    height: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pinText: {
     fontFamily: fonts.bold,
     fontSize: 12,
     color: colors.accentBlue,
