@@ -405,7 +405,8 @@ const styles = StyleSheet.create({
   // Figma 실측 스크린샷 확인(2026-09-10) — 실선이 아니라 점선. borderLeft+dotted로 구현(RN에서
   // 세로 점선을 그리는 표준 방법 — backgroundColor 실선 View로는 점선을 못 그림)
   placeConnector: { flex: 1, width: 0, borderLeftWidth: 1.5, borderLeftColor: colors.border, borderStyle: 'dotted', marginVertical: 4, minHeight: 30 },
-  placeRowRight: { flex: 1, paddingBottom: 16 },
+  // 카드끼리 너무 붙어있다는 피드백(2026-09-11)으로 16→28 확대
+  placeRowRight: { flex: 1, paddingBottom: 28 },
   placeCard: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   placeThumbnail: { width: 48, height: 48, borderRadius: 4 },
   placeThumbnailPlaceholder: { backgroundColor: colors.border },
