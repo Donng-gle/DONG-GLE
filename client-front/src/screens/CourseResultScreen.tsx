@@ -402,7 +402,9 @@ const styles = StyleSheet.create({
   dayHeader: { fontFamily: fonts.semiBold, fontSize: 16, color: colors.black, marginBottom: 12 },
   placeRow: { flexDirection: 'row' },
   placeRowLeft: { width: 32, alignItems: 'center' },
-  placeConnector: { flex: 1, width: 1, backgroundColor: colors.border, marginVertical: 4, minHeight: 30 },
+  // Figma 실측 스크린샷 확인(2026-09-10) — 실선이 아니라 점선. borderLeft+dotted로 구현(RN에서
+  // 세로 점선을 그리는 표준 방법 — backgroundColor 실선 View로는 점선을 못 그림)
+  placeConnector: { flex: 1, width: 0, borderLeftWidth: 1.5, borderLeftColor: colors.border, borderStyle: 'dotted', marginVertical: 4, minHeight: 30 },
   placeRowRight: { flex: 1, paddingBottom: 16 },
   placeCard: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   placeThumbnail: { width: 48, height: 48, borderRadius: 4 },
