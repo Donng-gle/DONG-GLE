@@ -217,14 +217,16 @@ export function HeartIcon({ size = 24, color = colors.black, filled = false }: {
   );
 }
 
-// CourseDetailScreen "직접 일정 만들기-기본화면"(501:12088) 장소 리스트 행 왼쪽 아이콘("location"
-// 인스턴스, export로 확인) — 링 구멍이 있는 아웃라인 핀. 인스턴스 내부 벡터도 export가 PNG만 내려줘서
-// 실측 불가, 흔히 쓰이는 pin outline path(Lucide "map-pin" 등)로 근사(2026-09-09)
+// 장소 리스트 행 왼쪽 아이콘("location" 인스턴스) — 링 구멍이 있는 아웃라인 핀. CourseDetailScreen
+// "직접 일정 만들기-기본화면"(501:12088)에서 처음 만들 때 export가 PNG만 내려줘서 실측 불가라
+// Lucide "map-pin"(radius 8)으로 근사(2026-09-09). "AI 일정 만들기-화면"(510:11285) export 이미지를
+// 다시 확인해보니 원이 더 둥글고 커서(사용자 지적, 2026-09-11) radius 9짜리 더 둥근 변형(Feather
+// "map-pin")으로 교체 — 두 시안 다 같은 아이콘을 쓰는 걸로 보여서 공용 컴포넌트 전체를 정정
 export function MapPinOutlineIcon({ size = 18, color = colors.gray500 }: { size?: number; color?: string }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <Path
-        d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"
+        d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0Z"
         stroke={color}
         strokeWidth={1.8}
         strokeLinejoin="round"
