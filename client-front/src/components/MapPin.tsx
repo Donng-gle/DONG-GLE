@@ -17,7 +17,11 @@ interface Props {
 //
 // 정확한 베지어 패스는 MCP가 SVG 원본 텍스트를 안 줘서(export_node_as_image가 이미지로만 렌더되고
 // raw path는 못 읽음) 표준 "location pin" 물방울 실루엣(FontAwesome map-marker-alt)을 실측 비율에
-// 맞춰 사용 — 핀 원형부 중심에 안쪽 원(핀 폭의 약 58%, Figma 실측 25.08/43)이 오도록 배치
+// 맞춰 사용 — 핀 원형부 중심에 안쪽 원(핀 폭의 약 58%, Figma 실측 25.08/43)이 오도록 배치.
+// "더 둥글둥글하게" 요청(2026-09-10) — 원본 패스(viewBox 384x512, 비율 0.75)는 꼬리가 길어서
+// 뾰족해 보임. 세로만 줄여서(height 40→34) 렌더하면 원 비율은 거의 그대로 유지되면서 꼬리만
+// 짧아져 더 둥근 느낌이 됨(패스 자체를 새로 만드는 대신 안전하게 렌더 크기만 조정) + 안쪽 원도
+// 살짝 키움(150→160)
 const PIN_PATH =
   'M172.268 501.67C26.97 291.031 0 269.413 0 192 0 85.961 85.961 0 192 0s192 85.961 192 192c0 77.413-26.97 99.031-172.268 309.67-9.535 13.774-29.93 13.773-39.464 0z';
 
@@ -25,9 +29,9 @@ export function MapPin({ number }: Props) {
   return (
     <View style={styles.wrap}>
       <View style={styles.pinBox}>
-        <Svg width={30} height={40} viewBox="0 0 384 512" style={StyleSheet.absoluteFill}>
+        <Svg width={30} height={34} viewBox="0 0 384 512" style={StyleSheet.absoluteFill}>
           <Path d={PIN_PATH} fill={colors.accentBlue} />
-          <Circle cx={192} cy={190} r={150} fill={colors.pinBackground} />
+          <Circle cx={192} cy={190} r={160} fill={colors.pinBackground} />
         </Svg>
         <Text style={styles.pinText}>{number}</Text>
       </View>
@@ -38,10 +42,10 @@ export function MapPin({ number }: Props) {
 
 const styles = StyleSheet.create({
   wrap: { alignItems: 'center' },
-  pinBox: { width: 30, height: 40 },
+  pinBox: { width: 30, height: 34 },
   pinText: {
     position: 'absolute',
-    top: 5,
+    top: 3,
     left: 0,
     right: 0,
     textAlign: 'center',
