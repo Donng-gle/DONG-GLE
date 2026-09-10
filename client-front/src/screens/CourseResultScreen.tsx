@@ -1,16 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CourseCandidate, CoursePlaceItem, CoursePlaceRequest, courseApi } from '../api/course';
 import { SwipeTransport } from '../api/swipe';
-import { BookmarkIcon, DistanceIcon, HeartIcon, MapPinOutlineIcon, SearchIcon, WalkIcon } from '../components/icons';
+import { DistanceIcon, HeartIcon, MapPinOutlineIcon, WalkIcon } from '../components/icons';
 import { FloatingNav } from '../components/FloatingNav';
 import { MapPin } from '../components/MapPin';
 import { colors } from '../theme/colors';
 import { fonts } from '../theme/fonts';
-import { SearchScreen } from './SearchScreen';
 
 interface Props {
   sessionId: string;
@@ -87,7 +86,10 @@ export function CourseResultScreen({
   const [selectedDateTab, setSelectedDateTab] = useState('');
   const [title, setTitle] = useState('');
   const [editingTitle, setEditingTitle] = useState(false);
-  const [searchVisible, setSearchVisible] = useState(false);
+  // 하트 = 즉시 저장(확인 없이), 하단 "이 코스 저장하기" = 기존처럼 확인 알림 후 저장 → 완료(사용자
+  // 확인, 2026-09-11 — 헤더 돋보기/북마크 제거, 하트만 남기고 실제 저장 기능 연결). 저장된 코스 id를
+  // 들고 있다가 이미 저장됐으면 두 번째 트리거(버튼 or 하트)에서 또 POST하지 않도록 함(중복 저장 방지)
+  const [savedCourseId, setSavedCourseId] = useState<number | null>(null);
 
   useEffect(() => {
     generate();
@@ -133,8 +135,12 @@ export function CourseResultScreen({
     if (title.trim() === '') setTitle(candidate?.title ?? '');
   }
 
-  async function handleSave() {
-    if (!candidate) return;
+  // candidate_id는 백엔드가 "이 candidate를 이미 저장했는지" 추적하지 않아서(그냥 매번 새 코스로
+  // insert) savedCourseId로 프론트에서 직접 중복 방지. 이미 저장됐으면 새 요청 없이 그 id를 그대로
+  // 반환(하트로 먼저 저장한 뒤 하단 버튼을 눌러도 코스가 두 번 생기지 않게)
+  async function saveCourse(): Promise<number | null> {
+    if (!candidate) return null;
+    if (savedCourseId != null) return savedCourseId;
     setSaving(true);
     try {
       const places: CoursePlaceRequest[] = candidate.places.map((place) => ({
@@ -146,7 +152,7 @@ export function CourseResultScreen({
       // 요청한 endDate가 아니라 실제로 만들어진 마지막 날짜를 저장 — 후보 부족으로 서버가 요청한
       // 기간보다 적게 만들었을 수 있어서(위 코멘트 참고), 실제 장소 데이터와 어긋나지 않게 함
       const actualEndDate = dateTabs.length > 0 ? dateTabs[dateTabs.length - 1] : null;
-      await courseApi.save({
+      const res = await courseApi.save({
         candidate_id: candidate.candidate_id,
         title: title.trim() || candidate.title,
         travel_date: travelDate,
@@ -155,12 +161,26 @@ export function CourseResultScreen({
         source: 'ai',
         places,
       });
-      Alert.alert('코스가 저장됐어요', undefined, [{ text: '확인', onPress: onSaved }]);
+      setSavedCourseId(res.course_id);
+      return res.course_id;
     } catch (e) {
       Alert.alert('코스 저장에 실패했어요', e instanceof Error ? e.message : '알 수 없는 오류');
+      return null;
     } finally {
       setSaving(false);
     }
+  }
+
+  // 하트: 즉시 저장(성공하면 하트가 채워짐), 확인 알림 없이 화면에 남아있음 — 계속 둘러보다 하단
+  // 버튼으로 마무리할 수 있게
+  async function handleHeartPress() {
+    if (savedCourseId != null || saving) return;
+    await saveCourse();
+  }
+
+  async function handleSave() {
+    const id = await saveCourse();
+    if (id != null) Alert.alert('코스가 저장됐어요', undefined, [{ text: '확인', onPress: onSaved }]);
   }
 
   if (loading) {
@@ -197,17 +217,11 @@ export function CourseResultScreen({
             <Text style={styles.backIcon}>←</Text>
           </TouchableOpacity>
           <View style={styles.headerIcons}>
-            {/* 하트/북마크는 대응하는 백엔드 기능이 없어서(코스엔 좋아요/찜 개념 자체가 스키마에
-                없음) 장식만 — CourseDetailScreen과 동일 판단 */}
-            <View style={styles.headerIconButton}>
-              <HeartIcon size={22} />
-            </View>
-            <TouchableOpacity onPress={() => setSearchVisible(true)} hitSlop={6} style={styles.headerIconButton}>
-              <SearchIcon size={22} />
+            {/* 돋보기/북마크 제거, 하트만 남김(사용자 확인, 2026-09-11) — 눌러서 바로 저장,
+                저장되면 채워진 하트로 표시 */}
+            <TouchableOpacity onPress={handleHeartPress} hitSlop={6} disabled={saving} style={styles.headerIconButton}>
+              <HeartIcon size={22} filled={savedCourseId != null} />
             </TouchableOpacity>
-            <View style={styles.headerIconButton}>
-              <BookmarkIcon size={22} />
-            </View>
           </View>
         </View>
 
@@ -329,10 +343,6 @@ export function CourseResultScreen({
       </ScrollView>
 
       <FloatingNav onHome={onCancel} onCreateManual={onCreateManual} onCreateAI={onCreateAI} onProfile={onProfile} />
-
-      <Modal visible={searchVisible} transparent animationType="none" onRequestClose={() => setSearchVisible(false)}>
-        <SearchScreen onExit={() => setSearchVisible(false)} />
-      </Modal>
     </View>
   );
 }

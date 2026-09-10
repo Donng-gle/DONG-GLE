@@ -1,16 +1,15 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { CourseDetail, CoursePlaceItem } from '../api/course';
+import { CourseDetail, CoursePlaceItem, CoursePlaceRequest, courseApi } from '../api/course';
 import { exploreApi } from '../api/explore';
-import { BookmarkIcon, DistanceIcon, HeartIcon, MapPinOutlineIcon, SearchIcon, WalkIcon } from '../components/icons';
+import { DistanceIcon, HeartIcon, MapPinOutlineIcon, WalkIcon } from '../components/icons';
 import { FloatingNav } from '../components/FloatingNav';
 import { MapPin } from '../components/MapPin';
 import { colors } from '../theme/colors';
 import { fonts } from '../theme/fonts';
-import { SearchScreen } from './SearchScreen';
 
 interface Props {
   courseId: number;
@@ -32,8 +31,14 @@ const ANDONG_REGION = { latitude: 36.5684, longitude: 128.7294, latitudeDelta: 0
 // 시안을 참고해서 먼저 만들었고, 그때 검증한 헤더/핀/리스트 스타일을 여기서도 그대로 재사용함) —
 // 헤더 하트/돋보기/북마크, 파란 번호 핀, "AI 추천 여행 코스" 섹션 타이틀, 리스트 좌우 여백 16 등
 // CourseResultScreen과 동일하게 맞춤. 이 화면만의 차이:
-// - 읽기 전용이라 제목 옆 연필(이름 수정) 없음, 저장 버튼 없음, "장소 추가" 버튼 없음(사용자 확인,
-//   CourseResultScreen과 동일 판단 — 이 화면은 원래도 CourseEditScreen 책임이 아님)
+// - 읽기 전용이라 제목 옆 연필(이름 수정) 없음, "장소 추가" 버튼 없음(사용자 확인, CourseResultScreen과
+//   동일 판단 — 이 화면은 원래도 CourseEditScreen 책임이 아님)
+// - 하트(2026-09-11 추가, 사용자 확인 — 헤더 돋보기/북마크 제거하고 하트만 남김): 다른 사용자의
+//   코스를 "좋아요"하면 내 스크랩북으로 복제 저장됨. 전용 "복제" API는 없지만 courseApi.save(POST
+//   /courses)가 candidate_id 없이 title/places만으로도 저장되길래(CourseSaveRequest 참고) 그대로
+//   재사용 — 새 코스로 insert되니 원본 작성자에는 영향 없음. transport는 CourseDetail에 없어서
+//   null(조회 시 서버가 walk로 기본 계산, api/course.ts 참고), source는 'user'(내가 직접 구성한
+//   걸로 취급 — 'ai'로 저장하면 실제로 AI가 만든 것처럼 보여서 부정확함)
 // - 하단 플로팅 네비 있음 — 처음엔 탭 콘텐츠 영역 안에서 로컬 state로만 바꾸는 화면이라 HomeScreen이
 //   바깥에 그리는 FloatingNav와 겹칠까봐 뺐는데, 그러면 AppHeader/탭바가 위에 그대로 남아있어서
 //   "팝업"처럼 보인다는 지적(2026-09-10) — HomeScreen이 course-manual/CourseResultScreen과 동일하게
@@ -49,7 +54,8 @@ const ANDONG_REGION = { latitude: 36.5684, longitude: 128.7294, latitudeDelta: 0
 export function PublicCourseDetailScreen({ courseId, onExit, onCreateManual, onCreateAI, onProfile }: Props) {
   const insets = useSafeAreaInsets();
   const [course, setCourse] = useState<CourseDetail | null>(null);
-  const [searchVisible, setSearchVisible] = useState(false);
+  const [liking, setLiking] = useState(false);
+  const [liked, setLiked] = useState(false);
 
   useEffect(() => {
     load();
@@ -62,6 +68,33 @@ export function PublicCourseDetailScreen({ courseId, onExit, onCreateManual, onC
     } catch (e) {
       Alert.alert('코스를 불러오지 못했어요', e instanceof Error ? e.message : '알 수 없는 오류');
       onExit();
+    }
+  }
+
+  async function handleHeartPress() {
+    if (!course || liked || liking) return;
+    setLiking(true);
+    try {
+      const places: CoursePlaceRequest[] = course.places.map((place) => ({
+        place_id: place.place_id,
+        visit_order: place.visit_order,
+        planned_time: place.planned_time,
+        visit_date: place.visit_date,
+      }));
+      await courseApi.save({
+        title: course.title,
+        travel_date: course.travel_date,
+        end_date: course.end_date,
+        transport: null,
+        source: 'user',
+        places,
+      });
+      setLiked(true);
+      Alert.alert('내 스크랩북에 저장됐어요');
+    } catch (e) {
+      Alert.alert('저장에 실패했어요', e instanceof Error ? e.message : '알 수 없는 오류');
+    } finally {
+      setLiking(false);
     }
   }
 
@@ -87,17 +120,11 @@ export function PublicCourseDetailScreen({ courseId, onExit, onCreateManual, onC
             <Text style={styles.backIcon}>←</Text>
           </TouchableOpacity>
           <View style={styles.headerIcons}>
-            {/* 하트/북마크는 대응하는 백엔드 기능이 없어서 장식만 — CourseDetailScreen/
-                CourseResultScreen과 동일 판단 */}
-            <View style={styles.headerIconButton}>
-              <HeartIcon size={22} />
-            </View>
-            <TouchableOpacity onPress={() => setSearchVisible(true)} hitSlop={6} style={styles.headerIconButton}>
-              <SearchIcon size={22} />
+            {/* 돋보기/북마크 제거, 하트만 남김(사용자 확인, 2026-09-11) — 눌러서 내 스크랩북으로
+                복제 저장, 저장되면 채워진 하트로 표시 */}
+            <TouchableOpacity onPress={handleHeartPress} hitSlop={6} disabled={liking} style={styles.headerIconButton}>
+              <HeartIcon size={22} filled={liked} />
             </TouchableOpacity>
-            <View style={styles.headerIconButton}>
-              <BookmarkIcon size={22} />
-            </View>
           </View>
         </View>
 
@@ -184,10 +211,6 @@ export function PublicCourseDetailScreen({ courseId, onExit, onCreateManual, onC
       </ScrollView>
 
       <FloatingNav onHome={onExit} onCreateManual={onCreateManual} onCreateAI={onCreateAI} onProfile={onProfile} />
-
-      <Modal visible={searchVisible} transparent animationType="none" onRequestClose={() => setSearchVisible(false)}>
-        <SearchScreen onExit={() => setSearchVisible(false)} />
-      </Modal>
     </View>
   );
 }

@@ -456,6 +456,7 @@ export function resolveMock<T>(method: string, path: string, body: unknown): Moc
       travel_date?: string | null;
       end_date?: string | null;
       places?: unknown[];
+      source?: CourseListItem['source'];
     };
     const id = nextCourseId++;
     const title = req.title ?? '새 코스';
@@ -466,7 +467,11 @@ export function resolveMock<T>(method: string, path: string, body: unknown): Moc
         travel_date: req.travel_date ?? null,
         // 여러 날 범위 지원(2026-09-06 추가) — /courses(AI 저장)는 이 필드를 안 보내니 자연히 null
         end_date: req.end_date ?? null,
-        source: pathname === '/courses/manual' ? 'user' : 'ai',
+        // 이전엔 path로만 구분(/courses/manual=user, /courses=ai)했는데, "취향 맞춤 코스" 하트로
+        // 다른 사람 코스를 복제 저장할 때도 /courses를 쓰면서 source:'user'를 직접 보내게 돼서
+        // (2026-09-11 추가) 요청 바디의 source를 우선 쓰도록 정정 — 실제 CourseSaveRequest.source도
+        // 항상 필수값이라 클라이언트가 명시적으로 정함
+        source: req.source ?? (pathname === '/courses/manual' ? 'user' : 'ai'),
         place_count: req.places?.length ?? 0,
         thumbnail_url: MOCK_PLACES[0]?.main_image_url ?? null,
         place_thumbnails: MOCK_PLACES.slice(0, 3)
