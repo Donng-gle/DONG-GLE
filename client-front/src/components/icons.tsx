@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Image, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Line, Path } from 'react-native-svg';
 import { colors } from '../theme/colors';
 
@@ -236,50 +236,31 @@ export function MapPinOutlineIcon({ size = 18, color = colors.gray500 }: { size?
   );
 }
 
-// 같은 화면의 "이전 장소에서 X km" 아이콘("navigation-map" 인스턴스) — 핀+구불구불한 길. 사용자가
-// 고화질 Figma 크롭을 다시 보내줘서(2026-09-11) 길 모양까지 정밀 재현: 왼쪽 끝 작은 고리 매듭 +
-// 오르내리는 파도 2개. 핀은 MapPin.tsx와 동일한 "원+접선" 공식(r=3.9, d=1.23r), 위치를 길 쪽으로
-// 당김(cx 13→11)해서 시안처럼 길 끝과 겹치게 함. QuickLook(qlmanage -t)로 로컬 렌더 확인 후 반영
+// 같은 화면의 "이전 장소에서 X km" 아이콘("navigation-map" 인스턴스) — 핀+구불구불한 길.
+// 손으로 그린 SVG 근사가 계속 어긋나서(2026-09-09→2026-09-11 세 번 시도) 사용자가 Figma에서 직접
+// PNG로 내보내준 실제 에셋(navigation-map_x4.png, 72x72 = 18px 기준 4x)을 그대로 씀 — 더 이상 근사
+// 안 함. tintColor로 색상만 앱 테마에 맞춤(원본이 이미 무채색 회색이라 큰 차이는 없음)
 export function DistanceIcon({ size = 18, color = colors.gray500 }: { size?: number; color?: string }) {
   return (
-    <Svg width={size} height={size} viewBox="0 0 18 18" fill="none">
-      <Path
-        d="M8.73 8.57 L11 10.2 L13.27 8.57 A3.9 3.9 0 1 0 8.73 8.57 Z"
-        stroke={color}
-        strokeWidth={1.4}
-        strokeLinejoin="round"
-      />
-      <Circle cx={11} cy={5.4} r={1.3} stroke={color} strokeWidth={1.4} />
-      <Path
-        d="M2 16c-1.3 0-1.3-2 0-2 1.3 0 1.3 2 2.6 2 1.3 0 1.3-2 2.6-2 1.3 0 1.3 2 2.6 2"
-        stroke={color}
-        strokeWidth={1.4}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        fill="none"
-      />
-    </Svg>
+    <Image
+      source={require('../../assets/images/distance-icon.png')}
+      style={{ width: size, height: size, tintColor: color }}
+      resizeMode="contain"
+    />
   );
 }
 
-// 같은 화면의 "약 N분" 아이콘("Run" 인스턴스) — 뛰는 사람. 기존 버전(2026-09-09)은 팔다리가 전부
-// 엉덩이 한 점에서 뻗어나가는 구조라 QuickLook으로 실제 렌더해보니 사람 형태를 거의 못 알아볼
-// 정도였음(2026-09-11 재검토 — 사용자가 보내준 고화질 Figma 크롭과 비교해서 발견). 목/엉덩이를
-// 분리하고 팔다리 4개를 각자 독립된 구간(허벅지+정강이, 팔뚝+손)으로 다시 그려서 뛰는 자세가
-// 뚜렷하게 보이도록 재설계 — QuickLook으로 로컬 렌더 확인 후 반영
+// 같은 화면의 "약 N분" 아이콘("Run" 인스턴스) — 뛰는 사람. 손으로 그린 SVG 근사가 계속 어긋나서
+// (2026-09-09→2026-09-11 세 번 시도, 마지막엔 팔다리가 한 점에서 뻗어나가 사람 형태를 거의 못
+// 알아볼 정도) 사용자가 Figma에서 직접 PNG로 내보내준 실제 에셋(Run_x4.png, 72x72 = 18px 기준 4x)을
+// 그대로 씀 — DistanceIcon과 동일한 이유
 export function WalkIcon({ size = 18, color = colors.gray500 }: { size?: number; color?: string }) {
   return (
-    <Svg width={size} height={size} viewBox="0 0 18 18" fill="none">
-      <Circle cx={11.3} cy={3} r={1.5} fill={color} />
-      <Path
-        d="M10 5L9.5 9M9.5 9L7 11L7.8 15.5M9.5 9L12 10L14.5 8.5M10 5L12 6L11 8.5M10 5L8 4L6.5 5.5"
-        stroke={color}
-        strokeWidth={1.5}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        fill="none"
-      />
-    </Svg>
+    <Image
+      source={require('../../assets/images/walk-icon.png')}
+      style={{ width: size, height: size, tintColor: color }}
+      resizeMode="contain"
+    />
   );
 }
 
