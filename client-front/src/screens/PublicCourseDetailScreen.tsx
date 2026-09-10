@@ -150,9 +150,16 @@ export function PublicCourseDetailScreen({ courseId, onExit, onCreateManual, onC
                       ) : (
                         <View style={[styles.placeThumbnail, styles.placeThumbnailPlaceholder]} />
                       )}
-                      <Text style={styles.placeName} numberOfLines={1}>
-                        {place.name}
-                      </Text>
+                      <View style={styles.placeNameCol}>
+                        <Text style={styles.placeName} numberOfLines={1}>
+                          {place.name}
+                        </Text>
+                        {place.category && (
+                          <Text style={styles.placeCategory} numberOfLines={1}>
+                            {place.category}
+                          </Text>
+                        )}
+                      </View>
                     </View>
                     {place.distance_from_prev_km != null && (
                       <View style={styles.placeMetaRow}>
@@ -255,7 +262,11 @@ const styles = StyleSheet.create({
   placeCard: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   placeThumbnail: { width: 48, height: 48, borderRadius: 4 },
   placeThumbnailPlaceholder: { backgroundColor: colors.border },
-  placeName: { flex: 1, fontFamily: fonts.medium, fontSize: 16, letterSpacing: -0.4, color: colors.black },
+  placeNameCol: { flex: 1 },
+  placeName: { fontFamily: fonts.medium, fontSize: 16, letterSpacing: -0.4, color: colors.black },
+  // Figma 실측(510:11285): 이름 바로 아래 카테고리 텍스트, 위아래 여백 없이 바짝 붙음(2026-09-11
+  // category 필드 추가하면서 반영 — 백엔드에 필드 없던 때는 생략돼있었음)
+  placeCategory: { fontFamily: fonts.regular, fontSize: 12, letterSpacing: -0.3, color: colors.gray400 },
   placeMetaRow: {
     flexDirection: 'row',
     alignItems: 'center',

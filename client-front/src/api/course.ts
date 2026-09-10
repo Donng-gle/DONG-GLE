@@ -17,6 +17,10 @@ export interface CoursePlaceItem {
   // 여러 날 코스 지원(2026-09-06 결정, decision-log 참고) — 이 장소가 코스의 며칠째 방문지인지.
   // "직접 코스 만들기"에서만 채워짐, AI 코스는 항상 null(단일 날짜 전제)
   visit_date: string | null;
+  // 장소 카드 카테고리 라벨(2026-09-11 추가) — PLACE.category 그대로(관광지/식당/카페/액티비티/
+  // 문화공간/축제행사, PlaceListItem.category와 동일 값). 백엔드가 후보 풀에서 placeId를 못 찾는
+  // 예외적인 경우에만 null
+  category: string | null;
 }
 
 export interface CourseGenerateRequest {

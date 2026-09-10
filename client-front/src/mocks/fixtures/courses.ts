@@ -28,6 +28,7 @@ function toCoursePlaceItem(
     distance_from_prev_km: distanceFromPrevKm,
     duration_from_prev_min: durationFromPrevMin,
     visit_date: visitDate,
+    category: p.category, // 2026-09-11 추가 — 실제 서버처럼 PLACE.category 그대로
   };
 }
 
