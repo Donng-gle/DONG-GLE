@@ -218,7 +218,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   title: { fontFamily: fonts.semiBold, fontSize: 20, color: colors.black, marginBottom: 20 },
-  wheelArea: { height: WHEEL_HEIGHT, justifyContent: 'center' },
+  // alignItems 기본값(stretch) 때문에 wheelRow가 내용 폭이 아니라 wheelArea 전체 폭(288)으로
+  // 늘어나 있었음 — 그 늘어난 폭을 onLayout으로 재서 구분선 폭 계산에 썼더니 선이 시트 폭(320)
+  // 보다도 넓게 그려져 카드 밖으로 삐져나왔음(사용자가 스크린샷으로 지적, 2026-09-12). wheelRow가
+  // 제 내용 폭만큼만 차지하게 alignItems:'center'로 명시
+  wheelArea: { height: WHEEL_HEIGHT, justifyContent: 'center', alignItems: 'center' },
   // 선택 줄을 사각 박스로 감싸던 걸(선택된 줄이 각지고 눈에 튀어 Figma "일정 만들기-시간선택"
   // 실측과 다르다는 지적, 2026-09-12) 위아래 구분선 2개로 교체 — Figma엔 테두리 박스가 아니라
   // 선택 줄 경계에 얇은 선(#e5e5ec)만 있음. width/marginLeft는 실제 렌더 폭 기준으로 매번
