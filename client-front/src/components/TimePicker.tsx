@@ -112,12 +112,7 @@ export function TimePicker({ visible, value, onClose, onConfirm }: Props) {
         <Pressable style={styles.sheet} onPress={() => {}}>
           <Text style={styles.title}>시간 선택</Text>
 
-          <View
-            style={styles.wheelArea}
-            onLayout={(e) =>
-              console.log('[TimePicker DEBUG] wheelArea width=', e.nativeEvent.layout.width)
-            }
-          >
+          <View style={styles.wheelArea}>
             {rowWidth > 0 && (
               <>
                 <View
@@ -136,13 +131,7 @@ export function TimePicker({ visible, value, onClose, onConfirm }: Props) {
                 />
               </>
             )}
-            <View
-              style={styles.wheelRow}
-              onLayout={(e) => {
-                console.log('[TimePicker DEBUG] wheelRow width=', e.nativeEvent.layout.width);
-                setRowWidth(e.nativeEvent.layout.width);
-              }}
-            >
+            <View style={styles.wheelRow} onLayout={(e) => setRowWidth(e.nativeEvent.layout.width)}>
               <WheelColumn
                 key={`ampm-${visible}`}
                 items={AMPM_LABELS}
@@ -158,12 +147,7 @@ export function TimePicker({ visible, value, onClose, onConfirm }: Props) {
                 width={HOUR_COL_WIDTH}
                 onSelect={setHourIndex}
               />
-              <Text
-                style={styles.colon}
-                onLayout={(e) => console.log('[TimePicker DEBUG] colon width=', e.nativeEvent.layout.width)}
-              >
-                :
-              </Text>
+              <Text style={styles.colon}>:</Text>
               <WheelColumn
                 key={`minute-${visible}`}
                 items={MINUTE_LABELS}
@@ -215,9 +199,6 @@ function WheelColumn({
   return (
     <ScrollView
       style={{ width, height: WHEEL_HEIGHT, ...style }}
-      onLayout={(e) =>
-        console.log('[TimePicker DEBUG] column width(declared=' + width + ') actual=', e.nativeEvent.layout.width)
-      }
       showsVerticalScrollIndicator={false}
       snapToInterval={ROW_HEIGHT}
       decelerationRate="fast"
