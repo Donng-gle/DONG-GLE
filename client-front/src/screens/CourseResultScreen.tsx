@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
@@ -14,8 +14,6 @@ import { fonts } from '../theme/fonts';
 interface Props {
   sessionId: string;
   travelDate: string;
-  // 여행 날짜 다중 선택 지원(2026-09-10 추가) — 없으면 travelDate 하루짜리(기존과 동일)
-  endDate?: string | null;
   transport: SwipeTransport;
   // "여행일정 등록" 화면(CourseFlowScreen)에서 받은 시작/종료 시간 — 없으면(둘 다 null) 서버가
   // 09:00~21:00으로 폴백(2026-09-09 추가, api/course.ts 참고)
@@ -31,18 +29,6 @@ interface Props {
 }
 
 const ANDONG_REGION = { latitude: 36.5684, longitude: 128.7294, latitudeDelta: 0.1, longitudeDelta: 0.1 };
-const WEEKDAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
-
-function formatDayTabLabel(dateKey: string) {
-  const d = new Date(dateKey + 'T00:00:00');
-  return { weekday: WEEKDAY_LABELS[d.getDay()], day: d.getDate() };
-}
-
-function formatShortDateLabel(dateKey: string) {
-  const [, m, d] = dateKey.split('-').map(Number);
-  const weekday = WEEKDAY_LABELS[new Date(dateKey + 'T00:00:00').getDay()];
-  return `${m}/${d}(${weekday})`;
-}
 
 // Figma 노드 510:11285("AI 일정 만들기-화면") 재실측 반영(2026-09-10, 채널 h962fplg) — 이전엔
 // 이 노드를 참고했다면서도 실제로는 헤더 하트/돋보기/북마크, 제목 옆 연필, 파란 번호 핀, "AI 추천
@@ -61,15 +47,11 @@ function formatShortDateLabel(dateKey: string) {
 // CourseEditScreen 몫이라는 기존 판단 유지. 총 거리/시간 요약 텍스트도 시안엔 없어서 제거함
 // (CourseDetailScreen도 개별 장소 메타만 보여주고 총합은 안 보여주는 것과 일관됨).
 //
-// 여러 날 여행(endDate) 지원(2026-09-10 추가, 사용자 확인 — 날짜별로 따로 AI 추천해서 N박N일로
-// 합침) — 서버가 날짜마다 course_optimizer를 따로 불러 만든 CoursePlaceItem.visit_date를 그대로
-// 써서 CourseDetailScreen.tsx와 동일한 날짜 탭 UI로 필터링. 서버가 후보 부족으로 요청한 기간보다
-// 적은 날짜만 만들었을 수 있어서(CourseService.generate 참고) 탭은 요청한 endDate가 아니라 실제
-// 응답에 들어있는 visit_date들만으로 만듦
+// 여러 날 여행(endDate) 지원은 2026-09-10에 추가했다가 2026-09-11 사용자 요청으로 다시 뺌 — AI
+// 추천은 항상 하루짜리 일정만 생성(날짜 탭 UI도 같이 제거, CourseFlowScreen 참고)
 export function CourseResultScreen({
   sessionId,
   travelDate,
-  endDate,
   transport,
   startTime,
   endTime,
@@ -83,7 +65,6 @@ export function CourseResultScreen({
   const [candidate, setCandidate] = useState<CourseCandidate | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [selectedDateTab, setSelectedDateTab] = useState('');
   const [title, setTitle] = useState('');
   const [editingTitle, setEditingTitle] = useState(false);
   // 하트 = 즉시 저장(확인 없이), 하단 "이 코스 저장하기" = 기존처럼 확인 알림 후 저장 → 완료(사용자
@@ -103,7 +84,6 @@ export function CourseResultScreen({
       const response = await courseApi.generate({
         session_id: sessionId,
         travel_date: travelDate,
-        end_date: endDate,
         transport,
         start_time: startTime,
         end_time: endTime,
@@ -112,7 +92,6 @@ export function CourseResultScreen({
       const result = response.candidates[0] ?? null;
       setCandidate(result);
       setTitle(result?.title ?? '');
-      setSelectedDateTab(result?.places[0]?.visit_date ?? travelDate);
     } catch (e) {
       Alert.alert('코스 생성에 실패했어요', e instanceof Error ? e.message : '알 수 없는 오류');
     } finally {
@@ -120,15 +99,7 @@ export function CourseResultScreen({
     }
   }
 
-  // 실제 응답에 들어있는 visit_date만 모아서 정렬 — 위 코멘트 참고(요청한 기간보다 적게 만들어질 수 있음)
-  const dateTabs = useMemo(() => {
-    if (!candidate) return [];
-    const unique = Array.from(new Set(candidate.places.map((p) => p.visit_date).filter((d): d is string => d != null)));
-    return unique.sort();
-  }, [candidate]);
-
-  const placesForTab: CoursePlaceItem[] =
-    candidate == null ? [] : dateTabs.length === 0 ? candidate.places : candidate.places.filter((p) => p.visit_date === selectedDateTab);
+  const places: CoursePlaceItem[] = candidate?.places ?? [];
 
   function commitTitle() {
     setEditingTitle(false);
@@ -149,14 +120,11 @@ export function CourseResultScreen({
         planned_time: place.planned_time,
         visit_date: place.visit_date,
       }));
-      // 요청한 endDate가 아니라 실제로 만들어진 마지막 날짜를 저장 — 후보 부족으로 서버가 요청한
-      // 기간보다 적게 만들었을 수 있어서(위 코멘트 참고), 실제 장소 데이터와 어긋나지 않게 함
-      const actualEndDate = dateTabs.length > 0 ? dateTabs[dateTabs.length - 1] : null;
       const res = await courseApi.save({
         candidate_id: candidate.candidate_id,
         title: title.trim() || candidate.title,
         travel_date: travelDate,
-        end_date: actualEndDate,
+        end_date: null,
         transport,
         source: 'ai',
         places,
@@ -205,7 +173,7 @@ export function CourseResultScreen({
     );
   }
 
-  const pinnedPlaces = placesForTab.filter((p) => p.lat != null && p.lng != null);
+  const pinnedPlaces = places.filter((p) => p.lat != null && p.lng != null);
 
   return (
     <View style={styles.container}>
@@ -247,30 +215,6 @@ export function CourseResultScreen({
           </TouchableOpacity>
         </View>
 
-        {dateTabs.length > 1 && (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.dateTabScroll}
-            contentContainerStyle={styles.dateTabRow}
-          >
-            {dateTabs.map((dateKey) => {
-              const selected = dateKey === selectedDateTab;
-              const { weekday, day } = formatDayTabLabel(dateKey);
-              return (
-                <TouchableOpacity
-                  key={dateKey}
-                  style={[styles.dateTab, selected && styles.dateTabSelected]}
-                  onPress={() => setSelectedDateTab(dateKey)}
-                >
-                  <Text style={[styles.dateTabWeekday, selected && styles.dateTabTextSelected]}>{weekday}</Text>
-                  <Text style={[styles.dateTabDay, selected && styles.dateTabTextSelected]}>{day}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-        )}
-
         {pinnedPlaces.length > 0 && (
           <MapView provider={PROVIDER_GOOGLE} style={styles.map} initialRegion={ANDONG_REGION}>
             {pinnedPlaces.length > 1 && (
@@ -292,13 +236,11 @@ export function CourseResultScreen({
         <View style={styles.listSection}>
           <Text style={styles.sectionTitle}>AI 추천 여행 코스</Text>
 
-          {dateTabs.length > 1 && selectedDateTab && <Text style={styles.dayHeader}>{formatShortDateLabel(selectedDateTab)}</Text>}
-
-          {placesForTab.map((place, index) => (
+          {places.map((place, index) => (
             <View key={place.place_id} style={styles.placeRow}>
               <View style={styles.placeRowLeft}>
                 <MapPinOutlineIcon size={18} />
-                {index < placesForTab.length - 1 && <View style={styles.placeConnector} />}
+                {index < places.length - 1 && <View style={styles.placeConnector} />}
               </View>
               <View style={styles.placeRowRight}>
                 <View style={styles.placeCard}>
@@ -387,21 +329,6 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   pencilIcon: { fontSize: 15, color: colors.gray500 },
-  // 흰 배경은 ScrollView 자체(dateTabScroll)에 둬야 탭이 1개뿐이라 content가 화면 폭보다 좁을 때도
-  // 남는 공간이 페이지 배경(backgroundMuted)으로 비치지 않음 (CourseDetailScreen과 동일 이유)
-  dateTabScroll: { backgroundColor: colors.white },
-  dateTabRow: {
-    flexDirection: 'row',
-    gap: 16,
-    paddingHorizontal: 20,
-    paddingTop: 22,
-    paddingBottom: 16,
-  },
-  dateTab: { width: 36, height: 56, borderRadius: 8, alignItems: 'center', justifyContent: 'center', gap: 4 },
-  dateTabSelected: { backgroundColor: colors.accentBlue },
-  dateTabWeekday: { fontFamily: fonts.regular, fontSize: 16, letterSpacing: -0.4, color: colors.gray700 },
-  dateTabDay: { fontFamily: fonts.regular, fontSize: 16, letterSpacing: -0.4, color: colors.gray700 },
-  dateTabTextSelected: { color: colors.white },
   // 지도를 위아래로 더 보이게 확대(200→260, 사용자 요청 2026-09-10). 핀 모양은 components/MapPin.tsx
   // 참고(export_node_as_image로 실제 렌더 확인 후 물방울 핀 모양으로 재현)
   map: { width: '100%', height: 260 },
@@ -409,7 +336,6 @@ const styles = StyleSheet.create({
   // 다르게 쓴 값이라 그대로 따름(2026-09-10 실측, CourseDetailScreen의 20과 다른 부분)
   listSection: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 20, backgroundColor: colors.white },
   sectionTitle: { fontFamily: fonts.semiBold, fontSize: 16, color: colors.sectionTitle, marginBottom: 12 },
-  dayHeader: { fontFamily: fonts.semiBold, fontSize: 16, color: colors.black, marginBottom: 12 },
   placeRow: { flexDirection: 'row' },
   placeRowLeft: { width: 32, alignItems: 'center' },
   // Figma 실측 스크린샷 확인(2026-09-10) — 실선이 아니라 점선. borderLeft+dotted로 구현(RN에서
