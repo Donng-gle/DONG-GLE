@@ -73,7 +73,7 @@ class CourseService(
         val source = requireNotNull(request.source)
         // journal은 나의 일지 "기록하기"(POST /logs/course)에서만 서버가 직접 부여하는 값 —
         // 이 범용 저장 API로 흉내낼 수 없게 막음(2026-09-08 결정, decision-log 참고)
-        if (source == CourseSource.journal) throw InvalidCourseSourceException("source는 ai, ai_edited, user 중 하나여야 합니다.")
+        if (source == CourseSource.journal) throw InvalidCourseSourceException("source는 ai, ai_edited, user, liked 중 하나여야 합니다.")
         // 여러 날 AI 코스 저장 지원(2026-09-10 추가) — saveManual()과 동일 규칙
         if (request.endDate != null && request.travelDate != null && request.endDate < request.travelDate) {
             throw InvalidCourseDateRangeException()

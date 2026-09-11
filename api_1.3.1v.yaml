@@ -987,11 +987,13 @@ components:
             AI 생성 코스는 보통 /swipe/candidates에서 쓴 값을 그대로 전달. 비어있으면 조회 시 walk로 계산.
         source:
           type: string
-          enum: [ai, ai_edited, user]
+          enum: [ai, ai_edited, user, liked]
           description: |
             ai: AI가 생성한 코스를 그대로 저장.
             ai_edited: AI 생성 후 사용자가 장소를 수정/삭제한 코스.
             user: 사용자가 직접 구성한 코스.
+            liked: [2026-09-11 추가] "취향 맞춤 코스" 탭에서 다른 사용자의 공개 코스를 하트로
+            내 스크랩북에 복제 저장한 코스(GET /courses에서 "나의 코스"와 구분하는 용도).
         places:
           type: array
           description: 저장할 장소 목록. 구글맵 응답(이동시간/거리)은 저장하지 않으며 장소 목록과 순서만 저장함.
@@ -1041,8 +1043,11 @@ components:
           description: 여러 날 범위 지원(2026-09-06 추가). "직접 코스 만들기"에서만 채워짐.
         source:
           type: string
-          enum: [ai, ai_edited, user, journal]
-          description: journal=나의 일지 기록하기에서 장소 2개 이상 골라 사후 생성된 코스(2026-09-08 추가, decision-log 참고)
+          enum: [ai, ai_edited, user, journal, liked]
+          description: |
+            journal=나의 일지 기록하기에서 장소 2개 이상 골라 사후 생성된 코스(2026-09-08 추가,
+            decision-log 참고). liked=[2026-09-11 추가] 다른 사용자의 공개 코스를 하트로 내
+            스크랩북에 복제 저장한 코스 — 스크랩북 화면이 이 값으로 "나의 코스"/"여행코스" 탭을 구분함.
         place_count:
           type: integer
           description: 코스에 포함된 장소 수
@@ -1081,8 +1086,11 @@ components:
           description: 여러 날 범위 지원(2026-09-06 추가). "직접 코스 만들기"에서만 채워짐.
         source:
           type: string
-          enum: [ai, ai_edited, user, journal]
-          description: journal=나의 일지 기록하기에서 장소 2개 이상 골라 사후 생성된 코스(2026-09-08 추가, decision-log 참고)
+          enum: [ai, ai_edited, user, journal, liked]
+          description: |
+            journal=나의 일지 기록하기에서 장소 2개 이상 골라 사후 생성된 코스(2026-09-08 추가,
+            decision-log 참고). liked=[2026-09-11 추가] 다른 사용자의 공개 코스를 하트로 내
+            스크랩북에 복제 저장한 코스 — 스크랩북 화면이 이 값으로 "나의 코스"/"여행코스" 탭을 구분함.
         places:
           type: array
           description: 방문 순서대로 정렬된 장소 목록. 각 장소에 구글맵 재계산 결과(이동시간/거리)가 포함됨.
