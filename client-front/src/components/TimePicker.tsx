@@ -190,6 +190,16 @@ function WheelColumn({
   // onScrollEndDrag에서도 같이 갱신(2026-09-09)
   const [current, setCurrent] = useState(initialIndex);
 
+  // key={`ampm-${visible}`} 덕에 모달을 껐다 켤 때마다 리마운트는 되지만, 리마운트와 "value 기준으로
+  // ampmIndex/hourIndex/minute를 다시 계산하는" 상위 useEffect가 서로 다른 렌더 타이밍에 커밋되면
+  // (리마운트가 먼저, 재계산이 그다음 렌더에 반영) initialIndex prop만 나중에 갱신되고 useState의
+  // 초기값은 이미 고정된 뒤라 current가 갱신 전 값으로 남는 경우가 있었음 — 실기기에서 "선택된 줄
+  // 위치는 맞는데 굵게 표시가 안 됨"으로 확인(2026-09-12, 사용자 리포트). initialIndex가 바뀔 때마다
+  // current를 명시적으로 맞춰서 스크롤 위치와 굵게 표시가 항상 같이 가게 함
+  useEffect(() => {
+    setCurrent(initialIndex);
+  }, [initialIndex]);
+
   function handleSettle(e: NativeSyntheticEvent<NativeScrollEvent>) {
     const index = clamp(Math.round(e.nativeEvent.contentOffset.y / ROW_HEIGHT), 0, items.length - 1);
     setCurrent(index);
