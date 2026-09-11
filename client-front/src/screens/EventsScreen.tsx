@@ -1,6 +1,12 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Button, FlatList, Image, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EventListItem, eventApi } from '../api/event';
+import { LocationPinIcon } from '../components/icons';
+import { colors } from '../theme/colors';
+import { fonts } from '../theme/fonts';
 
 interface Props {
   onExit: () => void;
@@ -12,7 +18,18 @@ function dDayLabel(dDay: number) {
   return `D-${dDay}`;
 }
 
+// 그동안 스타일 하나 없는 기본 화면(Button/인라인 색상)이었던 걸 정식으로 디자인함(2026-09-11,
+// 사용자 확인 — "메인 페이지-안동 거리"(334:3255) 프레임의 "관광지 관련 명소" 카드 리스트와
+// 동일하게 가져가자). StreetTab.tsx의 PlaceCategoryCard(사진 히어로+그라디언트+배지, 흰 카드+그림자)
+// 스타일을 그대로 재사용 — 다만 이 화면엔 그 카드에 없는 요소가 필요해서 조정함:
+// - 카테고리 배지 자리에 D-day 배지(이 화면의 핵심 정보이자 기존 로직 그대로, dDayLabel 재사용)
+// - 하트(찜) 버튼은 제외 — EventListItem에 찜 개념 자체가 없음(is_liked 필드 없음), 없는 기능을
+//   지어내지 않기 위한 선택(다른 화면들과 동일 원칙)
+// - 주소 아래 행사 기간(event_start_date~event_end_date) 한 줄 추가
+// - StreetTab은 바텀시트(지도 위에 얹힘)라 헤더가 없지만, 이 화면은 드로어에서 바로 여는 독립
+//   화면이라 PlaceListScreen.tsx와 동일한 뒤로가기+제목 헤더를 둠
 export function EventsScreen({ onExit }: Props) {
+  const insets = useSafeAreaInsets();
   const [events, setEvents] = useState<EventListItem[] | null>(null);
 
   useEffect(() => {
@@ -25,54 +42,109 @@ export function EventsScreen({ onExit }: Props) {
       });
   }, []);
 
-  if (events === null) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" />
-      </View>
-    );
-  }
-
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>이달의 행사·축제</Text>
-      <FlatList
-        data={events}
-        keyExtractor={(item) => String(item.id)}
-        ListEmptyComponent={<Text style={styles.emptyText}>이번 달 행사가 없어요.</Text>}
-        renderItem={({ item }) => (
-          <View style={styles.row}>
-            {item.main_image_url ? (
-              <Image source={{ uri: item.main_image_url }} style={styles.thumbnail} resizeMode="cover" />
-            ) : (
-              <View style={[styles.thumbnail, styles.thumbnailPlaceholder]} />
-            )}
-            <View style={styles.info}>
-              <Text style={styles.name}>{item.name}</Text>
-              <Text style={styles.meta}>
-                {item.event_start_date} ~ {item.event_end_date}
-              </Text>
-              {item.addr1 && <Text style={styles.meta}>{item.addr1}</Text>}
+      <StatusBar style="dark" />
+
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+        <TouchableOpacity onPress={onExit} hitSlop={8} style={styles.backButton}>
+          <Text style={styles.backIcon}>←</Text>
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>이달의 행사·축제</Text>
+        <View style={styles.backButton} />
+      </View>
+
+      {events === null ? (
+        <View style={styles.center}>
+          <ActivityIndicator size="large" color={colors.black} />
+        </View>
+      ) : (
+        <FlatList
+          data={events}
+          keyExtractor={(item) => String(item.id)}
+          contentContainerStyle={styles.list}
+          ListEmptyComponent={<Text style={styles.emptyText}>이번 달 행사가 없어요.</Text>}
+          renderItem={({ item }) => (
+            <View style={styles.card}>
+              <View style={styles.cardImageWrap}>
+                {item.main_image_url ? (
+                  <Image source={{ uri: item.main_image_url }} style={styles.cardImage} resizeMode="cover" />
+                ) : (
+                  <View style={[styles.cardImage, styles.cardImagePlaceholder]} />
+                )}
+                <LinearGradient colors={['transparent', 'rgba(0,0,0,0.2)']} style={StyleSheet.absoluteFill} />
+                <View style={styles.dDayBadge}>
+                  <Text style={styles.dDayBadgeText}>{dDayLabel(item.d_day)}</Text>
+                </View>
+              </View>
+              <View style={styles.cardInfo}>
+                <Text style={styles.cardName} numberOfLines={1}>
+                  {item.name}
+                </Text>
+                <Text style={styles.cardDate}>
+                  {item.event_start_date} ~ {item.event_end_date}
+                </Text>
+                {item.addr1 && (
+                  <View style={styles.cardAddrRow}>
+                    <LocationPinIcon size={16} />
+                    <Text style={styles.cardAddr} numberOfLines={1}>
+                      {item.addr1}
+                    </Text>
+                  </View>
+                )}
+              </View>
             </View>
-            <Text style={styles.dDay}>{dDayLabel(item.d_day)}</Text>
-          </View>
-        )}
-      />
-      <Button title="닫기" onPress={onExit} />
+          )}
+        />
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff', padding: 20, paddingTop: 32 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' },
-  title: { fontSize: 22, fontWeight: '700', marginBottom: 16 },
-  emptyText: { textAlign: 'center', color: '#999', marginTop: 40 },
-  row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#eee' },
-  thumbnail: { width: 56, height: 56, borderRadius: 8, marginRight: 12 },
-  thumbnailPlaceholder: { backgroundColor: '#eee' },
-  info: { flex: 1 },
-  name: { fontSize: 15, fontWeight: '600' },
-  meta: { fontSize: 12, color: '#999', marginTop: 2 },
-  dDay: { fontSize: 13, fontWeight: '700', color: '#ff5a5f', marginLeft: 8 },
+  container: { flex: 1, backgroundColor: colors.white },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 12 },
+  backButton: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
+  backIcon: { fontSize: 18, color: colors.black },
+  headerTitle: { fontFamily: fonts.semiBold, fontSize: 16, color: colors.black },
+  list: { paddingHorizontal: 18, paddingBottom: 40 },
+  emptyText: { textAlign: 'center', color: colors.gray400, fontFamily: fonts.regular, fontSize: 13, marginTop: 40 },
+  // StreetTab.tsx PlaceCategoryCard와 동일한 카드/사진/그림자 규격(324x256 사진, radius20/10, 흰 카드+그림자)
+  card: {
+    backgroundColor: colors.white,
+    borderRadius: 20,
+    padding: 10,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
+  },
+  cardImageWrap: {
+    width: '100%',
+    aspectRatio: 324 / 256,
+    borderRadius: 10,
+    overflow: 'hidden',
+    backgroundColor: colors.border,
+  },
+  cardImage: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 },
+  cardImagePlaceholder: { backgroundColor: colors.border },
+  // StreetTab의 categoryBadge와 같은 자리/모양, 색만 D-day 강조용 danger로
+  dDayBadge: {
+    position: 'absolute',
+    left: 12,
+    top: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.85)',
+  },
+  dDayBadgeText: { fontFamily: fonts.bold, fontSize: 14, color: colors.danger },
+  cardInfo: { paddingTop: 12, paddingHorizontal: 6, paddingBottom: 8 },
+  cardName: { fontFamily: fonts.medium, fontSize: 20, color: colors.black },
+  cardDate: { fontFamily: fonts.regular, fontSize: 14, color: colors.gray500, marginTop: 4 },
+  cardAddrRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 },
+  cardAddr: { fontFamily: fonts.regular, fontSize: 14, color: colors.black, flexShrink: 1 },
 });
