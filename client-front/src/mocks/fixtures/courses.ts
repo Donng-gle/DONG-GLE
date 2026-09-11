@@ -108,6 +108,21 @@ export const MOCK_COURSE_LIST: CourseListItem[] = [
     ),
     created_at: '2026-08-22T20:30:00',
   },
+  {
+    id: 5003,
+    title: '하회마을+월영교 반나절 코스',
+    travel_date: '2026-08-18',
+    end_date: null,
+    // 스크랩북 "여행코스" 탭 목업 예시(2026-09-11 추가) — 다른 사용자 코스를 하트로 담아온 것
+    // (실제로는 PublicCourseDetailScreen 하트를 눌러도 이 배열에 동적으로 추가됨, handlers.ts 참고)
+    source: 'liked',
+    place_count: 2,
+    thumbnail_url: place(1).main_image_url,
+    place_thumbnails: [place(1).main_image_url, place(5).main_image_url].filter(
+      (url): url is string => url != null,
+    ),
+    created_at: '2026-09-01T10:00:00',
+  },
 ];
 
 // courseApi.getDetail(5001)
@@ -124,6 +139,12 @@ const COURSE_5002_PLACES: CoursePlaceItem[] = buildCoursePlaces([
   { placeId: 11, plannedTime: '15:00', visitDate: '2026-09-12' },
   { placeId: 6, plannedTime: '11:00', visitDate: '2026-09-13' },
   { placeId: 5, plannedTime: '19:30', visitDate: '2026-09-14' },
+]);
+
+// courseApi.getDetail(5003) — 스크랩북 "여행코스" 탭 목업 예시(2026-09-11 추가, source:'liked')
+const COURSE_5003_PLACES: CoursePlaceItem[] = buildCoursePlaces([
+  { placeId: 1, plannedTime: '10:00' },
+  { placeId: 5, plannedTime: '18:00' },
 ]);
 
 // 코스 총 거리/시간도 위 장소별 값의 실제 합으로 — 예전엔 이것도 손으로 채운 임의 값이었음
@@ -160,6 +181,18 @@ export const MOCK_COURSE_DETAILS: Record<number, CourseDetail> = {
     total_duration_min: sumDuration(COURSE_5002_PLACES),
     polyline: null,
     updated_at: '2026-08-22T20:30:00',
+  },
+  5003: {
+    id: 5003,
+    title: '하회마을+월영교 반나절 코스',
+    travel_date: '2026-08-18',
+    end_date: null,
+    source: 'liked',
+    places: COURSE_5003_PLACES,
+    total_distance_km: sumDistance(COURSE_5003_PLACES),
+    total_duration_min: sumDuration(COURSE_5003_PLACES),
+    polyline: null,
+    updated_at: '2026-09-01T10:00:00',
   },
 };
 

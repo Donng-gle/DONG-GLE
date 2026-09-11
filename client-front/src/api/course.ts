@@ -1,7 +1,9 @@
 import { apiClient } from './client';
 import { SwipeTransport } from './swipe';
 
-export type CourseSource = 'ai' | 'ai_edited' | 'user';
+// liked: "취향 맞춤 코스" 탭에서 다른 사용자의 공개 코스를 하트로 내 스크랩북에 복제 저장한 코스
+// (2026-09-11 추가, ScrapbookScreen.tsx가 이 값으로 "나의 코스"/"여행코스" 탭을 구분함)
+export type CourseSource = 'ai' | 'ai_edited' | 'user' | 'liked';
 
 export interface CoursePlaceItem {
   place_id: number;
