@@ -29,7 +29,6 @@ type Step =
       candidates: SwipeCandidate[];
       initialResults: SwipedResultItem[];
       travelDate: string;
-      endDate: string | null;
       transport: SwipeTransport;
       startTime: string | null;
       endTime: string | null;
@@ -38,7 +37,6 @@ type Step =
       name: 'result';
       sessionId: string;
       travelDate: string;
-      endDate: string | null;
       transport: SwipeTransport;
       startTime: string | null;
       endTime: string | null;
@@ -60,13 +58,6 @@ function formatDateLabel(dateStr: string) {
   return `${y}년 ${m}월 ${d}일 (${weekday})`;
 }
 
-// 여행 날짜 다중 선택 지원(2026-09-10 추가) — endDate가 travelDate와 다르면 "~"로 이어붙임.
-// CourseManualBuilderScreen의 날짜 범위 표기(짧은 형식)와 달리 이 화면은 원래도 긴 형식을 써서
-// 그 규칙 그대로 유지
-function formatDateRangeLabel(travelDate: string, endDate: string | null) {
-  if (!endDate || endDate === travelDate) return formatDateLabel(travelDate);
-  return `${formatDateLabel(travelDate)} ~ ${formatDateLabel(endDate)}`;
-}
 
 // "HH:mm"(24시간) -> "오전 7:55" — TimePicker.tsx의 12시간 표기 규칙과 맞춤
 function formatTimeLabel(time: string) {
@@ -80,10 +71,10 @@ function formatTimeLabel(time: string) {
 export function CourseFlowScreen({ onExit, onCreateManual, onCreateAI, onProfile }: Props) {
   const insets = useSafeAreaInsets();
   const [step, setStep] = useState<Step>({ name: 'setup' });
+  // 여행 날짜 다중 선택(범위 선택) 지원은 2026-09-10에 추가했다가 2026-09-11 사용자 요청으로
+  // 다시 뺌 — AI 추천은 하루짜리 일정만 지원(직접 코스 만들기는 계속 범위 선택 지원, 그쪽
+  // CalendarPicker는 그대로 mode="range")
   const [travelDate, setTravelDate] = useState(TODAY);
-  // 여행 날짜 다중 선택 지원(2026-09-10 추가, 사용자 확인 — 날짜별로 따로 AI 추천해서 N박N일로
-  // 합침). null이면 하루짜리(기존과 동일)
-  const [endDate, setEndDate] = useState<string | null>(null);
   const [transport, setTransport] = useState<SwipeTransport>('walk');
   const [showCalendar, setShowCalendar] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -125,9 +116,6 @@ export function CourseFlowScreen({ onExit, onCreateManual, onCreateAI, onProfile
           name: 'result',
           sessionId: savedSessionId,
           travelDate: detail.travel_date,
-          // 여행 날짜 범위도 시간과 마찬가지로 세션 복원 시엔 알 수 없음(서버 미저장) — 하루짜리로
-          // 폴백(2026-09-10 추가)
-          endDate: null,
           transport: detail.transport,
           startTime: null,
           endTime: null,
@@ -159,8 +147,6 @@ export function CourseFlowScreen({ onExit, onCreateManual, onCreateAI, onProfile
               candidates: detail.candidates,
               initialResults: detail.swiped_results,
               travelDate: detail.travel_date,
-              // 위 result 분기와 동일한 이유로 복원 시엔 알 수 없음(서버 기본값에 맡김)
-              endDate: null,
               transport: detail.transport,
               startTime: null,
               endTime: null,
@@ -191,7 +177,6 @@ export function CourseFlowScreen({ onExit, onCreateManual, onCreateAI, onProfile
         candidates: response.candidates,
         initialResults: [],
         travelDate,
-        endDate,
         transport,
         startTime,
         endTime,
@@ -223,7 +208,6 @@ export function CourseFlowScreen({ onExit, onCreateManual, onCreateAI, onProfile
             name: 'result',
             sessionId: step.sessionId,
             travelDate: step.travelDate,
-            endDate: step.endDate,
             transport: step.transport,
             startTime: step.startTime,
             endTime: step.endTime,
@@ -238,7 +222,6 @@ export function CourseFlowScreen({ onExit, onCreateManual, onCreateAI, onProfile
       <CourseResultScreen
         sessionId={step.sessionId}
         travelDate={step.travelDate}
-        endDate={step.endDate}
         transport={step.transport}
         startTime={step.startTime}
         endTime={step.endTime}
@@ -271,7 +254,7 @@ export function CourseFlowScreen({ onExit, onCreateManual, onCreateAI, onProfile
             "코스 삭제"를 유지한 것과 같은 판단, 2026-09-09) */}
         <Text style={styles.label}>여행 날짜</Text>
         <TouchableOpacity style={styles.fieldButton} onPress={() => setShowCalendar(true)}>
-          <Text style={styles.fieldButtonText}>{formatDateRangeLabel(travelDate, endDate)}</Text>
+          <Text style={styles.fieldButtonText}>{formatDateLabel(travelDate)}</Text>
         </TouchableOpacity>
 
         <Text style={[styles.label, styles.labelSpaced]}>시작시간</Text>
@@ -323,19 +306,11 @@ export function CourseFlowScreen({ onExit, onCreateManual, onCreateAI, onProfile
 
       <CalendarPicker
         visible={showCalendar}
-        mode="range"
         value={travelDate}
-        rangeEnd={endDate ?? undefined}
         minDate={TODAY}
         onClose={() => setShowCalendar(false)}
         onConfirm={(date) => {
           setTravelDate(date);
-          setEndDate(null);
-          setShowCalendar(false);
-        }}
-        onConfirmRange={(start, end) => {
-          setTravelDate(start);
-          setEndDate(end !== start ? end : null);
           setShowCalendar(false);
         }}
       />
