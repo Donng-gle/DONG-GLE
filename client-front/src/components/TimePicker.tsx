@@ -26,11 +26,20 @@ interface Props {
 // 통일해 단순화함
 const ROW_HEIGHT = 56;
 const PADDING_ROWS = 1; // 위아래 여백(첫/마지막 항목도 가운데로 스크롤될 수 있게)
-// 선택 줄 위아래 구분선 너비 — Figma "Frame 575"(691:11756) 실측 202를 그대로 쓰면 우리 휠
-// 컬럼(64+56+56+gap)의 실제 렌더 폭보다 좁아서 숫자가 선 밖으로 살짝 나가길래, 우리 레이아웃
-// 실측 폭에 맞춰 조금 넓힘(2026-09-12)
-const SELECTION_LINE_WIDTH = 224;
 const WHEEL_HEIGHT = ROW_HEIGHT * 3;
+// 각 열(오전/오후, 시, 분) 너비 — Figma 실측(691:11756 "Frame 575", 프레임 자체가 360 기준이라
+// 우리 시트 폭 320에 맞게 0.889배 스케일)으로는 텍스트만 34px 안팎으로 훨씬 촘촘한데, 처음엔
+// 스크롤 터치 영역을 넉넉히 잡느라(64/56/56) 그대로 썼다가 Figma보다 너무 헐렁하다는 지적
+// (2026-09-12)으로 실측 비율에 맞춰 좁힘. 완전히 34로 좁히면 한글 2글자(오전/오후)가 SemiBold
+// 20에서 줄바꿈될 수 있어 살짝 여유를 둠
+const AMPM_COL_WIDTH = 44;
+const HOUR_COL_WIDTH = 40;
+const MINUTE_COL_WIDTH = 40;
+const COL_GAP = 6;
+// 선택 줄 위아래 구분선이 실제 렌더된 휠 폭(위 컬럼 값이 바뀌면 같이 바뀜)보다 안쪽으로 너무
+// 붙거나 밖으로 삐져나오지 않게, 하드코딩 대신 wheelRow의 실측 레이아웃 폭 + 여백만큼만 쓰도록
+// onLayout으로 매번 재계산함(2026-09-12, 폭을 손으로 추정하다 두 번 어긋난 뒤 결정)
+const SELECTION_LINE_PADDING = 20; // 양쪽 각각
 
 const AMPM_LABELS = ['오전', '오후'];
 const HOUR_LABELS = Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0'));
@@ -62,6 +71,9 @@ export function TimePicker({ visible, value, onClose, onConfirm }: Props) {
   const [ampmIndex, setAmpmIndex] = useState(0);
   const [hourIndex, setHourIndex] = useState(0);
   const [minute, setMinute] = useState(0);
+  // wheelRow(오전/시/:/분 한 줄)의 실제 렌더 폭 — 위아래 구분선을 이 폭 기준으로 그려서 항상
+  // 내용물을 딱 맞게 감싸게 함(폭을 숫자로 하드코딩하면 폰트/자간 차이로 계속 어긋났음)
+  const [rowWidth, setRowWidth] = useState(0);
 
   // Modal은 visible=false여도 JS 트리는 계속 마운트돼있어서(react-native 공통 동작), useRef로 이
   // 값들을 들고 있으면 최초 마운트 시점(시작/종료시간 어느 쪽도 아직 안 고른 시점, value가 엉뚱한
@@ -86,6 +98,8 @@ export function TimePicker({ visible, value, onClose, onConfirm }: Props) {
   // 위치(contentOffset)와 내부 표시 상태가 위 useEffect로 갱신된 최신 값을 반영함. visible이
   // false->true로 바뀔 때마다 key도 항상 직전과 달라지므로(문자열 "false"->"true") 매번 확실히
   // 리마운트됨
+  const lineWidth = rowWidth + SELECTION_LINE_PADDING * 2;
+
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose}>
@@ -93,21 +107,37 @@ export function TimePicker({ visible, value, onClose, onConfirm }: Props) {
           <Text style={styles.title}>시간 선택</Text>
 
           <View style={styles.wheelArea}>
-            <View style={styles.selectionLineTop} pointerEvents="none" />
-            <View style={styles.selectionLineBottom} pointerEvents="none" />
-            <View style={styles.wheelRow}>
+            {rowWidth > 0 && (
+              <>
+                <View
+                  style={[
+                    styles.selectionLine,
+                    { top: ROW_HEIGHT, width: lineWidth, marginLeft: -lineWidth / 2 },
+                  ]}
+                  pointerEvents="none"
+                />
+                <View
+                  style={[
+                    styles.selectionLine,
+                    { top: ROW_HEIGHT * 2, width: lineWidth, marginLeft: -lineWidth / 2 },
+                  ]}
+                  pointerEvents="none"
+                />
+              </>
+            )}
+            <View style={styles.wheelRow} onLayout={(e) => setRowWidth(e.nativeEvent.layout.width)}>
               <WheelColumn
                 key={`ampm-${visible}`}
                 items={AMPM_LABELS}
                 initialIndex={ampmIndex}
-                width={64}
+                width={AMPM_COL_WIDTH}
                 onSelect={setAmpmIndex}
               />
               <WheelColumn
                 key={`hour-${visible}`}
                 items={HOUR_LABELS}
                 initialIndex={hourIndex}
-                width={56}
+                width={HOUR_COL_WIDTH}
                 onSelect={setHourIndex}
               />
               <Text style={styles.colon}>:</Text>
@@ -115,7 +145,7 @@ export function TimePicker({ visible, value, onClose, onConfirm }: Props) {
                 key={`minute-${visible}`}
                 items={MINUTE_LABELS}
                 initialIndex={minute}
-                width={56}
+                width={MINUTE_COL_WIDTH}
                 onSelect={setMinute}
               />
             </View>
@@ -191,32 +221,23 @@ const styles = StyleSheet.create({
   wheelArea: { height: WHEEL_HEIGHT, justifyContent: 'center' },
   // 선택 줄을 사각 박스로 감싸던 걸(선택된 줄이 각지고 눈에 튀어 Figma "일정 만들기-시간선택"
   // 실측과 다르다는 지적, 2026-09-12) 위아래 구분선 2개로 교체 — Figma엔 테두리 박스가 아니라
-  // 선택 줄 경계에 얇은 선(#e5e5ec)만 있음. 폭은 가운데 정렬(left:50%+음수 marginLeft)로 고정폭만
-  // 딱 차지하게 함(왼쪽 전체를 다 채우면 실측보다 훨씬 헐렁해 보임)
-  selectionLineTop: {
+  // 선택 줄 경계에 얇은 선(#e5e5ec)만 있음. width/marginLeft는 실제 렌더 폭 기준으로 매번
+  // 인라인으로 채워짐(위 lineWidth 참고) — 폭을 여기서 고정값으로 박아두면 폰트 렌더링에 따라
+  // 다시 어긋날 수 있어서 여기선 좌표축만 잡음
+  selectionLine: {
     position: 'absolute',
     left: '50%',
-    marginLeft: -SELECTION_LINE_WIDTH / 2,
-    width: SELECTION_LINE_WIDTH,
-    top: ROW_HEIGHT,
     borderTopWidth: 1,
     borderTopColor: colors.border,
   },
-  selectionLineBottom: {
-    position: 'absolute',
-    left: '50%',
-    marginLeft: -SELECTION_LINE_WIDTH / 2,
-    width: SELECTION_LINE_WIDTH,
-    top: ROW_HEIGHT * 2,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  wheelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  wheelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: COL_GAP },
   colon: { fontFamily: fonts.bold, fontSize: 20, color: colors.black },
   wheelItem: { height: ROW_HEIGHT, alignItems: 'center', justifyContent: 'center' },
   wheelText: { fontFamily: fonts.regular, fontSize: 20, color: colors.gray400 },
   wheelTextSelected: { fontFamily: fonts.semiBold, color: colors.black },
-  buttonRow: { flexDirection: 'row', gap: 8, marginTop: 24 },
+  // Figma 실측(마지막 줄~버튼 간격 40px, 360→320 스케일 적용 시 36) — 기존 24는 그 실측 없이
+  // 임의로 넣었던 값이라 지적받은 김에 같이 정정(2026-09-12)
+  buttonRow: { flexDirection: 'row', gap: 8, marginTop: 36 },
   cancelButton: {
     flex: 1,
     height: 56,
