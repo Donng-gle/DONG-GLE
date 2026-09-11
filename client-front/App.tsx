@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
 import { UserProfile, authApi } from './src/api/auth';
 import { registerSessionExpiredListener } from './src/api/client';
 import { tokenStorage } from './src/auth/tokenStorage';
+import { SplashLogo } from './src/components/SplashLogo';
+import { colors } from './src/theme/colors';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { OnboardingScreen } from './src/screens/OnboardingScreen';
@@ -14,6 +16,10 @@ export default function App() {
   const [checkingSession, setCheckingSession] = useState(true);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isGuest, setIsGuest] = useState(false);
+  // 로고 팝업 애니메이션(SplashLogo)이 다 끝났는지 — 세션 확인/폰트 로딩이 애니메이션보다 먼저
+  // 끝나도 애니메이션이 잘리지 않게 이것도 같이 게이트에 물림(2026-09-11 추가, Figma "로그인-앱시작"
+  // 프레임 재현, 사용자 확인)
+  const [splashAnimDone, setSplashAnimDone] = useState(false);
   // Figma 디자인 전체가 Pretendard 기준이라 앱 진입점에서 한 번만 로드 (2026-08-31 결정, decision-log 참고)
   const [fontsLoaded] = useFonts({
     'Pretendard-Regular': require('./assets/fonts/Pretendard-Regular.ttf'),
@@ -48,12 +54,14 @@ export default function App() {
     }
   }
 
-  if (checkingSession || !fontsLoaded) {
+  if (checkingSession || !fontsLoaded || !splashAnimDone) {
     return (
       <SafeAreaProvider>
         <View style={styles.center}>
-          <ActivityIndicator />
-          <StatusBar style="auto" />
+          {/* 폰트(Squada One) 로딩 전엔 로고를 그 폰트로 못 그리니 잠깐 빈 흰 화면만 보여줌 —
+              Figma 시안도 첫 프레임 전엔 그냥 흰 배경이라 스피너보다 이쪽이 더 시안에 가까움 */}
+          {fontsLoaded && <SplashLogo onFinish={() => setSplashAnimDone(true)} />}
+          <StatusBar style="dark" />
         </View>
       </SafeAreaProvider>
     );
@@ -95,5 +103,5 @@ export default function App() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.white },
 });
