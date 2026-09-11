@@ -198,7 +198,12 @@ function WheelColumn({
 
   return (
     <ScrollView
-      style={{ width, height: WHEEL_HEIGHT, ...style }}
+      // ScrollView는 RN에서 기본적으로 flexGrow:1이 걸려있어서 width를 줘도 wheelRow(부모, flex row)
+      // 안 남는 공간을 계속 채우려고 늘어남 — 실측 로그로 확인(2026-09-12, 채널 nf53k2di 대조):
+      // width:38/40 선언에도 실제 렌더 폭이 79~82로 거의 2배였고, 그래서 rowWidth(구분선 길이 계산에
+      // 쓰는 값)도 wheelArea 전체 폭(288)까지 부풀어서 구분선이 카드 밖으로 삐져나왔었음
+      // (사용자가 스크린샷으로 지적). flexGrow/flexShrink를 0으로 고정해 선언한 width 그대로 렌더되게 함
+      style={{ width, height: WHEEL_HEIGHT, flexGrow: 0, flexShrink: 0, ...style }}
       showsVerticalScrollIndicator={false}
       snapToInterval={ROW_HEIGHT}
       decelerationRate="fast"
