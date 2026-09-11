@@ -86,7 +86,7 @@ export function EventsScreen({ onExit }: Props) {
                 </Text>
                 {item.addr1 && (
                   <View style={styles.cardAddrRow}>
-                    <LocationPinIcon size={16} />
+                    <LocationPinIcon size={13} />
                     <Text style={styles.cardAddr} numberOfLines={1}>
                       {item.addr1}
                     </Text>
@@ -110,41 +110,41 @@ const styles = StyleSheet.create({
   headerTitle: { fontFamily: fonts.semiBold, fontSize: 16, color: colors.black },
   list: { paddingHorizontal: 18, paddingBottom: 40 },
   emptyText: { textAlign: 'center', color: colors.gray400, fontFamily: fonts.regular, fontSize: 13, marginTop: 40 },
-  // StreetTab.tsx PlaceCategoryCard와 동일한 카드/사진/그림자 규격(324x256 사진, radius20/10, 흰 카드+그림자)
+  // StreetTab.tsx PlaceCategoryCard 기반이었는데 이 화면(꽉 찬 리스트)엔 너무 커 보인다는 피드백
+  // (2026-09-11)으로 전체적으로 축소 — 사진 비율을 세로로 짧게, 폰트/여백도 한 단계씩 줄임
   card: {
     backgroundColor: colors.white,
-    borderRadius: 20,
-    padding: 10,
-    marginBottom: 20,
+    borderRadius: 16,
+    padding: 8,
+    marginBottom: 12,
     shadowColor: '#000',
     shadowOpacity: 0.06,
-    shadowRadius: 10,
+    shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 },
     elevation: 3,
   },
   cardImageWrap: {
     width: '100%',
-    aspectRatio: 324 / 256,
-    borderRadius: 10,
+    aspectRatio: 2.4,
+    borderRadius: 8,
     overflow: 'hidden',
     backgroundColor: colors.border,
   },
   cardImage: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 },
   cardImagePlaceholder: { backgroundColor: colors.border },
-  // StreetTab의 categoryBadge와 같은 자리/모양, 색만 D-day 강조용 danger로
   dDayBadge: {
     position: 'absolute',
-    left: 12,
-    top: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 18,
+    left: 10,
+    top: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 14,
     backgroundColor: 'rgba(255,255,255,0.85)',
   },
-  dDayBadgeText: { fontFamily: fonts.bold, fontSize: 14, color: colors.danger },
-  cardInfo: { paddingTop: 12, paddingHorizontal: 6, paddingBottom: 8 },
-  cardName: { fontFamily: fonts.medium, fontSize: 20, color: colors.black },
-  cardDate: { fontFamily: fonts.regular, fontSize: 14, color: colors.gray500, marginTop: 4 },
-  cardAddrRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 },
-  cardAddr: { fontFamily: fonts.regular, fontSize: 14, color: colors.black, flexShrink: 1 },
+  dDayBadgeText: { fontFamily: fonts.bold, fontSize: 12, color: colors.danger },
+  cardInfo: { paddingTop: 8, paddingHorizontal: 4, paddingBottom: 4 },
+  cardName: { fontFamily: fonts.medium, fontSize: 15, color: colors.black },
+  cardDate: { fontFamily: fonts.regular, fontSize: 12, color: colors.gray500, marginTop: 2 },
+  cardAddrRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
+  cardAddr: { fontFamily: fonts.regular, fontSize: 12, color: colors.black, flexShrink: 1 },
 });
