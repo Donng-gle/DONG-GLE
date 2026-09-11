@@ -251,16 +251,11 @@ export function CourseManualBuilderScreen({ onSaved, onExit, onCreateManual, onC
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={[styles.headerTop, { paddingTop: insets.top + 12 }]}>
+          {/* 하트/돋보기/북마크 제거(사용자 확인, 2026-09-11) — 돋보기는 장소 추가 화면을 여는
+              용도였는데 바로 아래 "장소 추가" 버튼과 완전히 같은 동작이라 중복이었음(setStep('picking')) */}
           <TouchableOpacity onPress={onExit} hitSlop={8} style={styles.backButton}>
             <Text style={styles.backIcon}>←</Text>
           </TouchableOpacity>
-          <View style={styles.headerIcons}>
-            <Text style={styles.headerIcon}>♡</Text>
-            <TouchableOpacity onPress={() => setStep('picking')} hitSlop={6}>
-              <Text style={styles.headerIcon}>🔍</Text>
-            </TouchableOpacity>
-            <Text style={styles.headerIcon}>🔖</Text>
-          </View>
         </View>
 
         <View style={styles.titleRow}>
@@ -460,8 +455,6 @@ const styles = StyleSheet.create({
   headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20 },
   backButton: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
   backIcon: { fontSize: 20, color: colors.black },
-  headerIcons: { flexDirection: 'row', gap: 16 },
-  headerIcon: { fontSize: 18, color: colors.black },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 20, paddingTop: 12 },
   titleText: { fontFamily: fonts.semiBold, fontSize: 24, letterSpacing: -0.6, color: colors.black, flexShrink: 1 },
   pencilIcon: { fontSize: 15, color: colors.gray500 },
