@@ -27,15 +27,21 @@ interface Props {
 const ROW_HEIGHT = 56;
 const PADDING_ROWS = 1; // 위아래 여백(첫/마지막 항목도 가운데로 스크롤될 수 있게)
 const WHEEL_HEIGHT = ROW_HEIGHT * 3;
-// 각 열(오전/오후, 시, 분) 너비 — Figma 실측(691:11756 "Frame 575", 프레임 자체가 360 기준이라
-// 우리 시트 폭 320에 맞게 0.889배 스케일)으로는 텍스트만 34px 안팎으로 훨씬 촘촘한데, 처음엔
-// 스크롤 터치 영역을 넉넉히 잡느라(64/56/56) 그대로 썼다가 Figma보다 너무 헐렁하다는 지적
-// (2026-09-12)으로 실측 비율에 맞춰 좁힘. 완전히 34로 좁히면 한글 2글자(오전/오후)가 SemiBold
-// 20에서 줄바꿈될 수 있어 살짝 여유를 둠
-const AMPM_COL_WIDTH = 44;
+// 각 열(오전/오후, 시, 분) 너비/간격 — Figma 실측(691:11756 "Frame 575" 그룹, 691:12580 프레임
+// 채널 nf53k2di, 2026-09-12 재실측). 이전엔 "프레임이 360 기준이라 시트 폭 320에 맞게 0.889배
+// 스케일해야 한다"고 보고 모든 값을 줄였었는데, 실측해보니 Figma의 시간선택 카드 자체가 이미
+// 프레임(360) 안에서 좌우 20px 여백을 두고 320폭으로 그려져 있어서(다른 폼 요소들의 입력창 폭
+// 320과 동일) 우리 시트 폭 320과 정확히 1:1로 맞음 — 스케일 없이 실측값 그대로 써야 함(행/버튼
+// 높이 56이 스케일 없이도 이미 들어맞는 게 그 증거). "오전/오후" 열은 실측 38, 시/분 열은
+// 실측 37~39라 40으로 통일(2글자 숫자가 줄바꿈되지 않을 여유만 확보)
+const AMPM_COL_WIDTH = 38;
 const HOUR_COL_WIDTH = 40;
 const MINUTE_COL_WIDTH = 40;
-const COL_GAP = 6;
+// Frame 575 내부 실측: 오전/오후 열과 시 열 사이는 24px로 넓게 벌어져 있고, 시-콜론-분 사이는
+// 7~9px로 훨씬 촘촘함 — 균일한 gap 하나로는 이 비대칭을 표현할 수 없어서, 시/콜론/분 사이엔
+// 아래 COL_GAP을, 오전·오후 열 오른쪽에만 AMPM_EXTRA_GAP을 더 얹어 24px를 맞춤
+const COL_GAP = 8;
+const AMPM_EXTRA_GAP = 16; // COL_GAP(8) + 16 = 24
 // 선택 줄 위아래 구분선이 실제 렌더된 휠 폭(위 컬럼 값이 바뀌면 같이 바뀜)보다 안쪽으로 너무
 // 붙거나 밖으로 삐져나오지 않게, 하드코딩 대신 wheelRow의 실측 레이아웃 폭 + 여백만큼만 쓰도록
 // onLayout으로 매번 재계산함(2026-09-12, 폭을 손으로 추정하다 두 번 어긋난 뒤 결정)
@@ -131,6 +137,7 @@ export function TimePicker({ visible, value, onClose, onConfirm }: Props) {
                 items={AMPM_LABELS}
                 initialIndex={ampmIndex}
                 width={AMPM_COL_WIDTH}
+                style={{ marginRight: AMPM_EXTRA_GAP }}
                 onSelect={setAmpmIndex}
               />
               <WheelColumn
@@ -169,11 +176,13 @@ function WheelColumn({
   items,
   initialIndex,
   width,
+  style,
   onSelect,
 }: {
   items: string[];
   initialIndex: number;
   width: number;
+  style?: { marginRight?: number };
   onSelect: (index: number) => void;
 }) {
   // 굵게 표시되는 "선택된 줄"이 스크롤 도중엔 안 바뀌고 손 뗄 때(momentum 끝)만 갱신되면 어색해서
@@ -189,7 +198,7 @@ function WheelColumn({
 
   return (
     <ScrollView
-      style={{ width, height: WHEEL_HEIGHT }}
+      style={{ width, height: WHEEL_HEIGHT, ...style }}
       showsVerticalScrollIndicator={false}
       snapToInterval={ROW_HEIGHT}
       decelerationRate="fast"
@@ -217,7 +226,8 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     paddingHorizontal: 16,
   },
-  title: { fontFamily: fonts.semiBold, fontSize: 20, color: colors.black, marginBottom: 20 },
+  // Figma 실측: 제목 텍스트 아래~첫 번째 휠 줄 사이 22px(스케일 없이 그대로)
+  title: { fontFamily: fonts.semiBold, fontSize: 20, color: colors.black, marginBottom: 22 },
   // alignItems 기본값(stretch) 때문에 wheelRow가 내용 폭이 아니라 wheelArea 전체 폭(288)으로
   // 늘어나 있었음 — 그 늘어난 폭을 onLayout으로 재서 구분선 폭 계산에 썼더니 선이 시트 폭(320)
   // 보다도 넓게 그려져 카드 밖으로 삐져나왔음(사용자가 스크린샷으로 지적, 2026-09-12). wheelRow가
@@ -239,9 +249,11 @@ const styles = StyleSheet.create({
   wheelItem: { height: ROW_HEIGHT, alignItems: 'center', justifyContent: 'center' },
   wheelText: { fontFamily: fonts.regular, fontSize: 20, color: colors.gray400 },
   wheelTextSelected: { fontFamily: fonts.semiBold, color: colors.black },
-  // Figma 실측(마지막 줄~버튼 간격 40px, 360→320 스케일 적용 시 36) — 기존 24는 그 실측 없이
-  // 임의로 넣었던 값이라 지적받은 김에 같이 정정(2026-09-12)
-  buttonRow: { flexDirection: 'row', gap: 8, marginTop: 36 },
+  // Figma 실측: 마지막 줄~버튼 간격 40px(스케일 없이 그대로, 기존에 0.889 스케일해 36으로 뒀던 게
+  // 오차 원인이었음). 버튼 사이 간격도 실측 4px로 촘촘함(기존 8은 임의값). 버튼 영역 자체는
+  // Group 570 실측폭 300(시트 320 기준 좌우 10px 여백)이라, sheet의 paddingHorizontal(16)보다
+  // 6px씩 더 밖으로 빼야 해서 marginHorizontal:-6
+  buttonRow: { flexDirection: 'row', gap: 4, marginTop: 40, marginHorizontal: -6 },
   cancelButton: {
     flex: 1,
     height: 56,
