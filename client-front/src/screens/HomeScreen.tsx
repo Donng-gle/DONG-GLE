@@ -22,7 +22,6 @@ import { ProfileScreen } from './ProfileScreen';
 import { PublicCourseDetailScreen } from './PublicCourseDetailScreen';
 import { ScrapbookScreen } from './ScrapbookScreen';
 import { SearchScreen } from './SearchScreen';
-import { TagsScreen } from './TagsScreen';
 
 interface Props {
   profile: UserProfile | null; // null = 게스트 모드
@@ -46,7 +45,6 @@ type Overlay =
   | 'my-logs'
   | 'events'
   | 'explore'
-  | 'tags'
   | 'notifications'
   | 'profile';
 
@@ -83,7 +81,6 @@ const DRAWER_SECTIONS: { title: string; items: { key: Overlay; label: string; au
   {
     title: '설정',
     items: [
-      { key: 'tags', label: '감성 태그 안내' },
       { key: 'notifications', label: '알림 설정', authRequired: true },
     ],
   },
@@ -224,8 +221,6 @@ export function HomeScreen({ profile: initialProfile, onLogout, onRequireLogin, 
       return <EventsScreen onExit={closeOverlay} />;
     case 'explore':
       return <ExploreScreen onExit={closeOverlay} />;
-    case 'tags':
-      return <TagsScreen onExit={closeOverlay} />;
     case 'notifications':
       return <NotificationSettingsScreen onExit={closeOverlay} />;
     case 'profile':
