@@ -7,6 +7,7 @@ import { EventListItem, eventApi } from '../api/event';
 import { LocationPinIcon } from '../components/icons';
 import { colors } from '../theme/colors';
 import { fonts } from '../theme/fonts';
+import { PlaceDetailScreen } from './PlaceDetailScreen';
 
 interface Props {
   onExit: () => void;
@@ -28,9 +29,16 @@ function dDayLabel(dDay: number) {
 // - 주소 아래 행사 기간(event_start_date~event_end_date) 한 줄 추가
 // - StreetTab은 바텀시트(지도 위에 얹힘)라 헤더가 없지만, 이 화면은 드로어에서 바로 여는 독립
 //   화면이라 PlaceListScreen.tsx와 동일한 뒤로가기+제목 헤더를 둠
+//
+// 카드 탭 → 상세 페이지도 "관광지 상세 페이지" 프레임과 동일하게(2026-09-11, 사용자 확인) — 새로
+// 화면을 또 만드는 대신 PlaceDetailScreen을 그대로 재사용함. 행사·축제는 별도 ENTITY가 아니라
+// PLACE.category='축제행사'인 장소일 뿐이고(SSOT 참고), EventListItem.id도 실제로 그 Place.id
+// 그대로임(server EventService.toEventListItemResponse가 Place.id를 그대로 씀, 2026-09-11 확인)
+// — 그래서 StreetTab.tsx가 PlaceDetailScreen을 여는 것과 완전히 같은 패턴으로 열면 됨
 export function EventsScreen({ onExit }: Props) {
   const insets = useSafeAreaInsets();
   const [events, setEvents] = useState<EventListItem[] | null>(null);
+  const [selectedPlaceId, setSelectedPlaceId] = useState<number | null>(null);
 
   useEffect(() => {
     eventApi
@@ -41,6 +49,10 @@ export function EventsScreen({ onExit }: Props) {
         setEvents([]);
       });
   }, []);
+
+  if (selectedPlaceId != null) {
+    return <PlaceDetailScreen placeId={selectedPlaceId} onExit={() => setSelectedPlaceId(null)} />;
+  }
 
   return (
     <View style={styles.container}>
@@ -65,7 +77,7 @@ export function EventsScreen({ onExit }: Props) {
           contentContainerStyle={styles.list}
           ListEmptyComponent={<Text style={styles.emptyText}>이번 달 행사가 없어요.</Text>}
           renderItem={({ item }) => (
-            <View style={styles.card}>
+            <TouchableOpacity style={styles.card} onPress={() => setSelectedPlaceId(item.id)}>
               <View style={styles.cardImageWrap}>
                 {item.main_image_url ? (
                   <Image source={{ uri: item.main_image_url }} style={styles.cardImage} resizeMode="cover" />
@@ -93,7 +105,7 @@ export function EventsScreen({ onExit }: Props) {
                   </View>
                 )}
               </View>
-            </View>
+            </TouchableOpacity>
           )}
         />
       )}
