@@ -26,6 +26,10 @@ interface Props {
 // 통일해 단순화함
 const ROW_HEIGHT = 56;
 const PADDING_ROWS = 1; // 위아래 여백(첫/마지막 항목도 가운데로 스크롤될 수 있게)
+// 선택 줄 위아래 구분선 너비 — Figma "Frame 575"(691:11756) 실측 202를 그대로 쓰면 우리 휠
+// 컬럼(64+56+56+gap)의 실제 렌더 폭보다 좁아서 숫자가 선 밖으로 살짝 나가길래, 우리 레이아웃
+// 실측 폭에 맞춰 조금 넓힘(2026-09-12)
+const SELECTION_LINE_WIDTH = 224;
 const WHEEL_HEIGHT = ROW_HEIGHT * 3;
 
 const AMPM_LABELS = ['오전', '오후'];
@@ -89,7 +93,8 @@ export function TimePicker({ visible, value, onClose, onConfirm }: Props) {
           <Text style={styles.title}>시간 선택</Text>
 
           <View style={styles.wheelArea}>
-            <View style={styles.selectionBox} pointerEvents="none" />
+            <View style={styles.selectionLineTop} pointerEvents="none" />
+            <View style={styles.selectionLineBottom} pointerEvents="none" />
             <View style={styles.wheelRow}>
               <WheelColumn
                 key={`ampm-${visible}`}
@@ -184,15 +189,27 @@ const styles = StyleSheet.create({
   },
   title: { fontFamily: fonts.semiBold, fontSize: 20, color: colors.black, marginBottom: 20 },
   wheelArea: { height: WHEEL_HEIGHT, justifyContent: 'center' },
-  selectionBox: {
+  // 선택 줄을 사각 박스로 감싸던 걸(선택된 줄이 각지고 눈에 튀어 Figma "일정 만들기-시간선택"
+  // 실측과 다르다는 지적, 2026-09-12) 위아래 구분선 2개로 교체 — Figma엔 테두리 박스가 아니라
+  // 선택 줄 경계에 얇은 선(#e5e5ec)만 있음. 폭은 가운데 정렬(left:50%+음수 marginLeft)로 고정폭만
+  // 딱 차지하게 함(왼쪽 전체를 다 채우면 실측보다 훨씬 헐렁해 보임)
+  selectionLineTop: {
     position: 'absolute',
-    left: 0,
-    right: 0,
+    left: '50%',
+    marginLeft: -SELECTION_LINE_WIDTH / 2,
+    width: SELECTION_LINE_WIDTH,
     top: ROW_HEIGHT,
-    height: ROW_HEIGHT,
-    borderWidth: 1,
-    borderColor: colors.gray400,
-    borderRadius: 12,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  selectionLineBottom: {
+    position: 'absolute',
+    left: '50%',
+    marginLeft: -SELECTION_LINE_WIDTH / 2,
+    width: SELECTION_LINE_WIDTH,
+    top: ROW_HEIGHT * 2,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
   },
   wheelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   colon: { fontFamily: fonts.bold, fontSize: 20, color: colors.black },

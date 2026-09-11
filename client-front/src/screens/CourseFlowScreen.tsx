@@ -276,26 +276,31 @@ export function CourseFlowScreen({ onExit, onCreateManual, onCreateAI, onProfile
         <View style={styles.divider} />
 
         <Text style={styles.label}>이동수단</Text>
-        <TouchableOpacity style={styles.fieldButton} onPress={() => setTransportOpen(!transportOpen)}>
-          <Text style={styles.fieldButtonText}>{TRANSPORT_OPTIONS.find((o) => o.value === transport)?.label}</Text>
-          <ChevronDownIcon size={16} open={transportOpen} />
-        </TouchableOpacity>
-        {transportOpen && (
-          <View>
-            {TRANSPORT_OPTIONS.map((option) => (
-              <TouchableOpacity
-                key={option.value}
-                style={styles.dropdownItem}
-                onPress={() => {
-                  setTransport(option.value);
-                  setTransportOpen(false);
-                }}
-              >
-                <Text style={styles.dropdownItemText}>{option.label}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
+        {/* 이동수단이 폼의 마지막 필드라 드롭다운이 아래로 펼쳐지면(기존 방식) 화면 하단
+            "선택하기" 버튼 뒤로 들어가 아래쪽이 잘리는 문제가 있었음(2026-09-12 발견) — 목록을
+            일반 흐름에 끼워넣는 대신 position:'absolute'로 필드 버튼 위쪽에 뜨는 오버레이로 바꿈 */}
+        <View style={styles.transportFieldWrap}>
+          <TouchableOpacity style={styles.fieldButton} onPress={() => setTransportOpen(!transportOpen)}>
+            <Text style={styles.fieldButtonText}>{TRANSPORT_OPTIONS.find((o) => o.value === transport)?.label}</Text>
+            <ChevronDownIcon size={16} open={transportOpen} />
+          </TouchableOpacity>
+          {transportOpen && (
+            <View style={styles.dropdownMenu}>
+              {TRANSPORT_OPTIONS.map((option) => (
+                <TouchableOpacity
+                  key={option.value}
+                  style={styles.dropdownItem}
+                  onPress={() => {
+                    setTransport(option.value);
+                    setTransportOpen(false);
+                  }}
+                >
+                  <Text style={styles.dropdownItemText}>{option.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+        </View>
       </View>
 
       <View style={[styles.actions, { paddingBottom: Math.max(20, insets.bottom + 16) }]}>
@@ -354,9 +359,28 @@ const styles = StyleSheet.create({
   fieldButtonText: { fontFamily: fonts.regular, fontSize: 16, letterSpacing: -0.4, color: colors.black },
   fieldButtonPlaceholder: { color: colors.gray500 },
   divider: { height: 1, backgroundColor: colors.border, marginVertical: 32 },
+  // fieldButton의 포지셔닝 기준점(이 아래 dropdownMenu가 absolute로 붙음)
+  transportFieldWrap: { position: 'relative' },
+  // 필드 버튼 바로 위(8 간격)에 떠서 위로 펼쳐지는 오버레이 — 기존엔 일반 흐름에 끼워넣어
+  // 아래로 펼쳐졌는데, 이동수단이 폼의 마지막 필드라 그 방식이면 목록이 "선택하기" 버튼 뒤로
+  // 들어가 잘렸음(2026-09-12 수정). 떠 있는 카드처럼 보이게 배경/모서리/그림자 추가
+  dropdownMenu: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 52 + 8,
+    borderRadius: 8,
+    backgroundColor: colors.white,
+    overflow: 'hidden',
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: -2 },
+  },
   dropdownItem: {
     height: 52,
-    borderWidth: 1,
+    borderBottomWidth: 1,
     borderColor: colors.border,
     justifyContent: 'center',
     paddingHorizontal: 16,
