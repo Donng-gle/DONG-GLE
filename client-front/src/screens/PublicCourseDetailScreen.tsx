@@ -61,8 +61,9 @@ function formatShortDateLabel(dateKey: string) {
 //   코스를 "좋아요"하면 내 스크랩북으로 복제 저장됨. 전용 "복제" API는 없지만 courseApi.save(POST
 //   /courses)가 candidate_id 없이 title/places만으로도 저장되길래(CourseSaveRequest 참고) 그대로
 //   재사용 — 새 코스로 insert되니 원본 작성자에는 영향 없음. transport는 CourseDetail에 없어서
-//   null(조회 시 서버가 walk로 기본 계산, api/course.ts 참고), source는 'user'(내가 직접 구성한
-//   걸로 취급 — 'ai'로 저장하면 실제로 AI가 만든 것처럼 보여서 부정확함)
+//   null(조회 시 서버가 walk로 기본 계산, api/course.ts 참고), source는 전용 값 'liked'(백엔드
+//   2026-09-11 추가 — 'user'로 저장하면 직접 만든 코스와 안 구분돼서 ScrapbookScreen의 "나의 코스"/
+//   "여행코스" 탭 분리가 안 됨)
 // - 하단 플로팅 네비 있음 — 처음엔 탭 콘텐츠 영역 안에서 로컬 state로만 바꾸는 화면이라 HomeScreen이
 //   바깥에 그리는 FloatingNav와 겹칠까봐 뺐는데, 그러면 AppHeader/탭바가 위에 그대로 남아있어서
 //   "팝업"처럼 보인다는 지적(2026-09-10) — HomeScreen이 course-manual/CourseResultScreen과 동일하게
@@ -111,7 +112,9 @@ export function PublicCourseDetailScreen({ courseId, onExit, onCreateManual, onC
         travel_date: course.travel_date,
         end_date: course.end_date,
         transport: null,
-        source: 'user',
+        // 'user'로 저장하면 직접 만든 코스와 구분이 안 돼서(2026-09-11, 사용자 확인 — 스크랩북에
+        // "나의 코스"/"여행코스" 탭 분리) 전용 source 값 사용
+        source: 'liked',
         places,
       });
       setLiked(true);

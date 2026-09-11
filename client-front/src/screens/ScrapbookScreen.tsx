@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -13,7 +13,10 @@ import { CourseDetailScreen } from './CourseDetailScreen';
 import { CourseEditScreen } from './CourseEditScreen';
 import { PlaceDetailScreen } from './PlaceDetailScreen';
 
-type ScrapTab = 'course' | 'place';
+// "나의 코스"(직접 만들었거나 AI로 생성한 코스)와 "여행코스"(다른 사용자 코스를 하트로 담아온 것,
+// source:'liked')를 구분(2026-09-11 추가, 사용자 확인 — "취향 맞춤 코스" 탭에서 하트로 코스를
+// 복제 저장할 수 있게 되면서, 스크랩북에 두 종류가 섞여 안 구분되던 걸 정정)
+type ScrapTab = 'my-course' | 'liked-course' | 'place';
 
 type Overlay =
   | { type: 'course-detail'; courseId: number }
@@ -47,7 +50,7 @@ const COURSE_THUMBNAIL_LIMIT = 3;
 // 여전히 뺀 것:
 // - 코스 카드 우상단 하트(좋아요) 아이콘: 코스에는 "찜/좋아요" 개념 자체가 스키마에 없음
 //   (course_like 같은 테이블 없음, PLACE_LIKE만 존재) → 없는 기능을 만드는 대신 생략
-export function ScrapbookScreen({ initialTab = 'course', onExit, onCreateManual, onCreateAI, onProfile }: Props) {
+export function ScrapbookScreen({ initialTab = 'my-course', onExit, onCreateManual, onCreateAI, onProfile }: Props) {
   const insets = useSafeAreaInsets();
   const [tab, setTab] = useState<ScrapTab>(initialTab);
   const [courses, setCourses] = useState<CourseListItem[] | null>(null);
@@ -140,7 +143,13 @@ export function ScrapbookScreen({ initialTab = 'course', onExit, onCreateManual,
     );
   }
 
-  const loading = tab === 'course' ? courses === null : places === null;
+  // source:'liked'(하트로 담아온 다른 사용자 코스)만 "여행코스", 그 외(ai/ai_edited/user/journal,
+  // 즉 내가 직접 만들었거나 AI로 생성한 것)는 전부 "나의 코스"
+  const myCourses = useMemo(() => (courses ?? []).filter((c) => c.source !== 'liked'), [courses]);
+  const likedCourses = useMemo(() => (courses ?? []).filter((c) => c.source === 'liked'), [courses]);
+  const coursesForTab = tab === 'liked-course' ? likedCourses : myCourses;
+
+  const loading = tab === 'place' ? places === null : courses === null;
 
   return (
     <View style={styles.container}>
@@ -155,9 +164,13 @@ export function ScrapbookScreen({ initialTab = 'course', onExit, onCreateManual,
       </View>
 
       <View style={styles.tabRow}>
-        <TouchableOpacity onPress={() => setTab('course')} style={styles.tabItem}>
-          <Text style={[styles.tabLabel, tab === 'course' && styles.tabLabelActive]}>여행코스</Text>
-          {tab === 'course' && <View style={styles.tabUnderline} />}
+        <TouchableOpacity onPress={() => setTab('my-course')} style={styles.tabItem}>
+          <Text style={[styles.tabLabel, tab === 'my-course' && styles.tabLabelActive]}>나의 코스</Text>
+          {tab === 'my-course' && <View style={styles.tabUnderline} />}
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => setTab('liked-course')} style={styles.tabItem}>
+          <Text style={[styles.tabLabel, tab === 'liked-course' && styles.tabLabelActive]}>여행코스</Text>
+          {tab === 'liked-course' && <View style={styles.tabUnderline} />}
         </TouchableOpacity>
         <TouchableOpacity onPress={() => setTab('place')} style={styles.tabItem}>
           <Text style={[styles.tabLabel, tab === 'place' && styles.tabLabelActive]}>관광지</Text>
@@ -169,12 +182,16 @@ export function ScrapbookScreen({ initialTab = 'course', onExit, onCreateManual,
         <View style={styles.center}>
           <ActivityIndicator size="large" color={colors.black} />
         </View>
-      ) : tab === 'course' ? (
+      ) : tab !== 'place' ? (
         <FlatList
-          data={courses ?? []}
+          data={coursesForTab}
           keyExtractor={(item) => String(item.id)}
           contentContainerStyle={styles.list}
-          ListEmptyComponent={<Text style={styles.emptyText}>저장한 코스가 없어요.</Text>}
+          ListEmptyComponent={
+            <Text style={styles.emptyText}>
+              {tab === 'liked-course' ? '하트로 담은 코스가 없어요.' : '저장한 코스가 없어요.'}
+            </Text>
+          }
           renderItem={({ item }) => {
             const remaining = item.place_count - item.place_thumbnails.length;
             return (
