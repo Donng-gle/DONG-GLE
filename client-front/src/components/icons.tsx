@@ -313,3 +313,37 @@ export function PencilIcon({ size = 16, color = colors.black }: { size?: number;
     </Svg>
   );
 }
+
+// "나의 일지" 카드 하단 뱃지 바(📅/📍/☁️ 이모지)를 사용자가 준 실제 아이콘 파일로 교체
+// (2026-09-12, JournalTab.tsx cardBadgeIcon 참고) — PencilIcon 때와 달리 이번엔 파일이 실제로
+// 저장돼있는 걸 찾아서(~/AjouUniv/.../달력.png, 위치.png, cloud-fog.png) DistanceIcon/WalkIcon과
+// 동일한 방식(Figma 에셋 원본을 그대로 쓰고 tintColor로만 앱 톤에 맞춤)으로 넣음
+export function JournalCalendarIcon({ size = 12, color = colors.gray500 }: { size?: number; color?: string }) {
+  return (
+    <Image
+      source={require('../../assets/images/calendar-icon.png')}
+      style={{ width: size, height: size, tintColor: color }}
+      resizeMode="contain"
+    />
+  );
+}
+
+export function JournalLocationIcon({ size = 12, color = colors.gray500 }: { size?: number; color?: string }) {
+  return (
+    <Image
+      source={require('../../assets/images/location-icon.png')}
+      style={{ width: size, height: size, tintColor: color }}
+      resizeMode="contain"
+    />
+  );
+}
+
+export function JournalCloudIcon({ size = 12, color = colors.gray500 }: { size?: number; color?: string }) {
+  return (
+    <Image
+      source={require('../../assets/images/cloud-icon.png')}
+      style={{ width: size, height: size, tintColor: color }}
+      resizeMode="contain"
+    />
+  );
+}
