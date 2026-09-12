@@ -162,6 +162,30 @@ class VisitLogService(
         request.weather?.let { log.weather = it.ifBlank { null } }
         request.rating?.let { log.rating = it }
         request.visitedAt?.let { log.visitedAt = it }
+
+        // 사진 수정 지원(2026-09-12 결정, decision-log 참고) — 부분 수정이 아니라 보낸 목록으로
+        // 완전히 교체. orphanRemoval=true라 clear()만으로 기존 행이 삭제 대상으로 잡히고, 새로
+        // add한 항목이 flush 시 insert됨(VisitLog.kt photos 매핑 참고). null이면(필드 생략) 기존
+        // 사진 그대로 둠 — create()의 로직과 동일하게 순서를 sort_order로 저장
+        request.photos?.let { newPhotos ->
+            log.photos.clear()
+            newPhotos.forEachIndexed { index, photo ->
+                log.photos.add(VisitLogPhoto(visitLog = log, photoUrl = photo.url, caption = photo.caption, sortOrder = index))
+            }
+        }
+
+        // 장소 재배정 지원(2026-09-12 결정, decision-log 참고) — 실제로 바뀐 경우에만 예전/새 장소의
+        // visitLogCount를 조정(같은 placeId를 다시 보내는 것뿐이면 아무 것도 안 건드림)
+        request.placeId?.let { newPlaceId ->
+            if (newPlaceId != log.place.id) {
+                val newPlace = placeRepository.findById(newPlaceId).orElseThrow { PlaceNotFoundException(newPlaceId) }
+                val oldPlace = log.place
+                oldPlace.visitLogCount = (oldPlace.visitLogCount - 1).coerceAtLeast(0)
+                newPlace.visitLogCount += 1
+                log.place = newPlace
+            }
+        }
+
         return log.toDetailResponse()
     }
 

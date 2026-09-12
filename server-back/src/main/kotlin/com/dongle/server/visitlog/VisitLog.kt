@@ -28,9 +28,11 @@ class VisitLog(
     @JoinColumn(name = "user_id", nullable = false)
     val user: User,
 
+    // 수정 화면에서 장소도 바꿀 수 있게 var로 변경(2026-09-12 결정, decision-log 참고) — 바꾸면
+    // 서비스 레이어(VisitLogService.update)가 예전/새 장소 visitLogCount를 같이 조정해야 함
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "place_id", nullable = false)
-    val place: Place,
+    var place: Place,
 
     // 코스 단위 기록(장소 2개 이상)일 때만 값 있음, nullable — 같은 course를 공유하는 visit_log들을
     // "나의 일지"에서 하나의 코스 카드로 묶어서 보여줌 (2026-09-08 결정, decision-log 참고)
