@@ -29,6 +29,10 @@ let courseList: CourseListItem[] = [...MOCK_COURSE_LIST];
 const courseDetails: Record<number, CourseDetail> = { ...MOCK_COURSE_DETAILS };
 // 스크랩북 "관광지" 탭이 바로 뭔가 보이도록 미리 몇 개 찜한 상태로 시작(하회마을/월영교/미소카페)
 const likedPlaceIds = new Set<number>([1, 5, 11]);
+// 하트 아래 숫자(찜 개수) 목업 — 실제 place_like 총 개수 흉내. 장소마다 고정 베이스 값에서
+// 이번 세션의 좋아요 토글만큼 가감(2026-09-12, PlaceDetail.like_count 필드 추가에 맞춰 목업도 갱신 —
+// 예전엔 이 필드가 아예 없어서 화면이 실수로 visit_log_count를 대신 썼었음)
+const likeCounts = new Map<number, number>(MOCK_PLACES.map((p) => [p.id, (p.id * 7) % 40]));
 let nextLogId = 9000;
 let nextCourseId = 9000;
 
@@ -245,6 +249,7 @@ export function resolveMock<T>(method: string, path: string, body: unknown): Moc
       { ...place, is_liked: likedPlaceIds.has(id) },
       logsForThisPlace.length,
       averageRating(logsForThisPlace),
+      likeCounts.get(id) ?? 0,
     );
     return ok(detail as T);
   }
@@ -252,9 +257,15 @@ export function resolveMock<T>(method: string, path: string, body: unknown): Moc
   // POST/DELETE /places/:id/like
   if (segments.length === 3 && segments[0] === 'places' && segments[2] === 'like') {
     const id = Number(segments[1]);
-    if (method === 'POST') likedPlaceIds.add(id);
-    if (method === 'DELETE') likedPlaceIds.delete(id);
-    return ok({ is_liked: likedPlaceIds.has(id) } as T);
+    if (method === 'POST') {
+      likedPlaceIds.add(id);
+      likeCounts.set(id, (likeCounts.get(id) ?? 0) + 1);
+    }
+    if (method === 'DELETE') {
+      likedPlaceIds.delete(id);
+      likeCounts.set(id, Math.max(0, (likeCounts.get(id) ?? 0) - 1));
+    }
+    return ok({ is_liked: likedPlaceIds.has(id), like_count: likeCounts.get(id) ?? 0 } as T);
   }
 
   // GET /users/me/likes (스크랩북 "관광지" 탭 — 내가 찜한 장소 목록)

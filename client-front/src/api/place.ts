@@ -84,10 +84,14 @@ export interface PlaceDetail {
   // (2026-09-05 추가, decision-log 참고)
   avg_rating: number | null;
   is_liked: boolean | null; // 비인증 조회 시 null
+  // 하트 아이콘 아래 숫자 — 예전엔 이 필드가 없어서 PlaceDetailScreen이 실수로 visit_log_count를
+  // 대신 바인딩해서 찜을 눌러도 숫자가 안 바뀌었음(2026-09-12, 사용자 리포트+백엔드에 필드 추가)
+  like_count: number;
 }
 
 export interface LikeResponse {
   is_liked: boolean;
+  like_count: number;
 }
 
 export const placeApi = {

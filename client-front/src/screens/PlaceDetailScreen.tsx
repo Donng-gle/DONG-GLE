@@ -120,7 +120,9 @@ export function PlaceDetailScreen({ placeId, onExit }: Props) {
     setLikeBusy(true);
     try {
       const result = place.is_liked ? await placeApi.unlike(place.id) : await placeApi.like(place.id);
-      setPlace({ ...place, is_liked: result.is_liked });
+      // like_count는 서버가 토글 직후 다시 센 최신값을 그대로 내려줌(낙관적으로 +-1 안 함 —
+      // 2026-09-12, api/place.ts LikeResponse 참고)
+      setPlace({ ...place, is_liked: result.is_liked, like_count: result.like_count });
     } catch (e) {
       Alert.alert('찜 처리에 실패했어요', e instanceof Error ? e.message : '알 수 없는 오류');
     } finally {
@@ -238,11 +240,12 @@ export function PlaceDetailScreen({ placeId, onExit }: Props) {
 
           <View style={styles.titleRow}>
             <Text style={styles.placeName}>{place.name}</Text>
-            {/* Figma는 하트 밑에 좋아요 수(587)를 보여주는데 place_like엔 개수 API가 없음 — 대신
-                실제로 있는 방문 기록 수(visit_log_count)를 같은 자리에 넣음(가짜 숫자 아님) */}
+            {/* Figma는 하트 밑에 실제 좋아요(찜) 수(587)를 보여줌 — 예전엔 place_like 개수 API가
+                없어서 방문 기록 수(visit_log_count)를 대신 넣어뒀었는데, 그래서 하트를 눌러도 숫자가
+                전혀 안 바뀌는 버그였음(2026-09-12, 사용자 리포트). 백엔드에 like_count 추가해서 정정 */}
             <TouchableOpacity onPress={toggleLike} disabled={likeBusy} hitSlop={8} style={styles.likeButton}>
               <HeartIcon size={24} filled={!!place.is_liked} />
-              <Text style={styles.likeCount}>{place.visit_log_count}</Text>
+              <Text style={styles.likeCount}>{place.like_count}</Text>
             </TouchableOpacity>
           </View>
 
