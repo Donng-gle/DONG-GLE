@@ -387,8 +387,10 @@ const styles = StyleSheet.create({
     paddingVertical: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    // 카드 크기는 원래대로(300 기준) — 칠각형만 키워달라는 요청(2026-09-12)이라 카드는 안 키움
-    minHeight: 350,
+    // RadarChart 기본 size 320 + paddingVertical 24*2 = 368, 여유 둬서 370(2026-09-12,
+    // 칠각형을 Figma 실측 비율대로 키우면서 함께 조정 — 카드 자체를 임의로 더 키운 건 아니고
+    // 커진 칠각형이 들어갈 만큼만 세로 여유를 맞춘 것)
+    minHeight: 370,
   },
   radarLoading: { paddingVertical: 40 },
   emptyText: { fontFamily: fonts.regular, fontSize: 13, color: colors.gray400, paddingVertical: 40 },

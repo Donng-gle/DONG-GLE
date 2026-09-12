@@ -52,19 +52,19 @@ function toPointsAttr(points: [number, number][]): string {
   return points.map(([x, y]) => `${x},${y}`).join(' ');
 }
 
-// size=300: Figma 실측 비율(폴리곤 지름239 / 프레임폭360 ≈ 0.664)을 카드 실제 폭(약 320~340)에
-// 적용한 값 — 기존 220은 이 비율보다 눈에 띄게 작아서(사용자 리포트 "피그마랑 다르다") 상향.
-// 카드(=전체 SVG 캔버스) 자체를 더 키운 적도 있었는데(300→330) "카드 말고 안의 칠각형만 키워달라"는
-// 요청(2026-09-12)으로 되돌리고, 대신 아래 radius 비율을 키워서 같은 캔버스 안에서 칠각형만
-// 커지게 함(라벨은 캔버스 밖으로 안 잘리게 labelRadius 배수를 같이 줄임)
-export function RadarChart({ data, size = 300 }: Props) {
+// size=320: 처음엔 "폴리곤 지름/프레임폭(360)" 비율(0.332)로 계산했는데, 이건 분모가 화면
+// 전체 폭이라 그래프 카드 안에서 실제로 차지하는 비중보다 작게 나오는 잘못된 기준이었음
+// (2026-09-12, 사용자가 "피그마에 있는 비율이랑 똑같게" 키워달라고 재요청하면서 재확인) —
+// Figma에서 카드/버튼 등 이 화면 콘텐츠가 실제로 쓰는 폭은 360 프레임 안에서 좌우 20px 여백을
+// 뺀 320("취향 재검사" 기본버튼 실측 폭이 정확히 320)이 기준. size를 그 320에 맞추면 아래
+// radius/labelRadius도 Figma 원본 실측값(119.5 / ~137)과 거의 그대로 dp 단위로 일치함
+// (TimePicker 때와 같은 결론 — 360 기준 카드가 이미 320이라 우리 값과 스케일 없이 맞음)
+export function RadarChart({ data, size = 320 }: Props) {
   const center = size / 2;
-  // 칠각형을 키워달라는 요청(2026-09-12)으로 Figma 실측 비율(0.332)보다 올림 — 캔버스(size) 안에서
-  // 라벨까지 안 잘리는 한도 내에서 키운 값(아래 labelRadius 주석 참고)
-  const radius = size * 0.35;
-  // radius가 커진 만큼 배수를 줄여서(1.15→1.08) 라벨이 캔버스 경계 밖으로 안 나가게 함 — 가장 긴
-  // 라벨("Photogenic"/"Traditional")까지 감안해도 중심에서 최대 거리가 size/2(=150) 안쪽으로 들어옴
-  const labelRadius = radius * 1.08;
+  // Figma 실측: 폴리곤 반지름 119.5 / 콘텐츠폭 320 ≈ 0.373
+  const radius = size * 0.373;
+  // Figma 실측: 라벨 중심까지 평균 거리 ≈ 137, radius(119.5) 대비 ≈ 1.15배
+  const labelRadius = radius * 1.15;
 
   const scoreByTag = new Map(data.map((d) => [d.tag, d.score]));
   const values = AXIS_ORDER.map((a) => scoreByTag.get(a.tag) ?? 0.5);
