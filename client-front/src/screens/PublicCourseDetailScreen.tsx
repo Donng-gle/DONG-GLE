@@ -215,8 +215,9 @@ export function PublicCourseDetailScreen({ courseId, onExit, onCreateManual, onC
         )}
 
         <View style={styles.listSection}>
-          <Text style={styles.sectionTitle}>AI 추천 여행 코스</Text>
-
+          {/* "AI 추천 여행 코스" 섹션 타이틀 제거(2026-09-12 사용자 요청) — 이 화면은 취향 맞춤
+              코스 탭의 "자세히 보기"로 다른 사용자의 공개 코스를 보는 화면이라, AI가 생성한
+              코스가 아닌 경우에도 이 문구가 고정으로 붙어있는 게 부적절했음 */}
           {selectedDateTab && <Text style={styles.dayHeader}>{formatShortDateLabel(selectedDateTab)}</Text>}
 
           {placesForTab.map((place, index) => (
@@ -313,7 +314,6 @@ const styles = StyleSheet.create({
   map: { width: '100%', height: 260 },
   // 헤더/제목은 좌우 여백 20이지만, 지도 아래 리스트 카드는 16 — CourseResultScreen과 동일 실측값
   listSection: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 20, backgroundColor: colors.white },
-  sectionTitle: { fontFamily: fonts.semiBold, fontSize: 16, color: colors.sectionTitle, marginBottom: 12 },
   dayHeader: { fontFamily: fonts.semiBold, fontSize: 16, color: colors.black, marginBottom: 12 },
   placeRow: { flexDirection: 'row' },
   placeRowLeft: { width: 32, alignItems: 'center' },
