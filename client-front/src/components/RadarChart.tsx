@@ -53,8 +53,10 @@ function toPointsAttr(points: [number, number][]): string {
 }
 
 // size=300: Figma 실측 비율(폴리곤 지름239 / 프레임폭360 ≈ 0.664)을 카드 실제 폭(약 320~340)에
-// 적용한 값 — 기존 220은 이 비율보다 눈에 띄게 작아서(사용자 리포트 "피그마랑 다르다") 상향
-export function RadarChart({ data, size = 300 }: Props) {
+// 적용한 값 — 기존 220은 이 비율보다 눈에 띄게 작아서(사용자 리포트 "피그마랑 다르다") 상향.
+// 그래도 좀 더 키워달라는 요청(2026-09-12)으로 330으로 한 번 더 상향 — 카드가 화면폭보다 넉넉해서
+// (실기기 스크린샷 확인) 여유 있음
+export function RadarChart({ data, size = 330 }: Props) {
   const center = size / 2;
   // Figma 실측: 폴리곤 반지름/프레임폭 ≈ 119.5/360 ≈ 0.332 — size가 카드 폭을 그대로 쓰므로 같은
   // 비율을 그대로 적용
