@@ -151,6 +151,19 @@ export function PlaceDetailScreen({ placeId, onExit }: Props) {
     }
   }
 
+  // 홈페이지 정보행이 텍스트만 있고 탭해도 아무 반응이 없었음(사용자 요청, 2026-09-12) — TourAPI
+  // detailCommon2.homepage는 "http(s)://"가 이미 붙어있는 게 보통이지만, 혹시 프로토콜 없이
+  // "www.xxx.com" 형태로만 온 값이 있을 수 있어 방어적으로 붙여줌(없으면 Linking이 상대경로로
+  // 해석해서 열기 자체를 실패함)
+  async function openHomepage(rawUrl: string) {
+    const url = /^https?:\/\//i.test(rawUrl) ? rawUrl : `https://${rawUrl}`;
+    try {
+      await Linking.openURL(url);
+    } catch (e) {
+      Alert.alert('홈페이지를 열지 못했어요', e instanceof Error ? e.message : '알 수 없는 오류');
+    }
+  }
+
   if (!place) {
     return (
       <View style={styles.center}>
@@ -304,7 +317,9 @@ export function PlaceDetailScreen({ placeId, onExit }: Props) {
           <View style={styles.infoList}>
             {place.addr1 && <InfoRow label="주소" value={[place.addr1, place.addr2].filter(Boolean).join(' ')} />}
             {place.tel && <InfoRow label="전화번호" value={place.tel} />}
-            {place.homepage && <InfoRow label="홈페이지" value={place.homepage} />}
+            {place.homepage && (
+              <InfoRow label="홈페이지" value={place.homepage} onPress={() => openHomepage(place.homepage!)} />
+            )}
             {hoursLines.length > 0 && <InfoRow label="영업 시간" value={hoursLines.join('\n')} />}
           </View>
         </View>
@@ -335,11 +350,21 @@ export function PlaceDetailScreen({ placeId, onExit }: Props) {
   );
 }
 
-function InfoRow({ label, value }: { label: string; value: string }) {
+// onPress를 주면(홈페이지 행만 해당, 2026-09-12) 값 텍스트가 탭 가능한 링크로 바뀜 — 다른
+// 행(주소/전화번호/영업시간)은 여전히 순수 표시용이라 onPress 없이 그대로 View로 렌더
+function InfoRow({ label, value, onPress }: { label: string; value: string; onPress?: () => void }) {
   return (
     <View style={styles.infoRow}>
       <Text style={styles.infoLabel}>{label}</Text>
-      <Text style={styles.infoValue}>{value}</Text>
+      {onPress ? (
+        // infoValue가 flex:1로 row 나머지 폭을 채우던 걸 그대로 유지해야 해서(안 그러면 label과
+        // 겹치거나 줄바꿈이 이상해짐) 감싸는 TouchableOpacity에도 flex:1을 줌
+        <TouchableOpacity style={styles.infoValueLinkTouch} onPress={onPress} hitSlop={4}>
+          <Text style={[styles.infoValue, styles.infoValueLink]}>{value}</Text>
+        </TouchableOpacity>
+      ) : (
+        <Text style={styles.infoValue}>{value}</Text>
+      )}
     </View>
   );
 }
@@ -486,6 +511,9 @@ const styles = StyleSheet.create({
   infoLabel: { width: 64, fontFamily: fonts.medium, fontSize: 12, letterSpacing: -0.3, color: colors.black },
   // 2026-09-09 재실측: gray500->gray700
   infoValue: { flex: 1, fontFamily: fonts.regular, fontSize: 12, letterSpacing: -0.3, lineHeight: 17, color: colors.gray700 },
+  infoValueLinkTouch: { flex: 1 },
+  // 홈페이지만 탭 가능한 링크라 눌리는 걸 알 수 있게 앱 공용 액센트 컬러+밑줄로 구분(2026-09-12)
+  infoValueLink: { color: colors.accentBlue, textDecorationLine: 'underline' },
   emptyText: { fontFamily: fonts.regular, fontSize: 14, color: colors.gray500 },
   // Figma 실측(458:2474 "리뷰" 섹션, 602:15528 카드 등, 2026-09-09) — 2열 그리드, 카드마다 사진
   // 배경+하단 그라디언트+아바타/닉네임/본문 오버레이(파일 상단 코멘트 참고)
