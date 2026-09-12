@@ -13,6 +13,7 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import * as ImagePicker from 'expo-image-picker';
 import { UserProfile } from '../api/auth';
+import { onboardingApi } from '../api/onboarding';
 import { uploadApi } from '../api/upload';
 import { UserPreferenceTag, userApi } from '../api/user';
 import { tokenStorage } from '../auth/tokenStorage';
@@ -161,7 +162,24 @@ export function ProfileScreen({
   function confirmRetakeOnboarding() {
     Alert.alert('취향을 다시 분석할까요?', '스와이프를 처음부터 다시 진행해요.', [
       { text: '취소', style: 'cancel' },
-      { text: '다시 검사', onPress: onRetakeOnboarding },
+      {
+        text: '다시 검사',
+        onPress: async () => {
+          // onRetakeOnboarding은 has_onboarded를 로컬 state로만 false로 내려서 OnboardingScreen을
+          // 다시 태우는데, 서버의 스와이프 기록/취향 벡터(user_preference)는 그대로 남아있어서
+          // GET /onboarding/next가 여전히 "이미 수렴함"으로 보고 즉시 null을 돌려줬음(실기기 확인,
+          // 2026-09-12) — 그 결과 재검사를 눌러도 카드 한 장 못 보고 "보여드릴 사진이 더 없어요"
+          // 안내만 뜨고 바로 예전 벡터 그대로 완료 처리됨(재검사가 사실상 no-op이었음). 화면
+          // 전환 전에 POST /onboarding/reset을 먼저 호출해서 서버 쪽 기록/벡터를 실제로 비움
+          try {
+            await onboardingApi.reset();
+          } catch (e) {
+            Alert.alert('초기화에 실패했어요', e instanceof Error ? e.message : '알 수 없는 오류');
+            return;
+          }
+          onRetakeOnboarding();
+        },
+      },
     ]);
   }
 
