@@ -369,21 +369,25 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   editButtonText: { fontFamily: fonts.medium, fontSize: 12, color: colors.gray700 },
+  // Figma "마이페이지"(598:13735) "사용자 취향 그래프" 텍스트 실측: fontSize 20 / letterSpacing
+  // -0.5(기존 16/-0.4는 실측 없이 넣은 값이라 시안보다 작아 보였음, 2026-09-12 정정)
   sectionTitle: {
     fontFamily: fonts.semiBold,
-    fontSize: 16,
-    letterSpacing: -0.4,
+    fontSize: 20,
+    letterSpacing: -0.5,
     color: colors.black,
     marginTop: 28,
     marginBottom: 12,
   },
+  // RadarChart 기본 size가 220→300으로 커져서(RadarChart.tsx 참고) minHeight도 같이 맞춤
+  // (300 + paddingVertical 24*2 = 348, 여유 둬서 350)
   radarCard: {
     backgroundColor: colors.white,
     borderRadius: 16,
     paddingVertical: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 220,
+    minHeight: 350,
   },
   radarLoading: { paddingVertical: 40 },
   emptyText: { fontFamily: fonts.regular, fontSize: 13, color: colors.gray400, paddingVertical: 40 },
