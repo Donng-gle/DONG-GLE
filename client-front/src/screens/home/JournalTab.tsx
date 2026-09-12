@@ -17,7 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { VisitLogMapItem, visitLogApi } from '../../api/visitLog';
 import { AndongGlobe } from '../../components/AndongGlobe';
 import { ChoiceBottomSheet, ChoiceOption } from '../../components/ChoiceBottomSheet';
-import { PlusIcon } from '../../components/icons';
+import { JournalCalendarIcon, JournalCloudIcon, JournalLocationIcon, PlusIcon } from '../../components/icons';
 import { colors } from '../../theme/colors';
 import { fonts } from '../../theme/fonts';
 import { JournalCourseLogCreateModal } from '../JournalCourseLogCreateModal';
@@ -328,17 +328,17 @@ function JournalLogCard({ log, onPress }: { log: VisitLogMapItem; onPress: () =>
       </View>
       <View style={styles.cardBadgeBar}>
         <View style={styles.cardBadgeItem}>
-          <Text style={styles.cardBadgeIcon}>📅</Text>
+          <JournalCalendarIcon size={12} color={colors.gray500} />
           <Text style={styles.cardBadgeText}>{formatVisitDay(log.visited_at)}</Text>
         </View>
         <View style={styles.cardBadgeItem}>
-          <Text style={styles.cardBadgeIcon}>📍</Text>
+          <JournalLocationIcon size={12} color={colors.gray500} />
           <Text style={styles.cardBadgeText}>{log.place_name}</Text>
         </View>
         {/* weather도 title과 같이 2026-09-05 추가 — 옛 기록엔 없을 수 있어서 있을 때만 표시 */}
         {log.weather && (
           <View style={styles.cardBadgeItem}>
-            <Text style={styles.cardBadgeIcon}>☁️</Text>
+            <JournalCloudIcon size={12} color={colors.gray500} />
             <Text style={styles.cardBadgeText}>{log.weather}</Text>
           </View>
         )}
@@ -382,11 +382,11 @@ function JournalCourseCard({
       </View>
       <View style={styles.cardBadgeBar}>
         <View style={styles.cardBadgeItem}>
-          <Text style={styles.cardBadgeIcon}>📅</Text>
+          <JournalCalendarIcon size={12} color={colors.gray500} />
           <Text style={styles.cardBadgeText}>{formatVisitDay(logs[0].visited_at)}</Text>
         </View>
         <View style={styles.cardBadgeItem}>
-          <Text style={styles.cardBadgeIcon}>📍</Text>
+          <JournalLocationIcon size={12} color={colors.gray500} />
           <Text style={styles.cardBadgeText}>장소 {logs.length}곳</Text>
         </View>
       </View>
@@ -524,6 +524,5 @@ const styles = StyleSheet.create({
     marginHorizontal: 8,
   },
   cardBadgeItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  cardBadgeIcon: { fontSize: 12 },
   cardBadgeText: { fontFamily: fonts.regular, fontSize: 12, color: colors.gray500 },
 });
