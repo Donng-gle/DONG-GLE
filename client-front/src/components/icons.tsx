@@ -294,3 +294,22 @@ export function ChevronDownIcon({ size = 16, color = colors.gray500, open = fals
     </View>
   );
 }
+
+// "메인 페이지-나의 일지-기록하기"(593:12613) 제목 옆 연필 — 원래 "✏️" 이모지로 임시 대체돼있던
+// 자리(JournalLogCreateModal.tsx 참고)를 사용자가 준 이미지로 바꿔달라는 요청(2026-09-12)이 있었는데,
+// 첨부 이미지가 파일로 전달되지 않아(세션에서 경로를 못 찾음) 정확히 그 에셋을 못 쓰고 대신 표준
+// 연필/편집 아이콘(Feather "edit-2" 형태)으로 근사함 — DistanceIcon처럼 실제 파일을 주시면
+// <Image source={require(...)}>로 그대로 교체 가능
+export function PencilIcon({ size = 16, color = colors.black }: { size?: number; color?: string }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"
+        stroke={color}
+        strokeWidth={1.8}
+        strokeLinejoin="round"
+        strokeLinecap="round"
+      />
+    </Svg>
+  );
+}

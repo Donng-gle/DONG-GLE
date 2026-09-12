@@ -28,6 +28,10 @@ export interface VisitLogUpdateRequest {
   // 생략하면 기존 값 유지 (server VisitLogUpdateRequest.kt 참고)
   rating?: number;
   visited_at?: string;
+  // 사진/장소 수정 지원(2026-09-12 추가, server 동일 날짜 커밋 참고). photos는 부분 수정이 아니라
+  // "보낸 목록으로 완전히 교체" — 생략하면 기존 사진 유지, 빈 배열([])을 보내면 전부 삭제
+  photos?: { url: string; caption?: string }[];
+  place_id?: number;
 }
 
 export interface VisitLogDetail {
