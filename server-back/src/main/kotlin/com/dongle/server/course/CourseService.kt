@@ -27,6 +27,7 @@ import com.dongle.server.place.PlaceNotFoundException
 import com.dongle.server.place.PlaceRepository
 import com.dongle.server.place.PlaceSemanticVector
 import com.dongle.server.place.PlaceService
+import com.dongle.server.swipe.SwipeAction
 import com.dongle.server.swipe.SwipeService
 import com.dongle.server.swipe.SwipeSessionCandidate
 import com.dongle.server.swipe.SwipeTransport
@@ -149,7 +150,15 @@ class CourseService(
         val candidates = swipeService.likedOrMustCandidates(userId, sessionId)
         val vectors = placeService.semanticVectorsByPlaceId(candidates.map { it.place.id })
         val placesById = candidates.associate { it.place.id.toString() to it.place }
-        var pool = candidates.mapNotNull { it.toOptimizerCandidateOrNull(vectors[it.place.id]) }
+        // 후보 20개를 그대로 넘기면 AI 서버가 후보마다 순차로 여러 외부 API(구글 Places/Routes)를
+        // 호출하느라 요청 하나가 너무 오래 걸려서 500/타임아웃이 나는 것으로 보임(2026-09-12,
+        // course-optimizer 500 오류 재현 중 발견 — 근본 원인은 AI 서버 쪽 확인 필요하고 이건 임시
+        // 완화). MAX_AI_CANDIDATE_COUNT로 후보 수를 줄여서 보내되, must는 강제 포함 개념이라
+        // sortOrder를 유지한 채 must를 앞으로 정렬해 잘려나가지 않게 한다
+        var pool = candidates
+            .sortedByDescending { it.action == SwipeAction.must }
+            .mapNotNull { it.toOptimizerCandidateOrNull(vectors[it.place.id]) }
+            .take(MAX_AI_CANDIDATE_COUNT)
         if (pool.size < MIN_VISIT_COUNT) throw NotEnoughSwipeCandidatesException(pool.size)
 
         val allPlaces = mutableListOf<CoursePlaceItemResponse>()
@@ -337,6 +346,12 @@ class CourseService(
         // ai/course_optimizer.config.CourseOptimizerConfig.min_visit_count 기본값(2)과 맞춤 —
         // AI 서비스까지 호출하지 않고 여기서 먼저 걸러내기 위한 미러링 값
         private const val MIN_VISIT_COUNT = 2
+
+        // AI 서버(course_optimizer) 호출 500/타임아웃 완화용 임시 상한(2026-09-12) — 후보 수가
+        // 많을수록 AI 서버 내부에서 후보마다 순차 호출하는 외부 API(구글 Places/Routes) 횟수가
+        // 늘어나 요청이 오래 걸리는 것으로 추정. 근본 원인이 AI 서버 쪽에서 확인되면 값 재검토
+        private const val MAX_AI_CANDIDATE_COUNT = 5
+
         private val DAY_START: LocalTime = LocalTime.of(9, 0)
         private val DAY_END: LocalTime = LocalTime.of(21, 0)
 
