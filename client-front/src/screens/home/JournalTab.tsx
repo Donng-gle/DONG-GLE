@@ -328,17 +328,17 @@ function JournalLogCard({ log, onPress }: { log: VisitLogMapItem; onPress: () =>
       </View>
       <View style={styles.cardBadgeBar}>
         <View style={styles.cardBadgeItem}>
-          <JournalCalendarIcon size={12} color={colors.gray500} />
+          <JournalCalendarIcon size={16} color={colors.gray500} />
           <Text style={styles.cardBadgeText}>{formatVisitDay(log.visited_at)}</Text>
         </View>
         <View style={styles.cardBadgeItem}>
-          <JournalLocationIcon size={12} color={colors.gray500} />
+          <JournalLocationIcon size={16} color={colors.gray500} />
           <Text style={styles.cardBadgeText}>{log.place_name}</Text>
         </View>
         {/* weather도 title과 같이 2026-09-05 추가 — 옛 기록엔 없을 수 있어서 있을 때만 표시 */}
         {log.weather && (
           <View style={styles.cardBadgeItem}>
-            <JournalCloudIcon size={12} color={colors.gray500} />
+            <JournalCloudIcon size={16} color={colors.gray500} />
             <Text style={styles.cardBadgeText}>{log.weather}</Text>
           </View>
         )}
@@ -382,11 +382,11 @@ function JournalCourseCard({
       </View>
       <View style={styles.cardBadgeBar}>
         <View style={styles.cardBadgeItem}>
-          <JournalCalendarIcon size={12} color={colors.gray500} />
+          <JournalCalendarIcon size={16} color={colors.gray500} />
           <Text style={styles.cardBadgeText}>{formatVisitDay(logs[0].visited_at)}</Text>
         </View>
         <View style={styles.cardBadgeItem}>
-          <JournalLocationIcon size={12} color={colors.gray500} />
+          <JournalLocationIcon size={16} color={colors.gray500} />
           <Text style={styles.cardBadgeText}>장소 {logs.length}곳</Text>
         </View>
       </View>
