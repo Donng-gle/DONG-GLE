@@ -56,11 +56,15 @@ export function LoginScreen({ onLoginSuccess, onGuestContinue }: Props) {
   // (HTTPS 중계 엔드포인트)와 앱이 실제로 기다리는 returnUrl(dongle://redirect)이 서로 다른데,
   // useAuthRequest/promptAsync는 이 둘을 항상 같은 값으로 강제하기 때문 (2026-08-27 결정, decision-log 참고)
   async function promptKakaoLoginAsync() {
+    // scope 파라미터가 아예 없어서 카카오가 "닉네임"/"이메일" 동의항목을 요청 안 하고 있었음(2026-09-12,
+    // 사용자 리포트 — 로그인해도 실제 닉네임 대신 KakaoOAuthClient.kt의 폴백값 "카카오유저"만 뜸).
+    // 콘솔에서 두 항목이 "선택 동의"면 이렇게 scope로 명시 요청해야 사용자에게 동의창이 뜸
     const authUrl =
       `${kakaoDiscovery.authorizationEndpoint}` +
       `?client_id=${encodeURIComponent(KAKAO_CLIENT_ID)}` +
       `&redirect_uri=${encodeURIComponent(KAKAO_HTTPS_REDIRECT_URI)}` +
-      `&response_type=code`;
+      `&response_type=code` +
+      `&scope=${encodeURIComponent('profile_nickname,account_email')}`;
 
     const result = await WebBrowser.openAuthSessionAsync(authUrl, kakaoAppReturnUrl);
     if (result.type !== 'success') return; // 사용자가 취소/닫음 — 별도 처리 불필요
