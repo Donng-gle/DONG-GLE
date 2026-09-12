@@ -5,6 +5,7 @@ import {
   Dimensions,
   FlatList,
   Image,
+  Modal,
   PanResponder,
   ScrollView,
   StyleSheet,
@@ -21,6 +22,7 @@ import { colors } from '../../theme/colors';
 import { fonts } from '../../theme/fonts';
 import { JournalCourseLogCreateModal } from '../JournalCourseLogCreateModal';
 import { JournalLogCreateModal } from '../JournalLogCreateModal';
+import { LogEditScreen } from '../LogEditScreen';
 
 const GLOBE_SIZE = Dimensions.get('window').width;
 
@@ -109,6 +111,11 @@ export function JournalTab(_props: Props) {
   const [createVisible, setCreateVisible] = useState(false);
   const [courseCreateVisible, setCourseCreateVisible] = useState(false);
   const [addChoiceVisible, setAddChoiceVisible] = useState(false);
+  // 카드 탭 → 수정/삭제(LogEditScreen, 기존에 드로어 "방문 기록"(MyLogsScreen)에서만 쓰이고 있었고
+  // 정작 이 "나의 일지" 탭 카드는 눌러도 아무 반응이 없었음 — 수정/삭제 기능 자체는 백엔드/클라이언트
+  // API(visitLogApi.update/remove)까지 이미 다 있었는데 이 화면에 연결만 안 돼 있었음(사용자 리포트,
+  // 2026-09-12)
+  const [selectedLog, setSelectedLog] = useState<VisitLogMapItem | null>(null);
 
   const entries = useMemo(() => groupLogsIntoEntries(logs ?? []), [logs]);
 
@@ -220,9 +227,13 @@ export function JournalTab(_props: Props) {
               }
               renderItem={({ item }) =>
                 item.kind === 'place' ? (
-                  <JournalLogCard log={item.log} />
+                  <JournalLogCard log={item.log} onPress={() => setSelectedLog(item.log)} />
                 ) : (
-                  <JournalCourseCard courseTitle={item.courseTitle} logs={item.logs} />
+                  <JournalCourseCard
+                    courseTitle={item.courseTitle}
+                    logs={item.logs}
+                    onPressLog={setSelectedLog}
+                  />
                 )
               }
             />
@@ -246,6 +257,22 @@ export function JournalTab(_props: Props) {
         onClose={() => setCourseCreateVisible(false)}
         onCreated={loadLogs}
       />
+      <Modal visible={selectedLog != null} animationType="slide" onRequestClose={() => setSelectedLog(null)}>
+        {selectedLog && (
+          <LogEditScreen
+            log={selectedLog}
+            onSaved={() => {
+              setSelectedLog(null);
+              loadLogs();
+            }}
+            onDeleted={() => {
+              setSelectedLog(null);
+              loadLogs();
+            }}
+            onCancel={() => setSelectedLog(null)}
+          />
+        )}
+      </Modal>
     </View>
   );
 }
@@ -255,14 +282,14 @@ export function JournalTab(_props: Props) {
 // one_line(한줄리뷰)을 그 아래 설명 자리에 대신 씀. 시안 뱃지 3개(날짜/장소/날씨) 중 날씨는
 // DB에 데이터가 없어서 계속 생략(사용자 확인) — 날짜/장소 2개만 하나의 회색 바 안에 표시.
 // 별점(rating)은 시안에 아예 없는 요소라 이 카드에선 제외(장소 상세 등 다른 화면에서 계속 노출).
-function JournalLogCard({ log }: { log: VisitLogMapItem }) {
+function JournalLogCard({ log, onPress }: { log: VisitLogMapItem; onPress: () => void }) {
   // 사진별 캡션 지원(2026-09-07 결정, decision-log 참고)으로 photo_urls(문자열 배열)에서
   // photos({url,caption}[])로 바뀜 — 나의 일지 카드는 캡션을 안 쓰고 계속 one_line만 표시(장소
   // 상세 리뷰와 동일한 경계 판단)이라 url만 꺼내서 씀
   const photos = log.photos;
   const [activePhoto, setActivePhoto] = useState(0);
   return (
-    <View style={styles.card}>
+    <TouchableOpacity activeOpacity={0.8} onPress={onPress} style={styles.card}>
       {photos.length > 0 && (
         <ScrollView
           horizontal
@@ -317,19 +344,29 @@ function JournalLogCard({ log }: { log: VisitLogMapItem }) {
           </View>
         )}
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
 
 // 같은 course_id로 묶인 기록들(장소 2개 이상)을 하나의 카드로 — Figma 시안이 없어서(2026-09-08
 // 결정, decision-log 참고) JournalLogCard와 같은 카드 셸(흰 배경+그림자)만 재사용하고, 사진 영역은
 // 장소마다 작은 썸네일을 가로로 나열하는 방식으로 임시 구현. 나중에 디자인 나오면 교체 예정
-function JournalCourseCard({ courseTitle, logs }: { courseTitle: string; logs: VisitLogMapItem[] }) {
+function JournalCourseCard({
+  courseTitle,
+  logs,
+  onPressLog,
+}: {
+  courseTitle: string;
+  logs: VisitLogMapItem[];
+  onPressLog: (log: VisitLogMapItem) => void;
+}) {
   return (
     <View style={styles.card}>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.courseThumbRow}>
         {logs.map((log) => (
-          <View key={log.id} style={styles.courseThumbItem}>
+          // 코스 카드는 장소 여러 개가 한 카드에 묶여있어서(카드 하나=코스) 카드 전체를 누르면
+          // "어느 장소를 수정할지" 모호함 — 장소별 썸네일 각각을 눌러서 그 장소의 기록만 열게 함
+          <TouchableOpacity key={log.id} style={styles.courseThumbItem} onPress={() => onPressLog(log)}>
             {log.photos[0] ? (
               <Image source={{ uri: log.photos[0].url }} style={styles.courseThumbImage} resizeMode="cover" />
             ) : (
@@ -338,7 +375,7 @@ function JournalCourseCard({ courseTitle, logs }: { courseTitle: string; logs: V
             <Text style={styles.courseThumbLabel} numberOfLines={1}>
               {log.place_name}
             </Text>
-          </View>
+          </TouchableOpacity>
         ))}
       </ScrollView>
       <View style={styles.cardTextArea}>
