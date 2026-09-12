@@ -317,8 +317,12 @@ export function PencilIcon({ size = 16, color = colors.black }: { size?: number;
 // "나의 일지" 카드 하단 뱃지 바(📅/📍/☁️ 이모지)를 사용자가 준 실제 아이콘 파일로 교체
 // (2026-09-12, JournalTab.tsx cardBadgeIcon 참고) — PencilIcon 때와 달리 이번엔 파일이 실제로
 // 저장돼있는 걸 찾아서(~/AjouUniv/.../달력.png, 위치.png, cloud-fog.png) DistanceIcon/WalkIcon과
-// 동일한 방식(Figma 에셋 원본을 그대로 쓰고 tintColor로만 앱 톤에 맞춤)으로 넣음
-export function JournalCalendarIcon({ size = 12, color = colors.gray500 }: { size?: number; color?: string }) {
+// 동일한 방식(Figma 에셋 원본을 그대로 쓰고 tintColor로만 앱 톤에 맞춤)으로 넣음.
+// 기본 size 12(뱃지 텍스트 fontSize와 동일값)로 처음 넣었더니 실기기에서 텍스트보다 눈에 띄게
+// 작아 보임(사용자 리포트, 2026-09-12) — PNG 원본이 40x40 캔버스 안에 여백을 두고 그려져 있어서
+// (PIL로 확인: calendar/location은 75%, cloud는 80%만 채움) size를 텍스트 fontSize와 똑같이
+// 맞춰도 실제 렌더 크기(=size*채움비율)는 더 작았던 것 — size를 16으로 올려서 보정
+export function JournalCalendarIcon({ size = 16, color = colors.gray500 }: { size?: number; color?: string }) {
   return (
     <Image
       source={require('../../assets/images/calendar-icon.png')}
@@ -328,7 +332,7 @@ export function JournalCalendarIcon({ size = 12, color = colors.gray500 }: { siz
   );
 }
 
-export function JournalLocationIcon({ size = 12, color = colors.gray500 }: { size?: number; color?: string }) {
+export function JournalLocationIcon({ size = 16, color = colors.gray500 }: { size?: number; color?: string }) {
   return (
     <Image
       source={require('../../assets/images/location-icon.png')}
@@ -338,7 +342,7 @@ export function JournalLocationIcon({ size = 12, color = colors.gray500 }: { siz
   );
 }
 
-export function JournalCloudIcon({ size = 12, color = colors.gray500 }: { size?: number; color?: string }) {
+export function JournalCloudIcon({ size = 16, color = colors.gray500 }: { size?: number; color?: string }) {
   return (
     <Image
       source={require('../../assets/images/cloud-icon.png')}
