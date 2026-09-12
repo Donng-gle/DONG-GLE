@@ -347,10 +347,11 @@ class CourseService(
         // AI 서비스까지 호출하지 않고 여기서 먼저 걸러내기 위한 미러링 값
         private const val MIN_VISIT_COUNT = 2
 
-        // AI 서버(course_optimizer) 호출 500/타임아웃 완화용 임시 상한(2026-09-12) — 후보 수가
-        // 많을수록 AI 서버 내부에서 후보마다 순차 호출하는 외부 API(구글 Places/Routes) 횟수가
-        // 늘어나 요청이 오래 걸리는 것으로 추정. 근본 원인이 AI 서버 쪽에서 확인되면 값 재검토
-        private const val MAX_AI_CANDIDATE_COUNT = 5
+        // AI 서버(course_optimizer) 호출 500/타임아웃 완화용 임시 상한(2026-09-12, 5 → 7로 상향).
+        // 후보 수가 많을수록 AI 서버 내부에서 후보마다 순차 호출하는 외부 API(구글 Places/Routes)
+        // 횟수가 늘어나 요청이 오래 걸리는 것으로 추정. AI 쪽(김지광)에서 7개까지는 괜찮다고 확인해줘서
+        // 5 → 7로 올림. 근본 원인(AI 서버 내부 순차 호출 구조)은 아직 안 고쳐진 상태라 값 재검토 여지 있음
+        private const val MAX_AI_CANDIDATE_COUNT = 7
 
         private val DAY_START: LocalTime = LocalTime.of(9, 0)
         private val DAY_END: LocalTime = LocalTime.of(21, 0)
