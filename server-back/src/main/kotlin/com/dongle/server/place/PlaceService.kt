@@ -64,7 +64,8 @@ class PlaceService(
         val vector = placeSemanticVectorRepository.findById(placeId).orElse(null)
         val hours = placeHoursRepository.findByPlaceIdIn(listOf(placeId))
         val avgRating = visitLogRepository.findAverageRatingByPlaceId(placeId)
-        return place.toDetailResponse(isLiked, vector, hours, avgRating)
+        val likeCount = placeLikeRepository.countByPlaceId(placeId)
+        return place.toDetailResponse(isLiked, vector, hours, avgRating, likeCount)
     }
 
     fun getMapPins(
@@ -226,6 +227,7 @@ class PlaceService(
         vector: PlaceSemanticVector?,
         hours: List<PlaceHours>,
         avgRating: Double?,
+        likeCount: Long,
     ) = PlaceDetailResponse(
         id = id,
         contentId = contentId,
@@ -247,6 +249,7 @@ class PlaceService(
         visitLogCount = visitLogCount,
         avgRating = avgRating,
         isLiked = isLiked,
+        likeCount = likeCount,
     )
 
     private fun Place.toMapPinResponse(likedIds: Set<Long>, vector: PlaceSemanticVector?) = PlaceMapPinResponse(

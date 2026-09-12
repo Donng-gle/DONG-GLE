@@ -12,4 +12,6 @@ interface PlaceLikeRepository : JpaRepository<PlaceLike, Long> {
 
     @Query("select pl.place.id from PlaceLike pl where pl.user.id = :userId and pl.place.id in :placeIds")
     fun findLikedPlaceIds(@Param("userId") userId: Long, @Param("placeIds") placeIds: Collection<Long>): Set<Long>
+
+    fun countByPlaceId(placeId: Long): Long
 }
