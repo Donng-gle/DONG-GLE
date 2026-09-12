@@ -26,6 +26,10 @@ export interface MockVisitLog {
   // title/weather는 2026-09-05 추가(메인 페이지-나의 일지-기록하기) — 기존 fixture 20여 개를 다
   // 안 고쳐도 되게 옵셔널로 둠(생략하면 null 취급, handlers.ts의 toMapItem 등 참고)
   title?: string | null;
+  // 코스 단위 기록(장소 2개 이상)일 때만 값 있음(2026-09-08 추가, decision-log 참고) — 기존
+  // fixture는 전부 단일 장소 기록이라 옵셔널로 둠
+  courseId?: number | null;
+  courseTitle?: string | null;
   oneLine: string | null;
   weather?: string | null;
   rating: number | null; // 1~5, 선택 입력이라 null 있음(평균 계산에서 제외됨을 목업으로도 확인 가능)

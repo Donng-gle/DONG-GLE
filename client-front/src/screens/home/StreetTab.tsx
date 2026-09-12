@@ -13,6 +13,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import { PlaceCategory, PlaceListItem, placeApi } from '../../api/place';
 import { AndongGlobe } from '../../components/AndongGlobe';
 import { LocationPinIcon } from '../../components/icons';
@@ -299,9 +300,13 @@ export function StreetTab() {
   );
 }
 
-// Figma 실측(334:3255 "장소 카드", 324x316): 사진(324x256)+좌상단 카테고리 배지+우상단 하트,
-// 그 아래 이름+주소. 원본엔 이름 옆에 별점(★4.0)도 있는데 PlaceListItem엔 rating 필드가 없어서
-// (PlaceDetail에만 있음) 생략 — 없는 데이터를 지어내지 않기 위한 선택(다른 화면들과 동일 원칙)
+// Figma 재실측(2026-09-08, 노드 ID가 334:3255에서 334:3373~334:3392로 바뀐 새 버전 — 이전 실측이
+// 낡은 스냅샷이었음): "장소 카드" 324x316. 사진(324x256, radius20) 위에 반투명 흰 배지(10%)+
+// 하트버튼(10%), 아래 20% 검정 그라디언트로 배지/버튼 대비 확보. 이름(20/Medium)→주소(14/Regular,
+// 둘 다 검정, gap 4). 실측대로면 카드 자체는 배경/그림자가 없지만, 사용자가 "취향 맞춤 코스"
+// 리스트처럼 카드별로 구분되게 해달라고 요청(2026-09-09)해서 흰 카드+그림자를 다시 추가함(styles.card
+// 참고). 원본엔 이름 옆에 별점(★4.0)도 있는데 PlaceListItem엔 rating 필드가 없어서(PlaceDetail에만
+// 있음) 생략 — 없는 데이터를 지어내지 않기 위한 선택(다른 화면들과 동일 원칙, 사용자 확인)
 function PlaceCategoryCard({
   place,
   onPress,
@@ -319,12 +324,14 @@ function PlaceCategoryCard({
         ) : (
           <View style={[styles.cardImage, styles.cardImagePlaceholder]} />
         )}
+        <LinearGradient colors={['transparent', 'rgba(0,0,0,0.2)']} style={StyleSheet.absoluteFill} />
         <View style={styles.categoryBadge}>
           <Text style={styles.categoryBadgeText}>{place.category}</Text>
         </View>
         <TouchableOpacity style={styles.likeButton} onPress={onToggleLike} hitSlop={8}>
-          {/* 찜 안 했을 때는 검정 테두리만, 찜했을 때만 빨갛게 채워짐 — 이전엔 두 상태 다 빨간색으로
-              고정해뒀던 실수 정정(2026-09-07, 스크린샷 대조로 발견) */}
+          {/* 하트 벡터 자체는 Figma에서 색상 실측이 안 돼서(아이콘 컴포넌트 내부 경로 비노출)
+              추정 — 배지/버튼이 사진 위 반투명 흰색이라 대비상 기본은 흰색 테두리, 찜하면 빨강
+              (기존엔 기본이 검정이었는데 사진 위에서 대비가 낮아 흰색으로 정정, 2026-09-08) */}
           <Text style={[styles.likeIcon, place.is_liked && styles.likeIconActive]}>
             {place.is_liked ? '♥' : '♡'}
           </Text>
@@ -336,7 +343,7 @@ function PlaceCategoryCard({
         </Text>
         {place.addr1 && (
           <View style={styles.cardAddrRow}>
-            <LocationPinIcon size={12} />
+            <LocationPinIcon size={16} />
             <Text style={styles.cardAddr} numberOfLines={1}>
               {place.addr1}
             </Text>
@@ -386,13 +393,20 @@ const styles = StyleSheet.create({
     // 패딩(18)이랑 값이 달라서 각자 따로 씀(2026-09-07 재실측 정정)
     paddingHorizontal: 24,
   },
-  // Figma 실측(334:3255 "장소 리스트" 프레임, 좌측 인셋 18) — 20으로 잘못 썼던 걸 정정(2026-09-07)
+  // Figma 실측("장소 리스트" 프레임, 좌측 인셋 18, 2026-09-08 재실측으로도 동일 확인)
   listContent: { paddingHorizontal: 18, paddingBottom: 100 },
   emptyText: { textAlign: 'center', color: colors.gray400, fontFamily: fonts.regular, fontSize: 13, marginTop: 40 },
   footerLoading: { marginVertical: 16 },
+  // Figma 실측대로면 카드 자체는 배경/그림자가 없지만(2026-09-08), 사용자가 "취향 맞춤 코스"
+  // 리스트처럼 카드별로 구분되게 해달라고 요청(2026-09-09) — RecommendedTab/JournalTab과 동일한
+  // 흰 카드+옅은 그림자 패턴 적용. 사진 안쪽 여백/카드 사이 간격이 너무 붙어 보인다는 피드백으로
+  // 패딩(4→10)·카드 간격(20→28) 확대(2026-09-09) 했는데, 이번엔 반대로 너무 헐렁하다는 피드백으로
+  // 카드 간격 28→20으로 다시 축소(2026-09-09). 안쪽 radius는 바깥 radius(20)에서 패딩(10)만큼
+  // 뺀 10으로(JournalTab 카드와 동일한 중첩 규칙)
   card: {
     backgroundColor: colors.white,
-    borderRadius: 16,
+    borderRadius: 20,
+    padding: 10,
     marginBottom: 20,
     shadowColor: '#000',
     shadowOpacity: 0.06,
@@ -403,7 +417,7 @@ const styles = StyleSheet.create({
   cardImageWrap: {
     width: '100%',
     aspectRatio: 324 / 256,
-    borderRadius: 16,
+    borderRadius: 10,
     overflow: 'hidden',
     backgroundColor: colors.border,
   },
@@ -413,12 +427,12 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 12,
     top: 16,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 20,
-    backgroundColor: 'rgba(17,17,17,0.6)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.1)',
   },
-  categoryBadgeText: { fontFamily: fonts.medium, fontSize: 12, color: colors.white },
+  categoryBadgeText: { fontFamily: fonts.medium, fontSize: 14, color: colors.white },
   likeButton: {
     position: 'absolute',
     right: 12,
@@ -426,15 +440,15 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.85)',
+    backgroundColor: 'rgba(255,255,255,0.1)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  likeIcon: { fontSize: 18, color: colors.black },
+  likeIcon: { fontSize: 18, color: colors.white },
   likeIconActive: { color: '#ff4d4d' },
-  cardInfo: { paddingTop: 12, paddingHorizontal: 4 },
-  cardName: { fontFamily: fonts.semiBold, fontSize: 16, letterSpacing: -0.4, color: colors.black },
-  // Figma 실측(334:3255 이름행→주소행 간격 12) — 4로 잘못 썼던 걸 정정(2026-09-07)
-  cardAddrRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 12 },
-  cardAddr: { fontFamily: fonts.regular, fontSize: 12, color: colors.gray500, flexShrink: 1 },
+  // 사진↔이름(paddingTop)·이름↔주소(marginTop) 줄간격도 카드 간격과 같은 이유로 축소(16→12, 8→6)
+  cardInfo: { paddingTop: 12, paddingHorizontal: 6, paddingBottom: 8 },
+  cardName: { fontFamily: fonts.medium, fontSize: 20, color: colors.black },
+  cardAddrRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 },
+  cardAddr: { fontFamily: fonts.regular, fontSize: 14, color: colors.black, flexShrink: 1 },
 });

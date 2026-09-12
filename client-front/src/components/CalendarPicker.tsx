@@ -13,6 +13,11 @@ interface Props {
   value: string; // YYYY-MM-DD. single: 선택된 날짜. range: 시작일(초기값)
   rangeEnd?: string; // range 모드 종료일(초기값)
   minDate?: string; // 이 날짜보다 이전은 선택 비활성화 (YYYY-MM-DD)
+  // 이 날짜보다 이후는 선택 비활성화 (YYYY-MM-DD) — 코스 기록(JournalCourseLogCreateModal)에서
+  // 앞서 고른 기간(tripStart~tripEnd) 밖 날짜를 장소별 방문일로 못 고르게 막는 용도로 추가
+  // (2026-09-12 결정, decision-log 참고). 예전엔 minDate만 있어서 시작일 이전만 막혔고 종료일
+  // 이후는 그대로 골라져서, 코스 기간을 벗어난 날짜가 장소 기록에 들어갈 수 있었음(사용자 리포트)
+  maxDate?: string;
   onClose: () => void;
   onConfirm: (date: string) => void; // single 모드에서만 호출됨
   onConfirmRange?: (start: string, end: string) => void; // range 모드에서만 호출됨
@@ -37,6 +42,7 @@ export function CalendarPicker({
   value,
   rangeEnd,
   minDate,
+  maxDate,
   onClose,
   onConfirm,
   onConfirmRange,
@@ -131,7 +137,7 @@ export function CalendarPicker({
                 {week.map((cell, di) => {
                   if (!cell) return <View key={di} style={styles.dayCell} />;
                   const dateKey = toDateKey(cell.year, cell.month, cell.day);
-                  const disabled = minDate != null && dateKey < minDate;
+                  const disabled = (minDate != null && dateKey < minDate) || (maxDate != null && dateKey > maxDate);
                   const isSelectedSingle = mode === 'single' && dateKey === selected;
                   const inRange = rowInRange[di];
                   const isRangeStartDay = mode === 'range' && dateKey === rangeStart;

@@ -13,6 +13,7 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import * as ImagePicker from 'expo-image-picker';
 import { UserProfile } from '../api/auth';
+import { onboardingApi } from '../api/onboarding';
 import { uploadApi } from '../api/upload';
 import { UserPreferenceTag, userApi } from '../api/user';
 import { tokenStorage } from '../auth/tokenStorage';
@@ -161,7 +162,24 @@ export function ProfileScreen({
   function confirmRetakeOnboarding() {
     Alert.alert('취향을 다시 분석할까요?', '스와이프를 처음부터 다시 진행해요.', [
       { text: '취소', style: 'cancel' },
-      { text: '다시 검사', onPress: onRetakeOnboarding },
+      {
+        text: '다시 검사',
+        onPress: async () => {
+          // onRetakeOnboarding은 has_onboarded를 로컬 state로만 false로 내려서 OnboardingScreen을
+          // 다시 태우는데, 서버의 스와이프 기록/취향 벡터(user_preference)는 그대로 남아있어서
+          // GET /onboarding/next가 여전히 "이미 수렴함"으로 보고 즉시 null을 돌려줬음(실기기 확인,
+          // 2026-09-12) — 그 결과 재검사를 눌러도 카드 한 장 못 보고 "보여드릴 사진이 더 없어요"
+          // 안내만 뜨고 바로 예전 벡터 그대로 완료 처리됨(재검사가 사실상 no-op이었음). 화면
+          // 전환 전에 POST /onboarding/reset을 먼저 호출해서 서버 쪽 기록/벡터를 실제로 비움
+          try {
+            await onboardingApi.reset();
+          } catch (e) {
+            Alert.alert('초기화에 실패했어요', e instanceof Error ? e.message : '알 수 없는 오류');
+            return;
+          }
+          onRetakeOnboarding();
+        },
+      },
     ]);
   }
 
@@ -351,21 +369,28 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   editButtonText: { fontFamily: fonts.medium, fontSize: 12, color: colors.gray700 },
+  // Figma "마이페이지"(598:13735) "사용자 취향 그래프" 텍스트 실측: fontSize 20 / letterSpacing
+  // -0.5(기존 16/-0.4는 실측 없이 넣은 값이라 시안보다 작아 보였음, 2026-09-12 정정)
   sectionTitle: {
     fontFamily: fonts.semiBold,
-    fontSize: 16,
-    letterSpacing: -0.4,
+    fontSize: 20,
+    letterSpacing: -0.5,
     color: colors.black,
     marginTop: 28,
     marginBottom: 12,
   },
+  // RadarChart 기본 size가 220→300으로 커져서(RadarChart.tsx 참고) minHeight도 같이 맞춤
+  // (300 + paddingVertical 24*2 = 348, 여유 둬서 350)
   radarCard: {
     backgroundColor: colors.white,
     borderRadius: 16,
     paddingVertical: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 220,
+    // RadarChart 기본 size 320 + paddingVertical 24*2 = 368, 여유 둬서 370(2026-09-12,
+    // 칠각형을 Figma 실측 비율대로 키우면서 함께 조정 — 카드 자체를 임의로 더 키운 건 아니고
+    // 커진 칠각형이 들어갈 만큼만 세로 여유를 맞춘 것)
+    minHeight: 370,
   },
   radarLoading: { paddingVertical: 40 },
   emptyText: { fontFamily: fonts.regular, fontSize: 13, color: colors.gray400, paddingVertical: 40 },

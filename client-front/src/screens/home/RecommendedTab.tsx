@@ -21,7 +21,6 @@ import { StarRating } from '../../components/StarRating';
 import { colors } from '../../theme/colors';
 import { fonts } from '../../theme/fonts';
 import { PlaceDetailScreen } from '../PlaceDetailScreen';
-import { PublicCourseDetailScreen } from '../PublicCourseDetailScreen';
 
 const GLOBE_SIZE = Dimensions.get('window').width;
 
@@ -36,9 +35,17 @@ const PEEK_HEIGHT = 76;
 const NAV_CLEARANCE = 72;
 const SNAP_THRESHOLD_RATIO = 0.35;
 
+// 코스 "자세히 보기"는 HomeScreen이 전체 화면 overlay로 띄움(2026-09-10 변경, 사용자 지적 —
+// 이 탭 안에서 로컬 state로만 화면을 바꾸면 AppHeader/탭바가 위에 그대로 남아있어서 "팝업"처럼
+// 보임). 개별 장소(PlaceDetailScreen)는 이번 요청 범위가 아니라 기존처럼 로컬 state 유지
+interface Props {
+  onOpenCourseDetail: (courseId: number) => void;
+}
+
 // "취향 맞춤 코스" 탭 리스트 항목 — 코스(여러 장소)와 개별 장소(방문 기록 1건)를 같은 카드
 // 디자인으로 섞어서 보여줌(2026-09-07 결정, decision-log 참고). "선택"/"자세히 보기"의 목적지만
-// 다름 — 코스는 PublicCourseDetailScreen, 장소는 PlaceDetailScreen(관광지 상세)
+// 다름 — 코스는 PublicCourseDetailScreen(HomeScreen이 전체 화면으로 띄움), 장소는
+// PlaceDetailScreen(관광지 상세, 이 탭 로컬 state)
 type RecommendedItem =
   | { kind: 'course'; data: SimilarCourseItem }
   | { kind: 'place'; data: SimilarLogItem };
@@ -66,14 +73,13 @@ interface PreviewPoint {
 //    정적 출발/도착 일러스트 대신 실제 MapView+Polyline/마커로 대체
 // 2. 사진 우상단 하트(좋아요) 버튼: ExploreScreen.tsx가 이미 "방문 기록 좋아요 개념이 스키마에
 //    없음"으로 생략한 선례를 그대로 따름
-export function RecommendedTab() {
+export function RecommendedTab({ onOpenCourseDetail }: Props) {
   const insets = useSafeAreaInsets();
   const [items, setItems] = useState<RecommendedItem[] | null>(null);
   const [containerHeight, setContainerHeight] = useState<number | null>(null);
   const [expanded, setExpanded] = useState(false);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [previewPoints, setPreviewPoints] = useState<PreviewPoint[] | null>(null);
-  const [detailCourseId, setDetailCourseId] = useState<number | null>(null);
   const [detailPlaceId, setDetailPlaceId] = useState<number | null>(null);
 
   const translateY = useRef(new Animated.Value(0)).current;
@@ -136,9 +142,28 @@ export function RecommendedTab() {
 
   const panelHeight = containerHeight != null ? Math.max(0, containerHeight - insets.bottom) : 0;
 
+  // "선택" 누르면 이미 시트가 접혀서(snapTo(false)) 지도가 보이게 되는데, 다시 "자세히 보기"를
+  // 누르려면 그 카드를 찾아 스크롤해야 해서 번거로움 — 선택한 카드를 리스트 맨 앞으로 옮겨서,
+  // 시트가 접힐 때 같이 실행되는 "리스트 맨 위로 스크롤"(snapTo 안의 scrollToOffset)과 맞물려
+  // 접힌 상태에서 보이는 첫 카드가 곧 방금 선택한 카드(이제 "자세히 보기")가 되게 함 — 별도
+  // "자세히 보기" 버튼을 새로 안 만들고 기존 카드를 재사용(2026-09-08 결정, decision-log 참고)
+  function moveSelectedToFront(key: string) {
+    setItems((prev) => {
+      if (!prev) return prev;
+      const idx = prev.findIndex((it) => itemKey(it) === key);
+      if (idx <= 0) return prev;
+      const next = [...prev];
+      const [selected] = next.splice(idx, 1);
+      next.unshift(selected);
+      return next;
+    });
+  }
+
   // "선택"(코스) — 코스 상세(좌표+경로)를 불러와서 지도 미리보기로 바꾸고, 지도가 보이도록 시트를 접음
   async function handleSelectCourse(course: SimilarCourseItem) {
-    setSelectedKey(itemKey({ kind: 'course', data: course }));
+    const key = itemKey({ kind: 'course', data: course });
+    setSelectedKey(key);
+    moveSelectedToFront(key);
     try {
       const detail = await exploreApi.getCourseDetail(course.course_id);
       const pinned = detail.places.filter((p) => p.lat != null && p.lng != null);
@@ -160,7 +185,9 @@ export function RecommendedTab() {
   // "선택"(개별 장소) — 이미 좌표를 들고 있어서(SimilarLogItem.lat/lng) 별도 조회 없이 바로 미리보기.
   // 좌표가 없는 장소면 미리보기만 못 보여줄 뿐 선택 자체는 막지 않음(자세히 보기는 계속 가능)
   function handleSelectPlace(log: SimilarLogItem) {
-    setSelectedKey(itemKey({ kind: 'place', data: log }));
+    const key = itemKey({ kind: 'place', data: log });
+    setSelectedKey(key);
+    moveSelectedToFront(key);
     if (log.lat != null && log.lng != null) {
       setPreviewPoints([{ id: String(log.place_id), lat: log.lat, lng: log.lng, label: log.place_name }]);
     } else {
@@ -169,9 +196,6 @@ export function RecommendedTab() {
     snapTo(false);
   }
 
-  if (detailCourseId != null) {
-    return <PublicCourseDetailScreen courseId={detailCourseId} onExit={() => setDetailCourseId(null)} />;
-  }
   if (detailPlaceId != null) {
     return <PlaceDetailScreen placeId={detailPlaceId} onExit={() => setDetailPlaceId(null)} />;
   }
@@ -207,7 +231,7 @@ export function RecommendedTab() {
                     item.kind === 'course' ? handleSelectCourse(item.data) : handleSelectPlace(item.data)
                   }
                   onViewDetail={() =>
-                    item.kind === 'course' ? setDetailCourseId(item.data.course_id) : setDetailPlaceId(item.data.place_id)
+                    item.kind === 'course' ? onOpenCourseDetail(item.data.course_id) : setDetailPlaceId(item.data.place_id)
                   }
                 />
               )}

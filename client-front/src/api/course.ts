@@ -1,7 +1,9 @@
 import { apiClient } from './client';
 import { SwipeTransport } from './swipe';
 
-export type CourseSource = 'ai' | 'ai_edited' | 'user';
+// liked: "취향 맞춤 코스" 탭에서 다른 사용자의 공개 코스를 하트로 내 스크랩북에 복제 저장한 코스
+// (2026-09-11 추가, ScrapbookScreen.tsx가 이 값으로 "나의 코스"/"여행코스" 탭을 구분함)
+export type CourseSource = 'ai' | 'ai_edited' | 'user' | 'liked';
 
 export interface CoursePlaceItem {
   place_id: number;
@@ -17,12 +19,24 @@ export interface CoursePlaceItem {
   // 여러 날 코스 지원(2026-09-06 결정, decision-log 참고) — 이 장소가 코스의 며칠째 방문지인지.
   // "직접 코스 만들기"에서만 채워짐, AI 코스는 항상 null(단일 날짜 전제)
   visit_date: string | null;
+  // 장소 카드 카테고리 라벨(2026-09-11 추가) — PLACE.category 그대로(관광지/식당/카페/액티비티/
+  // 문화공간/축제행사, PlaceListItem.category와 동일 값). 백엔드가 후보 풀에서 placeId를 못 찾는
+  // 예외적인 경우에만 null
+  category: string | null;
 }
 
 export interface CourseGenerateRequest {
   session_id: string; // POST /swipe/candidates에서 발급받은 세션 ID
   travel_date: string; // YYYY-MM-DD
   transport: SwipeTransport;
+  // 둘 다 없으면 서버가 09:00~21:00으로 폴백(server-back CourseService.DAY_START/DAY_END,
+  // 2026-09-09 추가). end_time이 start_time보다 이르거나 같으면 400(INVALID_COURSE_TIME_RANGE)
+  start_time?: string | null; // HH:mm
+  end_time?: string | null; // HH:mm
+  // 여행 날짜 다중 선택 지원(2026-09-10 추가) — 없으면 travel_date 하루짜리 코스(기존과 동일).
+  // 있으면 travel_date~end_date 날짜마다 AI가 따로 코스를 짜서 이어붙임(장소 중복 없음).
+  // end_date가 travel_date보다 이르면 400(INVALID_COURSE_DATE_RANGE)
+  end_date?: string | null; // YYYY-MM-DD
 }
 
 export interface CourseCandidate {
@@ -52,6 +66,9 @@ export interface CourseSaveRequest {
   candidate_id?: string | null; // /courses/generate 결과를 그대로 저장할 때 사용
   title: string;
   travel_date?: string | null;
+  // 여러 날 AI 코스 저장 지원(2026-09-10 추가) — /courses/generate에 end_date를 줘서 만든 여러 날
+  // 코스를 그대로 저장할 때 사용(CourseManualRequest.end_date와 동일 규칙)
+  end_date?: string | null;
   transport?: SwipeTransport | null; // 없으면 조회 시 walk 기본값으로 경로 재계산
   source: CourseSource;
   places: CoursePlaceRequest[];

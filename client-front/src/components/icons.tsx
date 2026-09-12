@@ -1,5 +1,5 @@
-import { StyleSheet, Text, View } from 'react-native';
-import Svg, { Path } from 'react-native-svg';
+import { Image, StyleSheet, Text, View } from 'react-native';
+import Svg, { Circle, Line, Path } from 'react-native-svg';
 import { colors } from '../theme/colors';
 
 // HomeScreen.tsx에 있던 걸 AppHeader.tsx(마이페이지 등 다른 화면에서도 같은 헤더 재사용)와
@@ -115,45 +115,21 @@ const cameraIconStyles = StyleSheet.create({
   lens: { width: 5, height: 5, borderRadius: 2.5, borderWidth: 1.2, borderColor: colors.black },
 });
 
-// Figma "돋보기"(225:24476, 검색창 안 20x20 / 메인 GNB 28x28 두 크기로 재사용) 실측 벡터 bbox
-// 그대로 재현(2026-09-07 추가/정밀화) — 원(렌즈) bbox: 10.83x10.83@(3.33,3.33)/20,
-// 손잡이 bbox: 4.17x4.17@(12.5,12.5)/20. 손잡이는 회전된 사각형이라 bbox만으론 실제 폭을
-// 못 구해서(45도 회전 시 bbox변 = (W+H)*cos45) 역산: W = 4.17/cos45 - strokeWidth ≈ 3.9.
-// 다른 아이콘들과 다르게 size를 prop으로 받아야 해서(검색창/헤더 두 곳에서 다른 크기로 씀)
-// StyleSheet 대신 인라인 스타일 사용
+// Figma "돋보기"(354:1610/I354:1610;225:23656 인스턴스, export_node_as_image로 실물 렌더 확인,
+// 2026-09-09 재작업) — 이전엔 View(원 테두리+회전된 막대)로 근사했는데, 회전된 막대를 top/left로
+// 배치한 뒤 transform:rotate를 걸면 RN이 막대 "자기 자신의 중심"을 기준으로 회전시켜서, 의도했던
+// 손잡이 중심(14.585,14.585)이 아니라 그보다 오른쪽 아래로 밀린 지점을 중심으로 회전하는 버그가
+// 있었음 — 그래서 손잡이가 원 테두리에 자연스럽게 안 붙고 살짝 어긋나 보였음(사용자가 "피그마
+// 모양이랑 다르다"고 리포트한 원인). 이번엔 react-native-svg(다른 아이콘들과 동일 라이브러리)의
+// Circle+Line으로 좌표를 직접 계산해서 그려 이 문제 자체를 없앰 — 원(렌즈)/손잡이 치수는 기존에
+// 실측해뒀던 값 그대로 재사용(원 bbox 10.83x10.83@(3.33,3.33)/20, 손잡이 실제 길이 역산값 3.9,
+// 손잡이 중심 14.585/20 — 주석은 그대로 두고 좌표만 SVG용으로 환산)
 export function SearchIcon({ size = 20, color = colors.black }: { size?: number; color?: string }) {
-  const circleSize = size * 0.5415; // 10.83/20
-  const strokeWidth = Math.max(1.4, size * 0.1);
-  const circleOffset = size * 0.1665; // 3.33/20
-  const handleLength = size * 0.195; // 역산한 손잡이 실제 폭(3.9/20)
-  const handlePos = size * 0.632; // 손잡이 bbox 중심(14.585/20) 기준 역산한 회전 전 좌상단
   return (
-    <View style={{ width: size, height: size }}>
-      <View
-        style={{
-          position: 'absolute',
-          top: circleOffset,
-          left: circleOffset,
-          width: circleSize,
-          height: circleSize,
-          borderRadius: circleSize / 2,
-          borderWidth: strokeWidth,
-          borderColor: color,
-        }}
-      />
-      <View
-        style={{
-          position: 'absolute',
-          top: handlePos,
-          left: handlePos,
-          width: handleLength,
-          height: strokeWidth,
-          borderRadius: strokeWidth / 2,
-          backgroundColor: color,
-          transform: [{ rotate: '45deg' }],
-        }}
-      />
-    </View>
+    <Svg width={size} height={size} viewBox="0 0 20 20" fill="none">
+      <Circle cx={8.745} cy={8.745} r={5.415} stroke={color} strokeWidth={2} />
+      <Line x1={13.206} y1={13.206} x2={15.964} y2={15.964} stroke={color} strokeWidth={2} strokeLinecap="round" />
+    </Svg>
   );
 }
 
@@ -197,5 +173,181 @@ export function CircleCloseIcon({ size = 20 }: { size?: number }) {
     >
       <Text style={{ fontSize: size * 0.55, lineHeight: size * 0.62, color: colors.gray700 }}>×</Text>
     </View>
+  );
+}
+
+// 관광지 상세 페이지 헤더의 북마크(찜) 버튼 — Figma 아이콘 컴포넌트 내부 벡터까지는 실측이 안 돼서
+// (아이콘 export가 이 세션에서 안 됨) 흔한 리본형 북마크 모양으로 근사(2026-09-09 추가).
+// filled=true면 찜한 상태(채워짐), false면 테두리만
+export function BookmarkIcon({ size = 24, color = colors.black, filled = false }: { size?: number; color?: string; filled?: boolean }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M6 4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16l-6-4-6 4V4Z"
+        fill={filled ? color : 'none'}
+        stroke={color}
+        strokeWidth={1.8}
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
+// 관광지 상세 페이지 이름 옆 찜(하트) 버튼 — 기존엔 유니코드 글리프(♥/♡)를 Text로 그려서 Figma의
+// 둥근 하트 벡터(354:4731 "heart" 인스턴스, export로 확인)와 모양이 많이 달랐음(글리프는 끝이 뾰족한
+// 좁은 하트, 시안은 위쪽 둘레가 훨씬 둥글고 통통함) — react-native-svg로 직접 그려서 교체(2026-09-09).
+// 인스턴스 내부 벡터 path 자체는 export가 PNG/PNG형 SVG만 내려줘서 실측 불가 — 흔히 쓰이는 하트
+// path(Feather 아이콘 세트 등)로 근사, export 이미지와 비교해 비율 확인함. filled=true면 찜한 상태
+// (StreetTab 카드 하트와 동일하게 red #ff4d4d로 채움 — 앱이 흑백 톤이지만 찜만 유일하게 색을 씀,
+// 이미 있던 패턴)
+export function HeartIcon({ size = 24, color = colors.black, filled = false }: { size?: number; color?: string; filled?: boolean }) {
+  const fillColor = filled ? '#ff4d4d' : 'none';
+  const strokeColor = filled ? '#ff4d4d' : color;
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78Z"
+        fill={fillColor}
+        stroke={strokeColor}
+        strokeWidth={1.6}
+        strokeLinejoin="round"
+        strokeLinecap="round"
+      />
+    </Svg>
+  );
+}
+
+// 장소 리스트 행 왼쪽 아이콘("location" 인스턴스) — 링 구멍이 있는 아웃라인 핀. CourseDetailScreen
+// "직접 일정 만들기-기본화면"(501:12088)에서 처음 만들 때 export가 PNG만 내려줘서 실측 불가라
+// Lucide "map-pin"(radius 8)으로 근사(2026-09-09). "AI 일정 만들기-화면"(510:11285) export 이미지를
+// 다시 확인해보니 원이 더 둥글고 커서(사용자 지적, 2026-09-11) radius 9짜리 더 둥근 변형(Feather
+// "map-pin")으로 교체 — 두 시안 다 같은 아이콘을 쓰는 걸로 보여서 공용 컴포넌트 전체를 정정
+export function MapPinOutlineIcon({ size = 18, color = colors.gray500 }: { size?: number; color?: string }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0Z"
+        stroke={color}
+        strokeWidth={1.8}
+        strokeLinejoin="round"
+      />
+      <Circle cx={12} cy={10} r={3} stroke={color} strokeWidth={1.8} />
+    </Svg>
+  );
+}
+
+// 같은 화면의 "이전 장소에서 X km" 아이콘("navigation-map" 인스턴스) — 핀+구불구불한 길.
+// 손으로 그린 SVG 근사가 계속 어긋나서(2026-09-09→2026-09-11 세 번 시도) 사용자가 Figma에서 직접
+// PNG로 내보내준 실제 에셋(navigation-map_x4.png, 72x72 = 18px 기준 4x)을 그대로 씀 — 더 이상 근사
+// 안 함. tintColor로 색상만 앱 테마에 맞춤(원본이 이미 무채색 회색이라 큰 차이는 없음)
+export function DistanceIcon({ size = 18, color = colors.gray500 }: { size?: number; color?: string }) {
+  return (
+    <Image
+      source={require('../../assets/images/distance-icon.png')}
+      style={{ width: size, height: size, tintColor: color }}
+      resizeMode="contain"
+    />
+  );
+}
+
+// 같은 화면의 "약 N분" 아이콘("Run" 인스턴스) — 뛰는 사람. 손으로 그린 SVG 근사가 계속 어긋나서
+// (2026-09-09→2026-09-11 세 번 시도, 마지막엔 팔다리가 한 점에서 뻗어나가 사람 형태를 거의 못
+// 알아볼 정도) 사용자가 Figma에서 직접 PNG로 내보내준 실제 에셋(Run_x4.png, 72x72 = 18px 기준 4x)을
+// 그대로 씀 — DistanceIcon과 동일한 이유
+export function WalkIcon({ size = 18, color = colors.gray500 }: { size?: number; color?: string }) {
+  return (
+    <Image
+      source={require('../../assets/images/walk-icon.png')}
+      style={{ width: size, height: size, tintColor: color }}
+      resizeMode="contain"
+    />
+  );
+}
+
+// "AI로 코스 만들기" 세부사항 화면(691:12580/691:12626, 시작/종료시간 인풋 우측) — 흔히 쓰이는
+// 시계 아이콘(원+짧은/긴 바늘)으로 근사(2026-09-09)
+export function ClockIcon({ size = 20, color = colors.gray500 }: { size?: number; color?: string }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Circle cx={12} cy={12} r={9} stroke={color} strokeWidth={1.8} />
+      <Path d="M12 7v5l3.5 2" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+
+// 같은 화면의 "이동수단" 셀렉트박스 화살표("화살표_아래" 인스턴스) — ChevronRightIcon과 같은
+// 테두리 회전 기법, 아래를 가리키게 각도만 다르게 함. open=true면 위로 뒤집음(펼친 상태 표시)
+export function ChevronDownIcon({ size = 16, color = colors.gray500, open = false }: { size?: number; color?: string; open?: boolean }) {
+  return (
+    <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+      <View
+        style={{
+          width: size * 0.35,
+          height: size * 0.35,
+          borderBottomWidth: 1.5,
+          borderRightWidth: 1.5,
+          borderColor: color,
+          transform: [{ rotate: open ? '225deg' : '45deg' }],
+          marginTop: open ? size * 0.15 : -size * 0.15,
+        }}
+      />
+    </View>
+  );
+}
+
+// "메인 페이지-나의 일지-기록하기"(593:12613) 제목 옆 연필 — 원래 "✏️" 이모지로 임시 대체돼있던
+// 자리(JournalLogCreateModal.tsx 참고)를 사용자가 준 이미지로 바꿔달라는 요청(2026-09-12)이 있었는데,
+// 첨부 이미지가 파일로 전달되지 않아(세션에서 경로를 못 찾음) 정확히 그 에셋을 못 쓰고 대신 표준
+// 연필/편집 아이콘(Feather "edit-2" 형태)으로 근사함 — DistanceIcon처럼 실제 파일을 주시면
+// <Image source={require(...)}>로 그대로 교체 가능
+export function PencilIcon({ size = 16, color = colors.black }: { size?: number; color?: string }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"
+        stroke={color}
+        strokeWidth={1.8}
+        strokeLinejoin="round"
+        strokeLinecap="round"
+      />
+    </Svg>
+  );
+}
+
+// "나의 일지" 카드 하단 뱃지 바(📅/📍/☁️ 이모지)를 사용자가 준 실제 아이콘 파일로 교체
+// (2026-09-12, JournalTab.tsx cardBadgeIcon 참고) — PencilIcon 때와 달리 이번엔 파일이 실제로
+// 저장돼있는 걸 찾아서(~/AjouUniv/.../달력.png, 위치.png, cloud-fog.png) DistanceIcon/WalkIcon과
+// 동일한 방식(Figma 에셋 원본을 그대로 쓰고 tintColor로만 앱 톤에 맞춤)으로 넣음.
+// 기본 size 12(뱃지 텍스트 fontSize와 동일값)로 처음 넣었더니 실기기에서 텍스트보다 눈에 띄게
+// 작아 보임(사용자 리포트, 2026-09-12) — PNG 원본이 40x40 캔버스 안에 여백을 두고 그려져 있어서
+// (PIL로 확인: calendar/location은 75%, cloud는 80%만 채움) size를 텍스트 fontSize와 똑같이
+// 맞춰도 실제 렌더 크기(=size*채움비율)는 더 작았던 것 — size를 16으로 올려서 보정
+export function JournalCalendarIcon({ size = 16, color = colors.gray500 }: { size?: number; color?: string }) {
+  return (
+    <Image
+      source={require('../../assets/images/calendar-icon.png')}
+      style={{ width: size, height: size, tintColor: color }}
+      resizeMode="contain"
+    />
+  );
+}
+
+export function JournalLocationIcon({ size = 16, color = colors.gray500 }: { size?: number; color?: string }) {
+  return (
+    <Image
+      source={require('../../assets/images/location-icon.png')}
+      style={{ width: size, height: size, tintColor: color }}
+      resizeMode="contain"
+    />
+  );
+}
+
+export function JournalCloudIcon({ size = 16, color = colors.gray500 }: { size?: number; color?: string }) {
+  return (
+    <Image
+      source={require('../../assets/images/cloud-icon.png')}
+      style={{ width: size, height: size, tintColor: color }}
+      resizeMode="contain"
+    />
   );
 }

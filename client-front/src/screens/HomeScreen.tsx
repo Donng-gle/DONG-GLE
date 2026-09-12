@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Dimensions, Image, Modal, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Animated, Dimensions, Image, Modal, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { UserProfile, authApi } from '../api/auth';
@@ -16,12 +16,11 @@ import { CourseManualBuilderScreen } from './CourseManualBuilderScreen';
 import { EventsScreen } from './EventsScreen';
 import { ExploreScreen } from './ExploreScreen';
 import { MyLogsScreen } from './MyLogsScreen';
-import { NotificationSettingsScreen } from './NotificationSettingsScreen';
 import { PlaceListScreen } from './PlaceListScreen';
 import { ProfileScreen } from './ProfileScreen';
+import { PublicCourseDetailScreen } from './PublicCourseDetailScreen';
 import { ScrapbookScreen } from './ScrapbookScreen';
 import { SearchScreen } from './SearchScreen';
-import { TagsScreen } from './TagsScreen';
 
 interface Props {
   profile: UserProfile | null; // null = 게스트 모드
@@ -45,7 +44,6 @@ type Overlay =
   | 'my-logs'
   | 'events'
   | 'explore'
-  | 'tags'
   | 'notifications'
   | 'profile';
 
@@ -82,8 +80,12 @@ const DRAWER_SECTIONS: { title: string; items: { key: Overlay; label: string; au
   {
     title: '설정',
     items: [
-      { key: 'tags', label: '감성 태그 안내' },
-      { key: 'notifications', label: '알림 설정', authRequired: true },
+      // 실제 푸시 발송(fcm_token/expo-notifications)이 아직 미도입이라(api/user.ts 참고) 화면을
+      // 열어봤자 설정값만 저장되고 아무 효과가 없음 — 오해 방지를 위해 로그인 여부와 무관하게
+      // "준비 중" 안내만 띄우도록 함(2026-09-12, 사용자 요청). NotificationSettingsScreen 자체는
+      // 지우지 않고 남겨둠 — 푸시 연동되면 이 authRequired만 되돌리고 handleDrawerItemPress의
+      // 분기만 제거하면 바로 재사용 가능
+      { key: 'notifications', label: '알림 설정', authRequired: false },
     ],
   },
 ];
@@ -110,16 +112,22 @@ export function HomeScreen({ profile: initialProfile, onLogout, onRequireLogin, 
   // 유니온과 별개의 boolean 상태
   const [searchVisible, setSearchVisible] = useState(false);
   const [overlay, setOverlay] = useState<Overlay | null>(null);
+  // "취향 맞춤 코스" 탭 "자세히 보기"(RecommendedTab) — overlay 유니온과 별개로 둔 이유는 courseId를
+  // 실어야 해서(2026-09-10 추가, 사용자 지적 — 예전엔 RecommendedTab 로컬 state로만 화면을 바꿔서
+  // AppHeader/탭바가 위에 그대로 남아있는 "팝업"처럼 보였음. course-manual과 동일하게 여기서 전체
+  // 화면으로 띄움)
+  const [courseDetailId, setCourseDetailId] = useState<number | null>(null);
   const [profile, setProfile] = useState(initialProfile);
   const drawerAnim = useRef(new Animated.Value(0)).current;
 
-  async function handleLogout() {
-    try {
-      await authApi.logout();
-    } finally {
-      await tokenStorage.clear();
-      onLogout();
-    }
+  // 서버 로그아웃 호출(authApi.logout)이 느리거나 응답이 없으면 이 함수가 await에 걸려서
+  // "로그아웃 버튼을 눌러도 아무 반응이 없는" 것처럼 보였음(2026-09-12, 사용자 리포트) — 클라이언트
+  // 로그아웃(토큰 삭제+화면 전환)은 서버 응답을 기다릴 이유가 없으므로 먼저 즉시 처리하고, 서버
+  // 쪽 로그아웃(리프레시 토큰 폐기 등)은 best-effort로 백그라운드에서 시도만 함
+  function handleLogout() {
+    onLogout();
+    tokenStorage.clear().catch(() => {});
+    authApi.logout().catch(() => {});
   }
 
   function openDrawer() {
@@ -152,6 +160,11 @@ export function HomeScreen({ profile: initialProfile, onLogout, onRequireLogin, 
   }
 
   function handleDrawerItemPress(item: { key: Overlay; authRequired?: boolean }) {
+    if (item.key === 'notifications') {
+      setDrawerVisible(false);
+      Alert.alert('준비 중인 기능이에요', '알림 설정은 아직 지원하지 않아요.');
+      return;
+    }
     if (item.authRequired && !profile) {
       requireLogin();
       return;
@@ -165,9 +178,30 @@ export function HomeScreen({ profile: initialProfile, onLogout, onRequireLogin, 
   const openCreateAI = () => handleDrawerItemPress({ key: 'course-flow', authRequired: true });
   const openProfile = () => (profile ? openOverlay('profile') : requireLogin());
 
+  if (courseDetailId != null) {
+    return (
+      <PublicCourseDetailScreen
+        courseId={courseDetailId}
+        onExit={() => setCourseDetailId(null)}
+        onCreateManual={openCreateManual}
+        onCreateAI={openCreateAI}
+        onProfile={openProfile}
+      />
+    );
+  }
+
   switch (overlay) {
     case 'course-flow':
-      return <CourseFlowScreen onExit={closeOverlay} />;
+      // course-manual과 동일하게 결과 화면의 FloatingNav용으로 전달(2026-09-10, CourseResultScreen
+      // Figma 실측 반영 참고)
+      return (
+        <CourseFlowScreen
+          onExit={closeOverlay}
+          onCreateManual={openCreateManual}
+          onCreateAI={openCreateAI}
+          onProfile={openProfile}
+        />
+      );
     case 'course-manual':
       // Figma 501:12543/501:12088 반영(2026-09-06) 후 이 화면도 FloatingNav를 직접 그려서
       // ScrapbookScreen/ProfileScreen과 동일하게 openCreateManual/openCreateAI/openProfile 전달
@@ -197,10 +231,6 @@ export function HomeScreen({ profile: initialProfile, onLogout, onRequireLogin, 
       return <EventsScreen onExit={closeOverlay} />;
     case 'explore':
       return <ExploreScreen onExit={closeOverlay} />;
-    case 'tags':
-      return <TagsScreen onExit={closeOverlay} />;
-    case 'notifications':
-      return <NotificationSettingsScreen onExit={closeOverlay} />;
     case 'profile':
       // openOverlay('profile')은 profile이 있을 때만 호출되지만(헤더 아이콘 핸들러 참고)
       // profile 상태 자체는 null일 수 있는 타입이라 방어적으로 한 번 더 확인
@@ -245,7 +275,7 @@ export function HomeScreen({ profile: initialProfile, onLogout, onRequireLogin, 
           ))}
         {tab === 'recommended' &&
           (profile ? (
-            <RecommendedTab />
+            <RecommendedTab onOpenCourseDetail={setCourseDetailId} />
           ) : (
             <GuestPrompt message="로그인하면 내 취향과 비슷한 다른 사람의 여행 기록을 볼 수 있어요" onLogin={requireLogin} />
           ))}

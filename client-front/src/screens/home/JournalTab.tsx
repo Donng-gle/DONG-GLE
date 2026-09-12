@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Animated,
   Dimensions,
   FlatList,
   Image,
+  Modal,
   PanResponder,
   ScrollView,
   StyleSheet,
@@ -15,9 +16,11 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { VisitLogMapItem, visitLogApi } from '../../api/visitLog';
 import { AndongGlobe } from '../../components/AndongGlobe';
-import { PlusIcon } from '../../components/icons';
+import { ChoiceBottomSheet, ChoiceOption } from '../../components/ChoiceBottomSheet';
+import { JournalCalendarIcon, JournalCloudIcon, JournalLocationIcon, PlusIcon } from '../../components/icons';
 import { colors } from '../../theme/colors';
 import { fonts } from '../../theme/fonts';
+import { JournalCourseLogCreateModal } from '../JournalCourseLogCreateModal';
 import { JournalLogCreateModal } from '../JournalLogCreateModal';
 
 const GLOBE_SIZE = Dimensions.get('window').width;
@@ -40,6 +43,38 @@ const SNAP_THRESHOLD_RATIO = 0.35;
 
 interface Props {
   onOpenLogs: () => void;
+}
+
+// 같은 course_id를 가진 기록들을 하나의 "코스 카드"로 묶어서 보여줌(2026-09-08 결정, decision-log
+// 참고). course_id가 없는 기록은 기존과 동일하게 장소 카드 하나로. 그룹의 위치는 그 코스의 첫
+// 기록이 나온 자리를 그대로 씀(=서버가 준 순서 유지, 별도 재정렬 안 함)
+type JournalEntry =
+  | { kind: 'place'; log: VisitLogMapItem }
+  | { kind: 'course'; courseId: number; courseTitle: string; logs: VisitLogMapItem[] };
+
+function groupLogsIntoEntries(logs: VisitLogMapItem[]): JournalEntry[] {
+  const entries: JournalEntry[] = [];
+  const courseIndexById = new Map<number, number>(); // courseId -> entries 배열 내 인덱스
+
+  for (const log of logs) {
+    if (log.course_id == null) {
+      entries.push({ kind: 'place', log });
+      continue;
+    }
+    const existingIndex = courseIndexById.get(log.course_id);
+    if (existingIndex == null) {
+      courseIndexById.set(log.course_id, entries.length);
+      entries.push({ kind: 'course', courseId: log.course_id, courseTitle: log.course_title ?? '코스 기록', logs: [log] });
+    } else {
+      const entry = entries[existingIndex];
+      if (entry.kind === 'course') entry.logs.push(log);
+    }
+  }
+  return entries;
+}
+
+function entryKey(entry: JournalEntry): string {
+  return entry.kind === 'place' ? `place-${entry.log.id}` : `course-${entry.courseId}`;
 }
 
 // Figma 노드 506:11115("메인 페이지-나의 일지"). 상단 안동 지구본(장식, 드래그로 회전) 위에
@@ -71,8 +106,26 @@ export function JournalTab(_props: Props) {
   const translateYRef = useRef(0);
   const dragBaseValue = useRef(0);
   const maxTranslate = useRef(0);
-  const listRef = useRef<FlatList<VisitLogMapItem>>(null);
+  const listRef = useRef<FlatList<JournalEntry>>(null);
   const [createVisible, setCreateVisible] = useState(false);
+  const [courseCreateVisible, setCourseCreateVisible] = useState(false);
+  const [addChoiceVisible, setAddChoiceVisible] = useState(false);
+  // 카드 탭 → 수정/삭제. 기존엔 드로어 "방문 기록"(MyLogsScreen, 구버전 임시 화면)에서만 이 기능이
+  // 연결돼 있었고 정작 이 "나의 일지" 탭 카드는 눌러도 아무 반응이 없었음(2026-09-12 1차 리포트) —
+  // 처음엔 별도 LogEditScreen(디자인 없는 임시 화면)으로 연결했다가, 새 디자인을 만들지 않고
+  // "기록하기" 프레임(JournalLogCreateModal, Figma 593:12613)을 그대로 재사용해 "수정" 모드로
+  // 동작하도록 정정(2026-09-12 2차 요청) — 아래 JournalLogCreateModal에 editLog로 그대로 넘김
+  const [selectedLog, setSelectedLog] = useState<VisitLogMapItem | null>(null);
+
+  const entries = useMemo(() => groupLogsIntoEntries(logs ?? []), [logs]);
+
+  // "+"를 누르면 장소 하나만 기록할지, 여러 장소를 코스로 묶어 기록할지 먼저 고르게 함
+  // (2026-09-08 결정, decision-log 참고) — FloatingNav의 "일정 생성" 바텀시트(601:15506)와
+  // 같은 모양을 ChoiceBottomSheet로 재사용
+  const addChoiceOptions: ChoiceOption[] = [
+    { label: '장소 기록', onPress: () => setCreateVisible(true) },
+    { label: '코스 작성', onPress: () => setCourseCreateVisible(true) },
+  ];
 
   function loadLogs() {
     visitLogApi
@@ -157,31 +210,67 @@ export function JournalTab(_props: Props) {
                 {/* "+"는 탭이라 PanResponder(handleArea 전체에 걸려있음)와 겹치는데, RN 터치
                     협상은 가장 안쪽(TouchableOpacity)이 먼저 응답자가 될 기회를 가져서(캡처
                     단계 핸들러를 안 쓰는 한) 드래그와 안 충돌함(2026-09-05 실기기 확인) */}
-                <TouchableOpacity onPress={() => setCreateVisible(true)} hitSlop={8}>
+                <TouchableOpacity onPress={() => setAddChoiceVisible(true)} hitSlop={8}>
                   <PlusIcon />
                 </TouchableOpacity>
               </View>
             </View>
             <FlatList
               ref={listRef}
-              data={logs ?? []}
-              keyExtractor={(item) => String(item.id)}
+              data={entries}
+              keyExtractor={entryKey}
               scrollEnabled={expanded}
               showsVerticalScrollIndicator={false}
               contentContainerStyle={styles.listContent}
               ListEmptyComponent={
                 logs != null ? <Text style={styles.emptyText}>아직 방문 기록이 없어요.</Text> : null
               }
-              renderItem={({ item }) => <JournalLogCard log={item} />}
+              renderItem={({ item }) =>
+                item.kind === 'place' ? (
+                  <JournalLogCard log={item.log} onPress={() => setSelectedLog(item.log)} />
+                ) : (
+                  <JournalCourseCard
+                    courseTitle={item.courseTitle}
+                    logs={item.logs}
+                    onPressLog={setSelectedLog}
+                  />
+                )
+              }
             />
           </Animated.View>
         </View>
       )}
 
+      <ChoiceBottomSheet
+        visible={addChoiceVisible}
+        label="기록하기"
+        options={addChoiceOptions}
+        onClose={() => setAddChoiceVisible(false)}
+      />
       <JournalLogCreateModal
         visible={createVisible}
         onClose={() => setCreateVisible(false)}
         onCreated={loadLogs}
+      />
+      <JournalCourseLogCreateModal
+        visible={courseCreateVisible}
+        onClose={() => setCourseCreateVisible(false)}
+        onCreated={loadLogs}
+      />
+      {/* JournalLogCreateModal 자체가 내부에 <Modal>을 이미 갖고 있어서 여기서 또 감쌀 필요 없음 */}
+      <JournalLogCreateModal
+        visible={selectedLog != null}
+        editLog={selectedLog ?? undefined}
+        onClose={() => setSelectedLog(null)}
+        onCreated={loadLogs}
+        onUpdated={() => {
+          setSelectedLog(null);
+          loadLogs();
+        }}
+        onDeleted={() => {
+          setSelectedLog(null);
+          loadLogs();
+        }}
       />
     </View>
   );
@@ -192,14 +281,14 @@ export function JournalTab(_props: Props) {
 // one_line(한줄리뷰)을 그 아래 설명 자리에 대신 씀. 시안 뱃지 3개(날짜/장소/날씨) 중 날씨는
 // DB에 데이터가 없어서 계속 생략(사용자 확인) — 날짜/장소 2개만 하나의 회색 바 안에 표시.
 // 별점(rating)은 시안에 아예 없는 요소라 이 카드에선 제외(장소 상세 등 다른 화면에서 계속 노출).
-function JournalLogCard({ log }: { log: VisitLogMapItem }) {
+function JournalLogCard({ log, onPress }: { log: VisitLogMapItem; onPress: () => void }) {
   // 사진별 캡션 지원(2026-09-07 결정, decision-log 참고)으로 photo_urls(문자열 배열)에서
   // photos({url,caption}[])로 바뀜 — 나의 일지 카드는 캡션을 안 쓰고 계속 one_line만 표시(장소
   // 상세 리뷰와 동일한 경계 판단)이라 url만 꺼내서 씀
   const photos = log.photos;
   const [activePhoto, setActivePhoto] = useState(0);
   return (
-    <View style={styles.card}>
+    <TouchableOpacity activeOpacity={0.8} onPress={onPress} style={styles.card}>
       {photos.length > 0 && (
         <ScrollView
           horizontal
@@ -239,20 +328,67 @@ function JournalLogCard({ log }: { log: VisitLogMapItem }) {
       </View>
       <View style={styles.cardBadgeBar}>
         <View style={styles.cardBadgeItem}>
-          <Text style={styles.cardBadgeIcon}>📅</Text>
+          <JournalCalendarIcon size={16} color={colors.gray500} />
           <Text style={styles.cardBadgeText}>{formatVisitDay(log.visited_at)}</Text>
         </View>
         <View style={styles.cardBadgeItem}>
-          <Text style={styles.cardBadgeIcon}>📍</Text>
+          <JournalLocationIcon size={16} color={colors.gray500} />
           <Text style={styles.cardBadgeText}>{log.place_name}</Text>
         </View>
         {/* weather도 title과 같이 2026-09-05 추가 — 옛 기록엔 없을 수 있어서 있을 때만 표시 */}
         {log.weather && (
           <View style={styles.cardBadgeItem}>
-            <Text style={styles.cardBadgeIcon}>☁️</Text>
+            <JournalCloudIcon size={16} color={colors.gray500} />
             <Text style={styles.cardBadgeText}>{log.weather}</Text>
           </View>
         )}
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+// 같은 course_id로 묶인 기록들(장소 2개 이상)을 하나의 카드로 — Figma 시안이 없어서(2026-09-08
+// 결정, decision-log 참고) JournalLogCard와 같은 카드 셸(흰 배경+그림자)만 재사용하고, 사진 영역은
+// 장소마다 작은 썸네일을 가로로 나열하는 방식으로 임시 구현. 나중에 디자인 나오면 교체 예정
+function JournalCourseCard({
+  courseTitle,
+  logs,
+  onPressLog,
+}: {
+  courseTitle: string;
+  logs: VisitLogMapItem[];
+  onPressLog: (log: VisitLogMapItem) => void;
+}) {
+  return (
+    <View style={styles.card}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.courseThumbRow}>
+        {logs.map((log) => (
+          // 코스 카드는 장소 여러 개가 한 카드에 묶여있어서(카드 하나=코스) 카드 전체를 누르면
+          // "어느 장소를 수정할지" 모호함 — 장소별 썸네일 각각을 눌러서 그 장소의 기록만 열게 함
+          <TouchableOpacity key={log.id} style={styles.courseThumbItem} onPress={() => onPressLog(log)}>
+            {log.photos[0] ? (
+              <Image source={{ uri: log.photos[0].url }} style={styles.courseThumbImage} resizeMode="cover" />
+            ) : (
+              <View style={[styles.courseThumbImage, styles.courseThumbPlaceholder]} />
+            )}
+            <Text style={styles.courseThumbLabel} numberOfLines={1}>
+              {log.place_name}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+      <View style={styles.cardTextArea}>
+        <Text style={styles.cardTitle}>{courseTitle}</Text>
+      </View>
+      <View style={styles.cardBadgeBar}>
+        <View style={styles.cardBadgeItem}>
+          <JournalCalendarIcon size={16} color={colors.gray500} />
+          <Text style={styles.cardBadgeText}>{formatVisitDay(logs[0].visited_at)}</Text>
+        </View>
+        <View style={styles.cardBadgeItem}>
+          <JournalLocationIcon size={16} color={colors.gray500} />
+          <Text style={styles.cardBadgeText}>장소 {logs.length}곳</Text>
+        </View>
       </View>
     </View>
   );
@@ -349,6 +485,12 @@ const styles = StyleSheet.create({
   },
   cardDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: 'rgba(0,0,0,0.2)' },
   cardDotActive: { width: 20, backgroundColor: colors.black },
+  // 코스 카드(JournalCourseCard) 전용 — 장소별 작은 썸네일을 가로로 나열(디자인 미반영 임시 레이아웃)
+  courseThumbRow: { gap: 8, paddingHorizontal: 8, paddingTop: 8 },
+  courseThumbItem: { width: 88, alignItems: 'center' },
+  courseThumbImage: { width: 88, height: 88, borderRadius: 12, backgroundColor: colors.border },
+  courseThumbPlaceholder: { backgroundColor: colors.border },
+  courseThumbLabel: { fontFamily: fonts.regular, fontSize: 11, color: colors.gray500, marginTop: 4, maxWidth: 88 },
   cardTextArea: { paddingHorizontal: 12 },
   cardTitle: {
     fontFamily: fonts.semiBold,
@@ -382,6 +524,5 @@ const styles = StyleSheet.create({
     marginHorizontal: 8,
   },
   cardBadgeItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  cardBadgeIcon: { fontSize: 12 },
   cardBadgeText: { fontFamily: fonts.regular, fontSize: 12, color: colors.gray500 },
 });

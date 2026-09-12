@@ -28,12 +28,19 @@ export interface VisitLogUpdateRequest {
   // 생략하면 기존 값 유지 (server VisitLogUpdateRequest.kt 참고)
   rating?: number;
   visited_at?: string;
+  // 사진/장소 수정 지원(2026-09-12 추가, server 동일 날짜 커밋 참고). photos는 부분 수정이 아니라
+  // "보낸 목록으로 완전히 교체" — 생략하면 기존 사진 유지, 빈 배열([])을 보내면 전부 삭제
+  photos?: { url: string; caption?: string }[];
+  place_id?: number;
 }
 
 export interface VisitLogDetail {
   id: number;
   place_id: number;
   place_name: string;
+  // 코스 단위 기록(장소 2개 이상)일 때만 값 있음 (2026-09-08 추가, decision-log 참고)
+  course_id: number | null;
+  course_title: string | null;
   photos: VisitLogPhoto[]; // 여러 장 지원(2026-09-06)+사진별 캡션(2026-09-07, decision-log 참고). 없으면 빈 배열
   title: string | null;
   one_line: string | null;
@@ -53,12 +60,19 @@ export interface VisitLogSummary {
   rating: number | null;
   visited_at: string;
   tags: string[];
+  // 관광지 상세 페이지 리뷰 카드용 작성자 정보 (2026-09-09 추가, decision-log 참고)
+  nickname: string;
+  profile_image_url: string | null;
 }
 
 export interface VisitLogMapItem {
   id: number;
   place_id: number;
   place_name: string;
+  // 코스 단위 기록(장소 2개 이상)일 때만 값 있음 — 나의 일지 화면이 같은 course_id끼리
+  // 묶어서 코스 카드로 보여줌 (2026-09-08 추가, decision-log 참고)
+  course_id: number | null;
+  course_title: string | null;
   lat: number | null;
   lng: number | null;
   photos: VisitLogPhoto[]; // 여러 장 지원(2026-09-06)+사진별 캡션(2026-09-07, decision-log 참고). 없으면 빈 배열
@@ -80,9 +94,35 @@ export interface PlaceLogsResponse {
   meta: PaginationMeta;
 }
 
+// 나의 일지 "기록하기"에서 장소를 2개 이상 골랐을 때 — 장소마다 각각 사진/한줄리뷰/별점/날씨를
+// 입력받고, 서버가 이 목록을 courseTitle과 함께 코스(source=journal)로 묶어서 저장한다
+// (2026-09-08 결정, decision-log 참고). 장소 1개면 기존 visitLogApi.create를 그대로 씀
+export interface VisitLogCoursePlaceCreateRequest {
+  place_id: number;
+  photos?: { url: string; caption?: string }[];
+  title?: string;
+  one_line?: string;
+  weather?: string;
+  rating?: number;
+  visited_at?: string;
+}
+
+export interface VisitLogCourseCreateRequest {
+  places: VisitLogCoursePlaceCreateRequest[]; // 2개 이상
+  course_title?: string; // 생략하면 서버가 방문일 기준으로 자동 생성
+}
+
+export interface VisitLogCourseCreateResponse {
+  course_id: number;
+  logs: VisitLogDetail[];
+}
+
 export const visitLogApi = {
   create: (placeId: number, request: VisitLogCreateRequest) =>
     apiClient.post<VisitLogDetail>(`/places/${placeId}/logs`, request, true),
+
+  createCourseLog: (request: VisitLogCourseCreateRequest) =>
+    apiClient.post<VisitLogCourseCreateResponse>('/logs/course', request, true),
 
   myLogs: (page = 1, size = 50) => apiClient.get<MyLogsResponse>(`/users/me/logs?page=${page}&size=${size}`, true),
 

@@ -29,6 +29,10 @@ let courseList: CourseListItem[] = [...MOCK_COURSE_LIST];
 const courseDetails: Record<number, CourseDetail> = { ...MOCK_COURSE_DETAILS };
 // 스크랩북 "관광지" 탭이 바로 뭔가 보이도록 미리 몇 개 찜한 상태로 시작(하회마을/월영교/미소카페)
 const likedPlaceIds = new Set<number>([1, 5, 11]);
+// 하트 아래 숫자(찜 개수) 목업 — 실제 place_like 총 개수 흉내. 장소마다 고정 베이스 값에서
+// 이번 세션의 좋아요 토글만큼 가감(2026-09-12, PlaceDetail.like_count 필드 추가에 맞춰 목업도 갱신 —
+// 예전엔 이 필드가 아예 없어서 화면이 실수로 visit_log_count를 대신 썼었음)
+const likeCounts = new Map<number, number>(MOCK_PLACES.map((p) => [p.id, (p.id * 7) % 40]));
 let nextLogId = 9000;
 let nextCourseId = 9000;
 
@@ -53,6 +57,8 @@ function toMapItem(log: MockVisitLog): VisitLogMapItem {
     id: log.id,
     place_id: place.id,
     place_name: place.name,
+    course_id: log.courseId ?? null,
+    course_title: log.courseTitle ?? null,
     lat: place.lat,
     lng: place.lng,
     photos: toPhotos(log),
@@ -65,7 +71,12 @@ function toMapItem(log: MockVisitLog): VisitLogMapItem {
   };
 }
 
+// mine:true 기록엔 fixture에 작성자가 없어서(나 자신이니까) 목업 전용 고정 프로필을 씀 —
+// 관광지 상세 페이지 리뷰 카드(2026-09-09 추가, decision-log 참고)가 작성자 정보를 항상 요구해서 필요
+const MOCK_ME = { nickname: '나', profile_image_url: null as string | null };
+
 function toSummary(log: MockVisitLog): VisitLogSummary {
+  const author = findMockAuthorForLog(log);
   return {
     id: log.id,
     photos: toPhotos(log),
@@ -75,6 +86,8 @@ function toSummary(log: MockVisitLog): VisitLogSummary {
     rating: log.rating,
     visited_at: log.visitedAt,
     tags: log.tags,
+    nickname: author?.nickname ?? MOCK_ME.nickname,
+    profile_image_url: author?.profile_image_url ?? MOCK_ME.profile_image_url,
   };
 }
 
@@ -84,6 +97,8 @@ function toDetail(log: MockVisitLog): VisitLogDetail {
     id: log.id,
     place_id: place.id,
     place_name: place.name,
+    course_id: log.courseId ?? null,
+    course_title: log.courseTitle ?? null,
     photos: toPhotos(log),
     title: log.title ?? null,
     one_line: log.oneLine,
@@ -234,6 +249,7 @@ export function resolveMock<T>(method: string, path: string, body: unknown): Moc
       { ...place, is_liked: likedPlaceIds.has(id) },
       logsForThisPlace.length,
       averageRating(logsForThisPlace),
+      likeCounts.get(id) ?? 0,
     );
     return ok(detail as T);
   }
@@ -241,9 +257,15 @@ export function resolveMock<T>(method: string, path: string, body: unknown): Moc
   // POST/DELETE /places/:id/like
   if (segments.length === 3 && segments[0] === 'places' && segments[2] === 'like') {
     const id = Number(segments[1]);
-    if (method === 'POST') likedPlaceIds.add(id);
-    if (method === 'DELETE') likedPlaceIds.delete(id);
-    return ok({ is_liked: likedPlaceIds.has(id) } as T);
+    if (method === 'POST') {
+      likedPlaceIds.add(id);
+      likeCounts.set(id, (likeCounts.get(id) ?? 0) + 1);
+    }
+    if (method === 'DELETE') {
+      likedPlaceIds.delete(id);
+      likeCounts.set(id, Math.max(0, (likeCounts.get(id) ?? 0) - 1));
+    }
+    return ok({ is_liked: likedPlaceIds.has(id), like_count: likeCounts.get(id) ?? 0 } as T);
   }
 
   // GET /users/me/likes (스크랩북 "관광지" 탭 — 내가 찜한 장소 목록)
@@ -293,6 +315,63 @@ export function resolveMock<T>(method: string, path: string, body: unknown): Moc
     };
     visitLogs = [newLog, ...visitLogs];
     return ok(toDetail(newLog) as T);
+  }
+
+  // POST /logs/course (나의 일지 "기록하기"에서 장소 2개 이상 골랐을 때 — 2026-09-08 추가,
+  // decision-log 참고). 실제 백엔드처럼 course(source=journal) + 장소마다 visit_log를 만들어서
+  // 같은 course_id로 묶고, 스크랩북 "내 코스" 목록에도 노출되게 courseList에도 추가함
+  if (method === 'POST' && pathname === '/logs/course') {
+    const req = (body ?? {}) as {
+      places: {
+        place_id: number;
+        photos?: { url: string; caption?: string }[];
+        title?: string;
+        one_line?: string;
+        weather?: string;
+        rating?: number;
+        visited_at?: string;
+      }[];
+      course_title?: string;
+    };
+    const courseId = nextCourseId++;
+    const firstVisitedAt = req.places.find((p) => p.visited_at)?.visited_at ?? new Date().toISOString();
+    const d = new Date(firstVisitedAt);
+    const courseTitle = req.course_title?.trim() || `${d.getMonth() + 1}월 ${d.getDate()}일의 코스`;
+
+    const newLogs: MockVisitLog[] = req.places.map((p) => ({
+      id: nextLogId++,
+      placeId: p.place_id,
+      mine: true,
+      authorId: null,
+      courseId,
+      courseTitle,
+      photos: p.photos ?? [],
+      title: p.title ?? null,
+      oneLine: p.one_line ?? null,
+      weather: p.weather ?? null,
+      rating: p.rating ?? null,
+      visitedAt: p.visited_at ?? new Date().toISOString(),
+      tags: [],
+    }));
+    visitLogs = [...newLogs, ...visitLogs];
+
+    const places = newLogs.map((l) => MOCK_PLACES.find((mp) => mp.id === l.placeId)!);
+    courseList = [
+      {
+        id: courseId,
+        title: courseTitle,
+        travel_date: firstVisitedAt.slice(0, 10),
+        end_date: null,
+        source: 'journal',
+        place_count: places.length,
+        thumbnail_url: places[0]?.main_image_url ?? null,
+        place_thumbnails: places.slice(0, 3).map((p) => p.main_image_url).filter((url): url is string => url != null),
+        created_at: new Date().toISOString(),
+      },
+      ...courseList,
+    ];
+
+    return ok({ course_id: courseId, logs: newLogs.map(toDetail) } as T);
   }
 
   // GET /users/me/preferences (마이페이지 취향 레이더 차트) — ssot.md 7개 태그, 0.5가 중립 기준선
@@ -388,6 +467,7 @@ export function resolveMock<T>(method: string, path: string, body: unknown): Moc
       travel_date?: string | null;
       end_date?: string | null;
       places?: unknown[];
+      source?: CourseListItem['source'];
     };
     const id = nextCourseId++;
     const title = req.title ?? '새 코스';
@@ -398,7 +478,11 @@ export function resolveMock<T>(method: string, path: string, body: unknown): Moc
         travel_date: req.travel_date ?? null,
         // 여러 날 범위 지원(2026-09-06 추가) — /courses(AI 저장)는 이 필드를 안 보내니 자연히 null
         end_date: req.end_date ?? null,
-        source: pathname === '/courses/manual' ? 'user' : 'ai',
+        // 이전엔 path로만 구분(/courses/manual=user, /courses=ai)했는데, "취향 맞춤 코스" 하트로
+        // 다른 사람 코스를 복제 저장할 때도 /courses를 쓰면서 source:'user'를 직접 보내게 돼서
+        // (2026-09-11 추가) 요청 바디의 source를 우선 쓰도록 정정 — 실제 CourseSaveRequest.source도
+        // 항상 필수값이라 클라이언트가 명시적으로 정함
+        source: req.source ?? (pathname === '/courses/manual' ? 'user' : 'ai'),
         place_count: req.places?.length ?? 0,
         thumbnail_url: MOCK_PLACES[0]?.main_image_url ?? null,
         place_thumbnails: MOCK_PLACES.slice(0, 3)
