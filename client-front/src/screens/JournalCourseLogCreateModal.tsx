@@ -334,10 +334,14 @@ export function JournalCourseLogCreateModal({ visible, onClose, onCreated }: Pro
         </Pressable>
       </Pressable>
 
+      {/* 앞 단계(step 'date')에서 고른 기간(tripStart~tripEnd) 밖 날짜는 흐리게 비활성화 — 예전엔
+          minDate만 있어서 시작일 이전만 막히고 종료일 이후는 그대로 골라졌음(사용자 리포트,
+          2026-09-12) */}
       <CalendarPicker
         visible={showDateForCurrent}
         value={entry.visitedAt}
         minDate={tripStart || undefined}
+        maxDate={tripEnd || undefined}
         onClose={() => setShowDateForCurrent(false)}
         onConfirm={(date) => {
           updateCurrentEntry({ visitedAt: date });
