@@ -22,7 +22,6 @@ import { colors } from '../../theme/colors';
 import { fonts } from '../../theme/fonts';
 import { JournalCourseLogCreateModal } from '../JournalCourseLogCreateModal';
 import { JournalLogCreateModal } from '../JournalLogCreateModal';
-import { LogEditScreen } from '../LogEditScreen';
 
 const GLOBE_SIZE = Dimensions.get('window').width;
 
@@ -111,10 +110,11 @@ export function JournalTab(_props: Props) {
   const [createVisible, setCreateVisible] = useState(false);
   const [courseCreateVisible, setCourseCreateVisible] = useState(false);
   const [addChoiceVisible, setAddChoiceVisible] = useState(false);
-  // 카드 탭 → 수정/삭제(LogEditScreen, 기존에 드로어 "방문 기록"(MyLogsScreen)에서만 쓰이고 있었고
-  // 정작 이 "나의 일지" 탭 카드는 눌러도 아무 반응이 없었음 — 수정/삭제 기능 자체는 백엔드/클라이언트
-  // API(visitLogApi.update/remove)까지 이미 다 있었는데 이 화면에 연결만 안 돼 있었음(사용자 리포트,
-  // 2026-09-12)
+  // 카드 탭 → 수정/삭제. 기존엔 드로어 "방문 기록"(MyLogsScreen, 구버전 임시 화면)에서만 이 기능이
+  // 연결돼 있었고 정작 이 "나의 일지" 탭 카드는 눌러도 아무 반응이 없었음(2026-09-12 1차 리포트) —
+  // 처음엔 별도 LogEditScreen(디자인 없는 임시 화면)으로 연결했다가, 새 디자인을 만들지 않고
+  // "기록하기" 프레임(JournalLogCreateModal, Figma 593:12613)을 그대로 재사용해 "수정" 모드로
+  // 동작하도록 정정(2026-09-12 2차 요청) — 아래 JournalLogCreateModal에 editLog로 그대로 넘김
   const [selectedLog, setSelectedLog] = useState<VisitLogMapItem | null>(null);
 
   const entries = useMemo(() => groupLogsIntoEntries(logs ?? []), [logs]);
@@ -257,22 +257,21 @@ export function JournalTab(_props: Props) {
         onClose={() => setCourseCreateVisible(false)}
         onCreated={loadLogs}
       />
-      <Modal visible={selectedLog != null} animationType="slide" onRequestClose={() => setSelectedLog(null)}>
-        {selectedLog && (
-          <LogEditScreen
-            log={selectedLog}
-            onSaved={() => {
-              setSelectedLog(null);
-              loadLogs();
-            }}
-            onDeleted={() => {
-              setSelectedLog(null);
-              loadLogs();
-            }}
-            onCancel={() => setSelectedLog(null)}
-          />
-        )}
-      </Modal>
+      {/* JournalLogCreateModal 자체가 내부에 <Modal>을 이미 갖고 있어서 여기서 또 감쌀 필요 없음 */}
+      <JournalLogCreateModal
+        visible={selectedLog != null}
+        editLog={selectedLog ?? undefined}
+        onClose={() => setSelectedLog(null)}
+        onCreated={loadLogs}
+        onUpdated={() => {
+          setSelectedLog(null);
+          loadLogs();
+        }}
+        onDeleted={() => {
+          setSelectedLog(null);
+          loadLogs();
+        }}
+      />
     </View>
   );
 }
