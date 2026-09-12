@@ -387,7 +387,8 @@ const styles = StyleSheet.create({
     paddingVertical: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 350,
+    // RadarChart 기본 size 330 + paddingVertical 24*2 = 378, 여유 둬서 380(2026-09-12, 300→330 상향에 맞춤)
+    minHeight: 380,
   },
   radarLoading: { paddingVertical: 40 },
   emptyText: { fontFamily: fonts.regular, fontSize: 13, color: colors.gray400, paddingVertical: 40 },
