@@ -1,11 +1,17 @@
 package com.dongle.server.visitlog
 
 import com.dongle.server.common.PaginationMeta
+import com.dongle.server.course.Course
+import com.dongle.server.course.CoursePlace
+import com.dongle.server.course.CourseRepository
+import com.dongle.server.course.CourseSource
 import com.dongle.server.place.PlaceNotFoundException
 import com.dongle.server.place.PlaceRepository
 import com.dongle.server.user.UserRepository
 import com.dongle.server.visitlog.dto.MyLogsResponse
 import com.dongle.server.visitlog.dto.PlaceLogsResponse
+import com.dongle.server.visitlog.dto.VisitLogCourseCreateRequest
+import com.dongle.server.visitlog.dto.VisitLogCourseCreateResponse
 import com.dongle.server.visitlog.dto.VisitLogCreateRequest
 import com.dongle.server.visitlog.dto.VisitLogDetailResponse
 import com.dongle.server.visitlog.dto.VisitLogMapItemResponse
@@ -16,6 +22,7 @@ import org.springframework.data.domain.PageRequest
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 
 @Service
 @Transactional(readOnly = true)
@@ -23,6 +30,7 @@ class VisitLogService(
     private val visitLogRepository: VisitLogRepository,
     private val placeRepository: PlaceRepository,
     private val userRepository: UserRepository,
+    private val courseRepository: CourseRepository,
 ) {
     // AI 이미지 분석 연동 전까지의 임시 스코프 (2026-08-30 결정, decision-log 참고): 방문 기록
     // 생성/저장은 지금 구현하되, 감성 태그 자동 부여(log_emotion_tag 적재)는 뺀다.
@@ -56,6 +64,55 @@ class VisitLogService(
 
         return log.toDetailResponse()
     }
+
+    // 나의 일지 "기록하기"에서 장소를 2개 이상 골랐을 때 — course(source=journal) + 장소마다
+    // visit_log를 한 트랜잭션으로 생성해서 같은 course_id로 묶는다 (2026-09-08 결정, decision-log 참고).
+    // AI 감성 태그 자동 부여를 안 하는 이유는 위 create()와 동일(임시 스코프)
+    @Transactional
+    fun createCourseLog(userId: Long, request: VisitLogCourseCreateRequest): VisitLogCourseCreateResponse {
+        val user = userRepository.getReferenceById(userId)
+        val places = request.places.map { p ->
+            val placeId = requireNotNull(p.placeId)
+            placeRepository.findById(placeId).orElseThrow { PlaceNotFoundException(placeId) }
+        }
+        val visitedAt = request.places.firstNotNullOfOrNull { it.visitedAt } ?: LocalDateTime.now()
+
+        val course = Course(
+            user = user,
+            title = request.courseTitle?.trim()?.takeIf { it.isNotEmpty() } ?: defaultCourseTitle(visitedAt),
+            source = CourseSource.journal,
+            travelDate = visitedAt.toLocalDate(),
+        )
+        places.forEachIndexed { index, place ->
+            course.places.add(CoursePlace(course = course, place = place, visitOrder = index + 1))
+        }
+        courseRepository.save(course) // cascade로 course_place도 같이 insert됨
+
+        val logs = request.places.zip(places).map { (p, place) ->
+            val log = visitLogRepository.save(
+                VisitLog(
+                    user = user,
+                    place = place,
+                    course = course,
+                    title = p.title,
+                    oneLine = p.oneLine,
+                    weather = p.weather,
+                    rating = p.rating,
+                    visitedAt = p.visitedAt ?: LocalDateTime.now(),
+                )
+            )
+            p.photos?.forEachIndexed { photoIndex, photo ->
+                log.photos.add(VisitLogPhoto(visitLog = log, photoUrl = photo.url, caption = photo.caption, sortOrder = photoIndex))
+            }
+            place.visitLogCount += 1
+            log
+        }
+
+        return VisitLogCourseCreateResponse(courseId = course.id, logs = logs.map { it.toDetailResponse() })
+    }
+
+    private fun defaultCourseTitle(visitedAt: LocalDateTime): String =
+        "${visitedAt.format(DateTimeFormatter.ofPattern("M월 d일"))}의 코스"
 
     fun myLogs(userId: Long, page: Int, size: Int): MyLogsResponse {
         val pageable = PageRequest.of((page - 1).coerceAtLeast(0), size)
@@ -105,6 +162,30 @@ class VisitLogService(
         request.weather?.let { log.weather = it.ifBlank { null } }
         request.rating?.let { log.rating = it }
         request.visitedAt?.let { log.visitedAt = it }
+
+        // 사진 수정 지원(2026-09-12 결정, decision-log 참고) — 부분 수정이 아니라 보낸 목록으로
+        // 완전히 교체. orphanRemoval=true라 clear()만으로 기존 행이 삭제 대상으로 잡히고, 새로
+        // add한 항목이 flush 시 insert됨(VisitLog.kt photos 매핑 참고). null이면(필드 생략) 기존
+        // 사진 그대로 둠 — create()의 로직과 동일하게 순서를 sort_order로 저장
+        request.photos?.let { newPhotos ->
+            log.photos.clear()
+            newPhotos.forEachIndexed { index, photo ->
+                log.photos.add(VisitLogPhoto(visitLog = log, photoUrl = photo.url, caption = photo.caption, sortOrder = index))
+            }
+        }
+
+        // 장소 재배정 지원(2026-09-12 결정, decision-log 참고) — 실제로 바뀐 경우에만 예전/새 장소의
+        // visitLogCount를 조정(같은 placeId를 다시 보내는 것뿐이면 아무 것도 안 건드림)
+        request.placeId?.let { newPlaceId ->
+            if (newPlaceId != log.place.id) {
+                val newPlace = placeRepository.findById(newPlaceId).orElseThrow { PlaceNotFoundException(newPlaceId) }
+                val oldPlace = log.place
+                oldPlace.visitLogCount = (oldPlace.visitLogCount - 1).coerceAtLeast(0)
+                newPlace.visitLogCount += 1
+                log.place = newPlace
+            }
+        }
+
         return log.toDetailResponse()
     }
 
@@ -137,12 +218,16 @@ private fun VisitLog.toSummaryResponse() = VisitLogSummaryResponse(
     rating = rating,
     visitedAt = visitedAt,
     tags = emotionTags.map { it.tag },
+    nickname = user.nickname,
+    profileImageUrl = user.profileImageUrl,
 )
 
 private fun VisitLog.toDetailResponse() = VisitLogDetailResponse(
     id = id,
     placeId = place.id,
     placeName = place.name,
+    courseId = course?.id,
+    courseTitle = course?.title,
     photos = photos.map { it.toResponse() },
     title = title,
     oneLine = oneLine,
@@ -156,6 +241,8 @@ private fun VisitLog.toMapItemResponse() = VisitLogMapItemResponse(
     id = id,
     placeId = place.id,
     placeName = place.name,
+    courseId = course?.id,
+    courseTitle = course?.title,
     lat = place.lat,
     lng = place.lng,
     photos = photos.map { it.toResponse() },

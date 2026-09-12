@@ -26,9 +26,13 @@ class CourseOptimizerHttpConfig(
         // AI 서버가 이제 로컬이 아니라 실제 네트워크 너머(EC2)에 있어서 기본(무제한) 타임아웃으로 두면
         // 서버가 죽거나 응답이 느릴 때 요청 스레드가 무한정 걸릴 수 있음. 코스 최적화는 LLM 호출을
         // 포함해 시간이 걸릴 수 있어 read timeout을 넉넉히 둠 (2026-09-01 결정, decision-log 참고)
+        //
+        // 30s → 60s로 상향(2026-09-12): 후보 19개로 실제 요청했을 때 SocketTimeoutException(Read
+        // timed out)으로 30초도 넘김을 Render 로그로 실측 확인(사용자 리포트) — 임시 완화 조치이고,
+        // 이 정도 후보 수/시간 범위에서 원래 이렇게 느린 게 정상인지는 AI 서버 쪽(김지광) 확인 필요
         val requestFactory = SimpleClientHttpRequestFactory().apply {
             setConnectTimeout(5_000)
-            setReadTimeout(30_000)
+            setReadTimeout(60_000)
         }
 
         return RestClient.builder()

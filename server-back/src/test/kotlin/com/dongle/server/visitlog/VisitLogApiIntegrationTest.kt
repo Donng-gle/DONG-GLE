@@ -7,6 +7,7 @@ import com.dongle.server.place.PlaceRepository
 import com.dongle.server.user.OAuthProvider
 import com.dongle.server.user.User
 import com.dongle.server.user.UserRepository
+import com.jayway.jsonpath.JsonPath
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
@@ -168,6 +169,103 @@ class VisitLogApiIntegrationTest {
             .andExpect(jsonPath("$.rating").value(3))
     }
 
+    // 나의 일지 "기록하기"에서 장소를 2개 이상 골랐을 때 — course(source=journal) + 장소마다
+    // visit_log가 한 번에 생성되고 같은 course_id를 공유해야 함 (2026-09-08 결정, decision-log 참고)
+    @Test
+    fun `장소 2개 이상으로 코스 기록을 작성하면 같은 course_id를 공유하는 기록들이 생성된다`() {
+        val owner = user("log_user_course_1", "kakao-log-course-1")
+        val token = jwtTokenProvider.generateAccessToken(owner.id)
+        val placeA = place("LOG_COURSE_A1", "테스트전용코스기록장소A", visitLogCount = 1)
+        val placeB = place("LOG_COURSE_A2", "테스트전용코스기록장소B", visitLogCount = 3)
+
+        val result = mockMvc.perform(
+            post("/logs/course")
+                .header("Authorization", "Bearer $token")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {
+                      "places": [
+                        {"place_id": ${placeA.id}, "one_line": "테스트전용코스A리뷰", "visited_at": "2026-09-08T10:00:00"},
+                        {"place_id": ${placeB.id}, "one_line": "테스트전용코스B리뷰", "rating": 5, "visited_at": "2026-09-08T14:00:00"}
+                      ]
+                    }
+                    """.trimIndent()
+                )
+        )
+            .andExpect(status().isCreated)
+            .andExpect(jsonPath("$.course_id").exists())
+            .andExpect(jsonPath("$.logs.length()").value(2))
+            .andExpect(jsonPath("$.logs[0].one_line").value("테스트전용코스A리뷰"))
+            .andExpect(jsonPath("$.logs[1].one_line").value("테스트전용코스B리뷰"))
+            .andExpect(jsonPath("$.logs[1].rating").value(5))
+            .andReturn()
+
+        val body = result.response.contentAsString
+        val courseId = JsonPath.read<Int>(body, "$.course_id")
+        val firstLogCourseId = JsonPath.read<Int>(body, "$.logs[0].course_id")
+        val secondLogCourseId = JsonPath.read<Int>(body, "$.logs[1].course_id")
+        assert(firstLogCourseId == courseId) { "log[0].course_id expected $courseId but was $firstLogCourseId" }
+        assert(secondLogCourseId == courseId) { "log[1].course_id expected $courseId but was $secondLogCourseId" }
+
+        mockMvc.perform(get("/logs/${JsonPath.read<Int>(body, "$.logs[0].id")}").header("Authorization", "Bearer $token"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.course_id").value(courseId))
+
+        val updatedA = placeRepository.findById(placeA.id).orElseThrow()
+        val updatedB = placeRepository.findById(placeB.id).orElseThrow()
+        assert(updatedA.visitLogCount == 2) { "visitLogCount expected 2 but was ${updatedA.visitLogCount}" }
+        assert(updatedB.visitLogCount == 4) { "visitLogCount expected 4 but was ${updatedB.visitLogCount}" }
+
+        mockMvc.perform(get("/users/me/courses").header("Authorization", "Bearer $token"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.courses[?(@.id == $courseId)].source").value("journal"))
+            .andExpect(jsonPath("$.courses[?(@.id == $courseId)].place_count").value(2))
+    }
+
+    @Test
+    fun `코스 기록 작성 시 장소가 1개뿐이면 400을 반환한다`() {
+        val owner = user("log_user_course_2", "kakao-log-course-2")
+        val token = jwtTokenProvider.generateAccessToken(owner.id)
+        val place = place("LOG_COURSE_B1", "테스트전용코스기록단일장소")
+
+        mockMvc.perform(
+            post("/logs/course")
+                .header("Authorization", "Bearer $token")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"places":[{"place_id":${place.id}}]}""")
+        )
+            .andExpect(status().isBadRequest)
+    }
+
+    @Test
+    fun `존재하지 않는 장소로 코스 기록을 작성하면 404를 반환한다`() {
+        val owner = user("log_user_course_3", "kakao-log-course-3")
+        val token = jwtTokenProvider.generateAccessToken(owner.id)
+        val place = place("LOG_COURSE_C1", "테스트전용코스기록존재장소")
+
+        mockMvc.perform(
+            post("/logs/course")
+                .header("Authorization", "Bearer $token")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"places":[{"place_id":${place.id}},{"place_id":999999999}]}""")
+        )
+            .andExpect(status().isNotFound)
+    }
+
+    @Test
+    fun `인증 없이 코스 기록을 작성하면 401을 반환한다`() {
+        val placeA = place("LOG_COURSE_D1", "테스트전용코스기록비인증장소A")
+        val placeB = place("LOG_COURSE_D2", "테스트전용코스기록비인증장소B")
+
+        mockMvc.perform(
+            post("/logs/course")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"places":[{"place_id":${placeA.id}},{"place_id":${placeB.id}}]}""")
+        )
+            .andExpect(status().isUnauthorized)
+    }
+
     @Test
     fun `존재하지 않는 장소에 기록을 작성하면 404를 반환한다`() {
         val owner = user("log_user_create_3", "kakao-log-create-3")
@@ -207,7 +305,7 @@ class VisitLogApiIntegrationTest {
     }
 
     @Test
-    fun `장소별 기록 목록은 비인증으로도 조회 가능하다`() {
+    fun `장소별 기록 목록은 비인증으로도 조회 가능하고 작성자 닉네임이 포함된다`() {
         val owner = user("log_user_2", "kakao-log-2")
         val place = place("LOG002", "테스트전용기록장소B")
         log(owner, place, oneLine = "테스트전용한줄리뷰-장소별")
@@ -215,6 +313,7 @@ class VisitLogApiIntegrationTest {
         mockMvc.perform(get("/places/${place.id}/logs"))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.logs[?(@.one_line == '테스트전용한줄리뷰-장소별')]").exists())
+            .andExpect(jsonPath("$.logs[?(@.one_line == '테스트전용한줄리뷰-장소별')].nickname").value("테스터"))
     }
 
     @Test

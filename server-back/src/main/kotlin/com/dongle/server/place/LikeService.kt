@@ -11,7 +11,7 @@ class LikeService(
     private val placeLikeRepository: PlaceLikeRepository,
     private val userRepository: UserRepository,
 ) {
-    fun like(userId: Long, placeId: Long) {
+    fun like(userId: Long, placeId: Long): Long {
         if (!placeRepository.existsById(placeId)) throw PlaceNotFoundException(placeId)
         if (placeLikeRepository.existsByUserIdAndPlaceId(userId, placeId)) throw PlaceAlreadyLikedException(placeId)
 
@@ -21,11 +21,13 @@ class LikeService(
                 place = placeRepository.getReferenceById(placeId),
             )
         )
+        return placeLikeRepository.countByPlaceId(placeId)
     }
 
-    fun unlike(userId: Long, placeId: Long) {
+    fun unlike(userId: Long, placeId: Long): Long {
         val like = placeLikeRepository.findByUserIdAndPlaceId(userId, placeId)
             ?: throw PlaceLikeNotFoundException(placeId)
         placeLikeRepository.delete(like)
+        return placeLikeRepository.countByPlaceId(placeId)
     }
 }

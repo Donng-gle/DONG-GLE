@@ -66,14 +66,14 @@ class PlaceController(
 
     @PostMapping("/{placeId}/like")
     fun like(@PathVariable placeId: Long, authentication: Authentication): LikeResponse {
-        likeService.like(authentication.requireUserId(), placeId)
-        return LikeResponse(isLiked = true)
+        val likeCount = likeService.like(authentication.requireUserId(), placeId)
+        return LikeResponse(isLiked = true, likeCount = likeCount)
     }
 
     @DeleteMapping("/{placeId}/like")
     fun unlike(@PathVariable placeId: Long, authentication: Authentication): LikeResponse {
-        likeService.unlike(authentication.requireUserId(), placeId)
-        return LikeResponse(isLiked = false)
+        val likeCount = likeService.unlike(authentication.requireUserId(), placeId)
+        return LikeResponse(isLiked = false, likeCount = likeCount)
     }
 }
 

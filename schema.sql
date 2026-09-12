@@ -222,12 +222,13 @@ CREATE INDEX idx_log_emotion_tag_log ON log_emotion_tag (visit_log_id);
 
 -- 코스
 -- source: 'ai'=AI 추천 저장, 'ai_edited'=AI 추천 후 유저 수정, 'user'=유저 직접 생성,
--- 'journal'=나의 일지 기록하기에서 장소 2개 이상 골라 사후 생성 (2026-09-08 결정, decision-log 참고)
+-- 'journal'=나의 일지 기록하기에서 사후 생성(2026-09-08 추가), 'liked'=다른 사용자 공개 코스를
+-- 하트로 복제 저장(2026-09-11 추가) — 이 파일이 실제 운영 DB보다 오래 뒤처져있던 걸 이번에 맞춤
 CREATE TABLE course (
     id          BIGSERIAL    PRIMARY KEY,
     user_id     BIGINT       NOT NULL REFERENCES "user" (id) ON DELETE CASCADE,
     title       VARCHAR(200) NOT NULL,
-    source      VARCHAR(20)  NOT NULL CHECK (source IN ('ai', 'ai_edited', 'user', 'journal')),
+    source      VARCHAR(20)  NOT NULL CHECK (source IN ('ai', 'ai_edited', 'user', 'journal', 'liked')),
     travel_date DATE,
     end_date    DATE,  -- 여러 날 범위 지원. "직접 코스 만들기"에서만 입력받음(2026-09-06 결정, decision-log 참고)
     transport   VARCHAR(10)  CHECK (transport IN ('car', 'walk', 'public')),  -- 구글맵 경로 재계산용, nullable(과거 데이터/미입력 허용)
