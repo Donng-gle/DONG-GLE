@@ -56,15 +56,19 @@ export function LoginScreen({ onLoginSuccess, onGuestContinue }: Props) {
   // (HTTPS 중계 엔드포인트)와 앱이 실제로 기다리는 returnUrl(dongle://redirect)이 서로 다른데,
   // useAuthRequest/promptAsync는 이 둘을 항상 같은 값으로 강제하기 때문 (2026-08-27 결정, decision-log 참고)
   async function promptKakaoLoginAsync() {
-    // scope 파라미터가 아예 없어서 카카오가 "닉네임"/"이메일" 동의항목을 요청 안 하고 있었음(2026-09-12,
+    // scope 파라미터가 아예 없어서 카카오가 "닉네임" 동의항목을 요청 안 하고 있었음(2026-09-12,
     // 사용자 리포트 — 로그인해도 실제 닉네임 대신 KakaoOAuthClient.kt의 폴백값 "카카오유저"만 뜸).
-    // 콘솔에서 두 항목이 "선택 동의"면 이렇게 scope로 명시 요청해야 사용자에게 동의창이 뜸
+    // 처음엔 account_email도 같이 넣었다가 콘솔에 등록 안 된 scope를 요청해서 KOE205("서비스 설정에
+    // 오류가 있어 이용할 수 없음")로 로그인 자체가 막혀버림(사용자 재현) — account_email은 최근
+    // 카카오 정책상 비즈니스 앱 전환이 필요한 경우가 많아 일단 빼고, 콘솔에서 별도 설정 없이도 켤 수
+    // 있는 profile_nickname만 요청. 콘솔(카카오 로그인 > 동의항목)에서 "닉네임"이 최소 "선택 동의"로
+    // 켜져 있어야 실제로 값이 내려옴 — 꺼져 있으면 이것도 KOE205
     const authUrl =
       `${kakaoDiscovery.authorizationEndpoint}` +
       `?client_id=${encodeURIComponent(KAKAO_CLIENT_ID)}` +
       `&redirect_uri=${encodeURIComponent(KAKAO_HTTPS_REDIRECT_URI)}` +
       `&response_type=code` +
-      `&scope=${encodeURIComponent('profile_nickname,account_email')}`;
+      `&scope=${encodeURIComponent('profile_nickname')}`;
 
     const result = await WebBrowser.openAuthSessionAsync(authUrl, kakaoAppReturnUrl);
     if (result.type !== 'success') return; // 사용자가 취소/닫음 — 별도 처리 불필요
