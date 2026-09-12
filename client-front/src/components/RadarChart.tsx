@@ -54,16 +54,17 @@ function toPointsAttr(points: [number, number][]): string {
 
 // size=300: Figma 실측 비율(폴리곤 지름239 / 프레임폭360 ≈ 0.664)을 카드 실제 폭(약 320~340)에
 // 적용한 값 — 기존 220은 이 비율보다 눈에 띄게 작아서(사용자 리포트 "피그마랑 다르다") 상향.
-// 그래도 좀 더 키워달라는 요청(2026-09-12)으로 330으로 한 번 더 상향 — 카드가 화면폭보다 넉넉해서
-// (실기기 스크린샷 확인) 여유 있음
-export function RadarChart({ data, size = 330 }: Props) {
+// 카드(=전체 SVG 캔버스) 자체를 더 키운 적도 있었는데(300→330) "카드 말고 안의 칠각형만 키워달라"는
+// 요청(2026-09-12)으로 되돌리고, 대신 아래 radius 비율을 키워서 같은 캔버스 안에서 칠각형만
+// 커지게 함(라벨은 캔버스 밖으로 안 잘리게 labelRadius 배수를 같이 줄임)
+export function RadarChart({ data, size = 300 }: Props) {
   const center = size / 2;
-  // Figma 실측: 폴리곤 반지름/프레임폭 ≈ 119.5/360 ≈ 0.332 — size가 카드 폭을 그대로 쓰므로 같은
-  // 비율을 그대로 적용
-  const radius = size * 0.33;
-  // Figma 실측: 라벨 중심까지 거리/폴리곤 반지름 평균 ≈ 1.15(기존 1.28은 실측 없이 넣은 값이라
-  // 라벨이 시안보다 더 멀리 떨어져 보였음)
-  const labelRadius = radius * 1.15;
+  // 칠각형을 키워달라는 요청(2026-09-12)으로 Figma 실측 비율(0.332)보다 올림 — 캔버스(size) 안에서
+  // 라벨까지 안 잘리는 한도 내에서 키운 값(아래 labelRadius 주석 참고)
+  const radius = size * 0.35;
+  // radius가 커진 만큼 배수를 줄여서(1.15→1.08) 라벨이 캔버스 경계 밖으로 안 나가게 함 — 가장 긴
+  // 라벨("Photogenic"/"Traditional")까지 감안해도 중심에서 최대 거리가 size/2(=150) 안쪽으로 들어옴
+  const labelRadius = radius * 1.08;
 
   const scoreByTag = new Map(data.map((d) => [d.tag, d.score]));
   const values = AXIS_ORDER.map((a) => scoreByTag.get(a.tag) ?? 0.5);

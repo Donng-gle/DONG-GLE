@@ -387,8 +387,8 @@ const styles = StyleSheet.create({
     paddingVertical: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    // RadarChart 기본 size 330 + paddingVertical 24*2 = 378, 여유 둬서 380(2026-09-12, 300→330 상향에 맞춤)
-    minHeight: 380,
+    // 카드 크기는 원래대로(300 기준) — 칠각형만 키워달라는 요청(2026-09-12)이라 카드는 안 키움
+    minHeight: 350,
   },
   radarLoading: { paddingVertical: 40 },
   emptyText: { fontFamily: fonts.regular, fontSize: 13, color: colors.gray400, paddingVertical: 40 },
