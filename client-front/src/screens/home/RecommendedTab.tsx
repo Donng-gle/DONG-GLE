@@ -12,7 +12,8 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
+import MapView, { Marker, Polyline } from 'react-native-maps';
+import { MAP_PROVIDER } from '../../utils/mapProvider';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CoursePlaceItem } from '../../api/course';
 import { SimilarCourseItem, SimilarLogItem, exploreApi } from '../../api/explore';
@@ -254,7 +255,7 @@ function RoutePreviewMap({ points, size }: { points: PreviewPoint[]; size: numbe
 
   return (
     <MapView
-      provider={PROVIDER_GOOGLE}
+      provider={MAP_PROVIDER}
       style={{ width: size, height: size }}
       initialRegion={regionForCoords(coords)}
     >
