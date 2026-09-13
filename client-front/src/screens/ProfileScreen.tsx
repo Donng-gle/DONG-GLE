@@ -44,6 +44,7 @@ type SubScreen = 'none' | 'likes';
 const PROVIDER_LABEL: Record<UserProfile['oauth_provider'], string> = {
   kakao: '카카오 사용자',
   google: '구글 사용자',
+  apple: '애플 사용자',
 };
 
 // Figma "마이페이지"(598:13735, 2026-09-06 새로 확인) — 그래프+재검사 버튼 아래 "문의" 박스가

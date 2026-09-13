@@ -51,7 +51,8 @@
         {
           "iosUrlScheme": "com.googleusercontent.apps.633640803041-val291hsro68uoojtt5cjduqnf3jrvd0"
         }
-      ]
+      ],
+      "expo-apple-authentication"
     ],
     "owner": "donggle-andong",
     "extra": {
