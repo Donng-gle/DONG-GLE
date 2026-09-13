@@ -172,7 +172,12 @@ export function LoginScreen({ onLoginSuccess, onGuestContinue }: Props) {
               ) : (
                 <>
                   <View style={styles.kakaoSymbol}>
-                    <View style={styles.kakaoSymbolBubble} />
+                    <Svg width={13} height={12} viewBox="0 0 24 24">
+                      <Path
+                        fill="#3C1E1E"
+                        d="M12 3C6.582 3 2 6.596 2 11.163c0 2.892 1.804 5.435 4.567 6.978a.32.32 0 0 1 .119.13c.089.184-.017.475-.03.524-.15.518-.588 2.046-.6 2.1-.017.076-.065.29.121.397.187.108.394.032.394.032.24-.037.24-.037 3.28-2.297.284-.04.573-.06.87-.06 5.418 0 10-3.596 10-8.164C21 6.596 16.418 3 12 3"
+                      />
+                    </Svg>
                   </View>
                   <Text style={styles.kakaoButtonText}>카카오 로그인</Text>
                 </>
@@ -313,7 +318,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: 8,
   },
-  kakaoSymbolBubble: { width: 11, height: 9, borderRadius: 4, backgroundColor: colors.black },
   kakaoButtonText: { fontFamily: fonts.regular, fontSize: 16, letterSpacing: -0.4, color: colors.gray700 },
   googleButton: { backgroundColor: colors.black, marginBottom: 8 },
   googleSymbol: {
