@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CoursePlaceItem } from '../../api/course';
 import { SimilarCourseItem, SimilarLogItem, exploreApi } from '../../api/explore';
 import { AndongGlobe } from '../../components/AndongGlobe';
+import { ReportBlockMenu } from '../../components/ReportBlockMenu';
 import { StarRating } from '../../components/StarRating';
 import { colors } from '../../theme/colors';
 import { fonts } from '../../theme/fonts';
@@ -234,6 +235,9 @@ export function RecommendedTab({ onOpenCourseDetail }: Props) {
                   onViewDetail={() =>
                     item.kind === 'course' ? onOpenCourseDetail(item.data.course_id) : setDetailPlaceId(item.data.place_id)
                   }
+                  onBlocked={() =>
+                    setItems((prev) => prev?.filter((i) => i.data.author_user_id !== item.data.author_user_id) ?? prev)
+                  }
                 />
               )}
             />
@@ -322,11 +326,13 @@ function SimilarItemCard({
   isSelected,
   onSelect,
   onViewDetail,
+  onBlocked,
 }: {
   item: RecommendedItem;
   isSelected: boolean;
   onSelect: () => void;
   onViewDetail: () => void;
+  onBlocked: () => void;
 }) {
   const { data } = item;
   const slides = slidesFor(item);
@@ -356,14 +362,22 @@ function SimilarItemCard({
             )}
           </View>
         </View>
-        <TouchableOpacity
-          style={[styles.selectButton, isSelected && styles.selectButtonActive]}
-          onPress={isSelected ? onViewDetail : onSelect}
-        >
-          <Text style={[styles.selectButtonText, isSelected && styles.selectButtonTextActive]}>
-            {isSelected ? '자세히 보기' : '선택'}
-          </Text>
-        </TouchableOpacity>
+        <View style={styles.topRowActions}>
+          <ReportBlockMenu
+            authorUserId={data.author_user_id}
+            targetType={item.kind === 'course' ? 'course' : 'visit_log'}
+            targetId={item.kind === 'course' ? item.data.course_id : item.data.log_id}
+            onBlocked={onBlocked}
+          />
+          <TouchableOpacity
+            style={[styles.selectButton, isSelected && styles.selectButtonActive]}
+            onPress={isSelected ? onViewDetail : onSelect}
+          >
+            <Text style={[styles.selectButtonText, isSelected && styles.selectButtonTextActive]}>
+              {isSelected ? '자세히 보기' : '선택'}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={styles.textBlock}>
@@ -477,6 +491,7 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   topRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  topRowActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   profileRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
   avatar: { width: 40, height: 40, borderRadius: 8 },
   avatarPlaceholder: { backgroundColor: colors.border },
