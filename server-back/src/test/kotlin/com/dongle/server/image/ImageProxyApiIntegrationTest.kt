@@ -81,13 +81,15 @@ class ImageProxyApiIntegrationTest {
     }
 
     @Test
-    fun `Google API 요청이 실패하면 502를 반환한다`() {
+    fun `Google API 요청이 실패하면 502 대신 placeholder 이미지를 200으로 반환한다`() {
+        // photo_reference 만료 등으로 upstream이 실패해도, RN <Image>가 그릴 수 있게 항상 이미지
+        // 바이트를 내려준다(2026-09-14, 502로 죽이면 앱이 아무 것도 못 그리는 문제 수정)
         mockServer.expect(requestTo(startsWith("https://maps.googleapis.com/maps/api/place/photo")))
             .andRespond(withStatus(HttpStatus.NOT_FOUND))
 
         mockMvc.perform(get("/images/proxy").param("ref", "missing-ref"))
-            .andExpect(status().isBadGateway)
-            .andExpect(jsonPath("$.code").value("IMAGE_PROXY_UPSTREAM_ERROR"))
+            .andExpect(status().isOk)
+            .andExpect(content().contentType(MediaType.IMAGE_PNG))
 
         mockServer.verify()
     }
