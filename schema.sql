@@ -97,7 +97,7 @@ CREATE TABLE "user" (
     user_id           VARCHAR(50)  NOT NULL UNIQUE,
     nickname          VARCHAR(50)  NOT NULL,
     email             VARCHAR(200),
-    oauth_provider    VARCHAR(20)  NOT NULL CHECK (oauth_provider IN ('kakao', 'google')),
+    oauth_provider    VARCHAR(20)  NOT NULL CHECK (oauth_provider IN ('kakao', 'google', 'apple')),
     oauth_id          VARCHAR(100) NOT NULL,
     profile_image_url TEXT,
     has_onboarded     BOOLEAN      NOT NULL DEFAULT FALSE,  -- 앱 재시작 시 온보딩 완료 여부 판단

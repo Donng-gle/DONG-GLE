@@ -85,7 +85,7 @@ Table user {
   user_id           varchar(50)  [not null, unique, note: '서비스 사용자 ID']
   nickname          varchar(50)  [not null]
   email             varchar(200)
-  oauth_provider    varchar(20)  [not null, note: "CHECK: 'kakao' | 'google'"]
+  oauth_provider    varchar(20)  [not null, note: "CHECK: 'kakao' | 'google' | 'apple'"]
   oauth_id          varchar(100) [not null]
   profile_image_url text
   has_onboarded     boolean      [not null, default: false, note: '앱 재시작 시 온보딩 완료 여부 판단']
