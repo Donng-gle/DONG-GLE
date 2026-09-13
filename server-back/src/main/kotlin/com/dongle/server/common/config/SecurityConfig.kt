@@ -20,6 +20,7 @@ class SecurityConfig(
     private val permitAllPaths = arrayOf(
         "/auth/oauth/kakao",
         "/auth/oauth/google",
+        "/auth/oauth/apple",
         "/auth/refresh",
         "/auth/kakao/callback", // 카카오가 리다이렉트로 호출 — JWT 있을 리 없음
         "/error",

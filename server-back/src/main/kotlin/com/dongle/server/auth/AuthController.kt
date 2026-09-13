@@ -1,5 +1,6 @@
 package com.dongle.server.auth
 
+import com.dongle.server.auth.dto.AppleLoginRequest
 import com.dongle.server.auth.dto.GoogleLoginRequest
 import com.dongle.server.auth.dto.OAuthLoginRequest
 import com.dongle.server.auth.dto.OAuthLoginResponse
@@ -41,6 +42,10 @@ class AuthController(
     @PostMapping("/oauth/google")
     fun loginWithGoogle(@Valid @RequestBody request: GoogleLoginRequest): OAuthLoginResponse =
         authService.loginWithGoogle(request.idToken)
+
+    @PostMapping("/oauth/apple")
+    fun loginWithApple(@Valid @RequestBody request: AppleLoginRequest): OAuthLoginResponse =
+        authService.loginWithApple(request.idToken)
 
     @PostMapping("/refresh")
     fun refresh(@Valid @RequestBody request: RefreshRequest): RefreshResponse =

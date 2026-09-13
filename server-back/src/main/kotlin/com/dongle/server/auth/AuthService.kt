@@ -3,6 +3,7 @@ package com.dongle.server.auth
 import com.dongle.server.auth.dto.OAuthLoginResponse
 import com.dongle.server.auth.dto.RefreshResponse
 import com.dongle.server.auth.jwt.JwtTokenProvider
+import com.dongle.server.auth.oauth.AppleOAuthClient
 import com.dongle.server.auth.oauth.GoogleOAuthClient
 import com.dongle.server.auth.oauth.KakaoOAuthClient
 import com.dongle.server.auth.oauth.OAuthUserInfo
@@ -21,6 +22,7 @@ class AuthService(
     private val refreshTokenRepository: RefreshTokenRepository,
     private val kakaoOAuthClient: KakaoOAuthClient,
     private val googleOAuthClient: GoogleOAuthClient,
+    private val appleOAuthClient: AppleOAuthClient,
     private val jwtTokenProvider: JwtTokenProvider,
     private val jwtProperties: JwtProperties,
 ) {
@@ -29,6 +31,9 @@ class AuthService(
 
     fun loginWithGoogle(idToken: String): OAuthLoginResponse =
         login(OAuthProvider.google, googleOAuthClient.getUserInfo(idToken))
+
+    fun loginWithApple(idToken: String): OAuthLoginResponse =
+        login(OAuthProvider.apple, appleOAuthClient.getUserInfo(idToken))
 
     // 리프레시 토큰 회전(2026-09-04 도입) — 갱신 때마다 새 리프레시 토큰을 발급하고 기존 것은 바로
     // 폐기함. 예전엔 액세스 토큰만 새로 내주고 리프레시 토큰은 원래 만료 시각까지 계속 재사용됐는데,

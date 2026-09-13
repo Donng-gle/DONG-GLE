@@ -125,6 +125,19 @@ components:
             decision-log 참고). 카카오는 기존 인가 코드 방식(OAuthRequest)을 그대로 유지.
           example: eyJhbGciOiJSUzI1NiIsImtpZCI6IjEyMzQ1In0...
 
+    AppleOAuthRequest:
+      type: object
+      required: [id_token]
+      properties:
+        id_token:
+          type: string
+          description: |
+            앱이 기기 내 네이티브 Sign in with Apple(expo-apple-authentication)로 받은 ID 토큰(JWT).
+            구글과 동일하게 서버는 이 토큰의 서명·발급자·audience(앱 번들 ID)만 검증한다
+            (2026-09-14 도입, 앱스토어 심사 가이드라인 4.8 대응). 애플은 이름/프로필 사진을 ID
+            토큰에 담지 않고, 최초 로그인 이후에는 email도 빠질 수 있다.
+          example: eyJhbGciOiJSUzI1NiIsImtpZCI6IkFCQ0QxMiJ9...
+
     OAuthResponse:
       type: object
       properties:
@@ -1488,6 +1501,36 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/GoogleOAuthRequest'
+      responses:
+        '200':
+          description: 로그인 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuthResponse'
+        '400':
+          description: 유효하지 않은 ID 토큰 (서명/발급자/audience 불일치, 만료 등)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/oauth/apple:
+    post:
+      tags: [Auth]
+      summary: 애플 로그인
+      description: |
+        앱이 기기 내 네이티브 Sign in with Apple로 로그인해 받은 ID 토큰을 서버에 전달하여
+        서비스 JWT 토큰을 발급받는다. 구글과 동일한 ID 토큰 검증 방식이며(2026-09-14 도입),
+        audience는 Service ID가 아니라 앱 번들 ID(com.dongle.andong)다. 응답 형태·의미는
+        카카오/구글 로그인과 동일하다.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AppleOAuthRequest'
       responses:
         '200':
           description: 로그인 성공
