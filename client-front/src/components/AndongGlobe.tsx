@@ -1,6 +1,11 @@
 import { useRef, useState } from 'react';
-import { PanResponder, StyleSheet, View } from 'react-native';
+import { Image, PanResponder, StyleSheet, View } from 'react-native';
 import { AndongGlobeView } from '../../modules/andong-globe-view';
+
+const SHADOW_IMAGE = require('../../assets/images/map-shadow.png');
+// map-shadow.png 실제 픽셀 비율(720x117) — width만 컨테이너 크기에 맞추고 height는 이 비율로
+// 계산해서 이미지가 안 찌그러지게 함
+const SHADOW_ASPECT_RATIO = 117 / 720;
 
 // "나의 일지" 탭 히어로 — 안동시 지도를 세로축 중심으로 돌려서 지구본처럼 보이게 함.
 //
@@ -64,9 +69,13 @@ export function AndongGlobe({ size, interactive = true }: Props) {
           cameraDistanceInches={CAMERA_DISTANCE_INCHES}
         />
       </View>
-      {/* Figma 지도 밑 그림자(506:11131) 반영 — 정확한 블러 값은 Figma 연결이 끊겨서 못 가져왔고
-          비슷하게 근사함. 채널 재연결되면 실제 blur/opacity로 다듬을 것 */}
-      <View style={[styles.shadow, { width: size * 0.62, height: size * 0.07 }]} />
+      {/* Figma 지도 밑 그림자(506:11131) — 기존엔 blur/opacity 근사한 단색 View였는데(2026-09-04),
+          실제 그림자 이미지(지도_그림자.png)로 교체(2026-09-13) */}
+      <Image
+        source={SHADOW_IMAGE}
+        style={[styles.shadow, { width: size * 0.62, height: size * 0.62 * SHADOW_ASPECT_RATIO }]}
+        resizeMode="contain"
+      />
     </View>
   );
 }
@@ -76,8 +85,5 @@ const styles = StyleSheet.create({
   imageWrap: { alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   shadow: {
     marginTop: -8,
-    borderRadius: 100,
-    backgroundColor: '#000000',
-    opacity: 0.16,
   },
 });
