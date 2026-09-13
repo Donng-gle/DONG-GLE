@@ -298,3 +298,32 @@ Table swipe_session_candidate {
     (session_id, sort_order)
   }
 }
+
+// 사용자 차단 (앱스토어 심사 가이드라인 1.2 대응, 2026-09-14)
+Table user_block {
+  id              bigint    [pk, increment]
+  blocker_user_id bigint    [not null, ref: > user.id]
+  blocked_user_id bigint    [not null, ref: > user.id]
+  created_at      timestamp [not null, default: `now()`]
+
+  indexes {
+    (blocker_user_id, blocked_user_id) [unique]
+  }
+}
+
+// 콘텐츠 신고 (앱스토어 심사 가이드라인 1.2 대응, 2026-09-14) — 운영자 대응은 별도 어드민 패널
+// 없이 status를 팀이 직접 확인/갱신하는 방식(이 프로젝트 규모의 최소 구현)
+Table content_report {
+  id          bigint      [pk, increment]
+  reporter_id bigint      [not null, ref: > user.id]
+  target_type varchar(20) [not null, note: "CHECK: 'visit_log' | 'course'"]
+  target_id   bigint      [not null, note: '대상 테이블은 target_type으로 결정 — FK 없음']
+  reason      varchar(20) [not null, note: "CHECK: 'inappropriate' | 'spam' | 'abuse' | 'other'"]
+  detail      text
+  status      varchar(20) [not null, default: 'pending', note: "CHECK: 'pending' | 'reviewed' | 'rejected'"]
+  created_at  timestamp   [not null, default: `now()`]
+
+  indexes {
+    status
+  }
+}
