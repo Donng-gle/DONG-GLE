@@ -14,7 +14,8 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
-import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import MapView, { Marker } from 'react-native-maps';
+import { MAP_PROVIDER } from '../utils/mapProvider';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PlaceDetail, placeApi } from '../api/place';
 import { PlaceLogsResponse, VisitLogSummary, visitLogApi } from '../api/visitLog';
@@ -297,7 +298,7 @@ export function PlaceDetailScreen({ placeId, onExit }: Props) {
               onPress={() => openInGoogleMaps(place.lat!, place.lng!, place.name)}
             >
               <MapView
-                provider={PROVIDER_GOOGLE}
+                provider={MAP_PROVIDER}
                 style={styles.previewMap}
                 scrollEnabled={false}
                 zoomEnabled={false}
