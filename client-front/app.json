@@ -41,6 +41,12 @@
           "iosUrlScheme": "com.googleusercontent.apps.633640803041-val291hsro68uoojtt5cjduqnf3jrvd0"
         }
       ]
-    ]
+    ],
+    "owner": "donggle-andong",
+    "extra": {
+      "eas": {
+        "projectId": "25d738cb-597e-431d-a6fc-2ebdbc534bb9"
+      }
+    }
   }
 }
