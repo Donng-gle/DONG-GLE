@@ -27,6 +27,13 @@ export function ChoiceBottomSheet({ visible, label, options, onClose }: Props) {
   const insets = useSafeAreaInsets();
   const [mounted, setMounted] = useState(visible);
   const sheetProgress = useRef(new Animated.Value(0)).current;
+  // pick()으로 고른 액션을 바로 실행하지 않고 여기 담아뒀다가, 이 시트의 <Modal>이 완전히
+  // mounted=false(닫힘 애니메이션 종료)된 뒤에 실행한다. iOS는 UIViewController를
+  // presentViewController로 겹쳐 띄우는 방식이라, 이 시트가 닫히는 도중(mounted=true인 채로
+  // 최대 220ms) 액션이 또 다른 <Modal>을 열면 두 번째 프레젠테이션이 조용히 무시돼 "장소
+  // 기록"/"코스 작성"을 눌러도 아무 화면도 안 뜨는 버그가 있었다(2026-09-14 발견, 회귀 지점:
+  // 66c8292 네이티브 Alert → 이 컴포넌트로 교체).
+  const pendingActionRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     if (visible) {
@@ -35,15 +42,20 @@ export function ChoiceBottomSheet({ visible, label, options, onClose }: Props) {
       Animated.timing(sheetProgress, { toValue: 1, duration: 260, useNativeDriver: true }).start();
     } else {
       Animated.timing(sheetProgress, { toValue: 0, duration: 220, useNativeDriver: true }).start(({ finished }) => {
-        if (finished) setMounted(false);
+        if (finished) {
+          setMounted(false);
+          const pending = pendingActionRef.current;
+          pendingActionRef.current = null;
+          pending?.();
+        }
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
 
   function pick(action: () => void) {
+    pendingActionRef.current = action;
     onClose();
-    action();
   }
 
   return (
