@@ -26,6 +26,7 @@ class SecurityConfig(
         "/error",
         "/health",
         "/", // 앱스토어 심사용 문의 연락처 안내 페이지(SupportController)
+        "/privacy.html", // 앱스토어 심사/제출용 개인정보처리방침 페이지(static 리소스)
     )
 
     // 장소 조회(GET)는 비인증 허용 (PlaceController security: [] 참고). POST/DELETE(좋아요 등)는 인증 필요
