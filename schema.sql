@@ -316,6 +316,35 @@ CREATE TABLE swipe_session_candidate (
 CREATE INDEX idx_swipe_session_candidate_session ON swipe_session_candidate (session_id, sort_order);
 
 
+-- 사용자 차단 (앱스토어 심사 가이드라인 1.2 대응, 2026-09-14)
+CREATE TABLE user_block (
+    id              BIGSERIAL PRIMARY KEY,
+    blocker_user_id BIGINT    NOT NULL REFERENCES "user" (id) ON DELETE CASCADE,
+    blocked_user_id BIGINT    NOT NULL REFERENCES "user" (id) ON DELETE CASCADE,
+    created_at      TIMESTAMP NOT NULL DEFAULT NOW(),
+    UNIQUE (blocker_user_id, blocked_user_id),
+    CHECK (blocker_user_id <> blocked_user_id)
+);
+
+CREATE INDEX idx_user_block_blocker ON user_block (blocker_user_id);
+
+
+-- 콘텐츠 신고 (앱스토어 심사 가이드라인 1.2 대응, 2026-09-14) — 운영자 대응은 별도 어드민 패널
+-- 없이 status를 팀이 직접 확인/갱신하는 방식(이 프로젝트 규모의 최소 구현, decision-log 참고 예정)
+CREATE TABLE content_report (
+    id          BIGSERIAL PRIMARY KEY,
+    reporter_id BIGINT      NOT NULL REFERENCES "user" (id) ON DELETE CASCADE,
+    target_type VARCHAR(20) NOT NULL CHECK (target_type IN ('visit_log', 'course')),
+    target_id   BIGINT      NOT NULL,
+    reason      VARCHAR(20) NOT NULL CHECK (reason IN ('inappropriate', 'spam', 'abuse', 'other')),
+    detail      TEXT,
+    status      VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'reviewed', 'rejected')),
+    created_at  TIMESTAMP   NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_content_report_status ON content_report (status);
+
+
 -- 공통 updated_at 자동 갱신
 CREATE OR REPLACE FUNCTION set_updated_at()
 RETURNS TRIGGER AS $$

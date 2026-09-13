@@ -7,6 +7,7 @@ import com.dongle.server.explore.dto.SimilarCoursePlacePreview
 import com.dongle.server.explore.dto.SimilarCoursesResponse
 import com.dongle.server.explore.dto.SimilarLogItemResponse
 import com.dongle.server.explore.dto.SimilarLogsResponse
+import com.dongle.server.moderation.UserBlockRepository
 import com.dongle.server.user.UserPreferenceRepository
 import com.dongle.server.visitlog.VisitLog
 import com.dongle.server.visitlog.VisitLogPhoto
@@ -22,6 +23,7 @@ class ExploreService(
     private val userPreferenceRepository: UserPreferenceRepository,
     private val visitLogRepository: VisitLogRepository,
     private val courseRepository: CourseRepository,
+    private val userBlockRepository: UserBlockRepository,
 ) {
     fun similarLogs(
         userId: Long,
@@ -31,7 +33,9 @@ class ExploreService(
         neLng: Double?,
         limit: Int,
     ): SimilarLogsResponse {
-        val similarUserIds = resolveSimilarUserIds(userId) ?: return SimilarLogsResponse(logs = emptyList())
+        // 앱스토어 심사 가이드라인 1.2 대응(2026-09-14) — 차단한 유저는 후보군에서 아예 제외
+        val similarUserIds = resolveSimilarUserIds(userId, userBlockRepository.findBlockedUserIds(userId))
+            ?: return SimilarLogsResponse(logs = emptyList())
 
         val candidates = visitLogRepository.findPublicByUserIds(
             similarUserIds,
@@ -54,14 +58,15 @@ class ExploreService(
     // "취향 맞춤 코스" 탭 — 취향 겹치는 유저의 공개 코스 탐색(2026-09-07 결정, decision-log 참고).
     // similarLogs와 동일한 취향 겹침 판단(상위 태그 3개, 유사도 0.6 이상)을 그대로 재사용
     fun similarCourses(userId: Long, limit: Int): SimilarCoursesResponse {
-        val similarUserIds = resolveSimilarUserIds(userId) ?: return SimilarCoursesResponse(courses = emptyList())
+        val similarUserIds = resolveSimilarUserIds(userId, userBlockRepository.findBlockedUserIds(userId))
+            ?: return SimilarCoursesResponse(courses = emptyList())
 
         val candidates = courseRepository.findPublicByUserIds(similarUserIds, PageRequest.of(0, limit))
 
         return SimilarCoursesResponse(courses = candidates.map { it.toSimilarCourseItemResponse() })
     }
 
-    private fun resolveSimilarUserIds(userId: Long): List<Long>? {
+    private fun resolveSimilarUserIds(userId: Long, blockedUserIds: Set<Long>): List<Long>? {
         val myTopTags = userPreferenceRepository.findByUserId(userId)
             .sortedByDescending { it.score }
             .take(TOP_TAG_COUNT)
@@ -69,6 +74,7 @@ class ExploreService(
         if (myTopTags.isEmpty()) return null
 
         val similarUserIds = userPreferenceRepository.findSimilarUserIds(myTopTags, SIMILARITY_THRESHOLD, userId)
+            .filterNot { it in blockedUserIds }
         return similarUserIds.ifEmpty { null }
     }
 
@@ -99,6 +105,7 @@ private fun VisitLog.toSimilarLogItemResponse() = SimilarLogItemResponse(
     tags = emotionTags.map { it.tag },
     nickname = user.nickname,
     profileImageUrl = user.profileImageUrl,
+    authorUserId = user.id,
 )
 
 private fun VisitLogPhoto.toResponse() = VisitLogPhotoResponse(url = photoUrl, caption = caption)
@@ -116,5 +123,6 @@ private fun Course.toSimilarCourseItemResponse(): SimilarCourseItemResponse {
         },
         nickname = user.nickname,
         profileImageUrl = user.profileImageUrl,
+        authorUserId = user.id,
     )
 }

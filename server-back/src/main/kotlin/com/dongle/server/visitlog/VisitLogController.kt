@@ -52,10 +52,11 @@ class VisitLogController(
 
     @GetMapping("/places/{placeId}/logs")
     fun logsForPlace(
+        authentication: Authentication?,
         @PathVariable placeId: Long,
         @RequestParam(defaultValue = "1") page: Int,
         @RequestParam(defaultValue = "20") size: Int,
-    ): PlaceLogsResponse = visitLogService.logsForPlace(placeId, page, size)
+    ): PlaceLogsResponse = visitLogService.logsForPlace(placeId, authentication.currentUserId(), page, size)
 
     @GetMapping("/logs/{logId}")
     fun getDetail(authentication: Authentication, @PathVariable logId: Long): VisitLogDetailResponse =
@@ -76,3 +77,7 @@ class VisitLogController(
 }
 
 private fun Authentication.userId(): Long = principal as Long
+
+// PlaceController.currentUserId()와 동일한 패턴 — 비인증 허용 엔드포인트에서 로그인 시에만
+// 개인화(여기서는 차단 필터링)를 적용하기 위함
+private fun Authentication?.currentUserId(): Long? = this?.principal as? Long

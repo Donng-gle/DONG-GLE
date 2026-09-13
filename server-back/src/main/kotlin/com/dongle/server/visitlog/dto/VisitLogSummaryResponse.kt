@@ -15,4 +15,7 @@ data class VisitLogSummaryResponse(
     // ExploreService.toSimilarLogItemResponse의 nickname/profileImageUrl과 동일한 패턴
     val nickname: String,
     val profileImageUrl: String?,
+    // 신고/차단 대상을 특정하려면 작성자 식별자가 필요해서 추가(2026-09-14, 앱스토어 심사
+    // 가이드라인 1.2 대응)
+    val authorUserId: Long,
 )

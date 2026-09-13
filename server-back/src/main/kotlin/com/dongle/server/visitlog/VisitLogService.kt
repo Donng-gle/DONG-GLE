@@ -5,6 +5,7 @@ import com.dongle.server.course.Course
 import com.dongle.server.course.CoursePlace
 import com.dongle.server.course.CourseRepository
 import com.dongle.server.course.CourseSource
+import com.dongle.server.moderation.UserBlockRepository
 import com.dongle.server.place.PlaceNotFoundException
 import com.dongle.server.place.PlaceRepository
 import com.dongle.server.user.UserRepository
@@ -31,6 +32,7 @@ class VisitLogService(
     private val placeRepository: PlaceRepository,
     private val userRepository: UserRepository,
     private val courseRepository: CourseRepository,
+    private val userBlockRepository: UserBlockRepository,
 ) {
     // AI 이미지 분석 연동 전까지의 임시 스코프 (2026-08-30 결정, decision-log 참고): 방문 기록
     // 생성/저장은 지금 구현하되, 감성 태그 자동 부여(log_emotion_tag 적재)는 뺀다.
@@ -129,14 +131,19 @@ class VisitLogService(
         )
     }
 
-    fun logsForPlace(placeId: Long, page: Int, size: Int): PlaceLogsResponse {
+    // 이 엔드포인트는 비인증도 허용(SecurityConfig permitAllGetPaths)이라 viewerUserId가 null일 수
+    // 있음 — 그때는 차단 필터링을 적용할 방법이 없어 그대로 보여준다(로그인 사용자에게는 필터링
+    // 적용, 2026-09-14, 앱스토어 심사 가이드라인 1.2 대응)
+    fun logsForPlace(placeId: Long, viewerUserId: Long?, page: Int, size: Int): PlaceLogsResponse {
         if (!placeRepository.existsById(placeId)) throw PlaceNotFoundException(placeId)
+        val blockedUserIds = viewerUserId?.let { userBlockRepository.findBlockedUserIds(it) } ?: emptySet()
 
         val pageable = PageRequest.of((page - 1).coerceAtLeast(0), size)
         val result = visitLogRepository.findByPlaceId(placeId, pageable)
+        val visibleLogs = result.content.filterNot { it.user.id in blockedUserIds }
 
         return PlaceLogsResponse(
-            logs = result.content.map { it.toSummaryResponse() },
+            logs = visibleLogs.map { it.toSummaryResponse() },
             meta = PaginationMeta(
                 total = result.totalElements,
                 page = page,
@@ -220,6 +227,7 @@ private fun VisitLog.toSummaryResponse() = VisitLogSummaryResponse(
     tags = emotionTags.map { it.tag },
     nickname = user.nickname,
     profileImageUrl = user.profileImageUrl,
+    authorUserId = user.id,
 )
 
 private fun VisitLog.toDetailResponse() = VisitLogDetailResponse(

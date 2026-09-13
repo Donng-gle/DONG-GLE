@@ -14,6 +14,9 @@ import com.dongle.server.course.NotEnoughSwipeCandidatesException
 import com.dongle.server.course.optimizer.CourseOptimizerUpstreamException
 import com.dongle.server.image.ImageProxyUpstreamException
 import com.dongle.server.image.InvalidPhotoReferenceException
+import com.dongle.server.moderation.SelfBlockNotAllowedException
+import com.dongle.server.moderation.UserAlreadyBlockedException
+import com.dongle.server.moderation.UserBlockNotFoundException
 import com.dongle.server.onboarding.OnboardingCardAlreadySwipedException
 import com.dongle.server.onboarding.OnboardingCardNotFoundException
 import com.dongle.server.place.PlaceAlreadyLikedException
@@ -77,6 +80,21 @@ class GlobalExceptionHandler {
     fun handlePlaceLikeNotFound(ex: PlaceLikeNotFoundException): ResponseEntity<ErrorResponse> =
         ResponseEntity.status(HttpStatus.NOT_FOUND)
             .body(ErrorResponse(code = "PLACE_LIKE_NOT_FOUND", message = ex.message ?: "좋아요 기록이 없습니다."))
+
+    @ExceptionHandler(SelfBlockNotAllowedException::class)
+    fun handleSelfBlockNotAllowed(ex: SelfBlockNotAllowedException): ResponseEntity<ErrorResponse> =
+        ResponseEntity.status(HttpStatus.BAD_REQUEST)
+            .body(ErrorResponse(code = "SELF_BLOCK_NOT_ALLOWED", message = ex.message ?: "자기 자신은 차단할 수 없습니다."))
+
+    @ExceptionHandler(UserAlreadyBlockedException::class)
+    fun handleUserAlreadyBlocked(ex: UserAlreadyBlockedException): ResponseEntity<ErrorResponse> =
+        ResponseEntity.status(HttpStatus.CONFLICT)
+            .body(ErrorResponse(code = "USER_ALREADY_BLOCKED", message = ex.message ?: "이미 차단한 사용자입니다."))
+
+    @ExceptionHandler(UserBlockNotFoundException::class)
+    fun handleUserBlockNotFound(ex: UserBlockNotFoundException): ResponseEntity<ErrorResponse> =
+        ResponseEntity.status(HttpStatus.NOT_FOUND)
+            .body(ErrorResponse(code = "USER_BLOCK_NOT_FOUND", message = ex.message ?: "차단 기록이 없습니다."))
 
     @ExceptionHandler(UnsupportedContentTypeException::class)
     fun handleUnsupportedContentType(ex: UnsupportedContentTypeException): ResponseEntity<ErrorResponse> =
