@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
+import MapView, { Marker, Polyline } from 'react-native-maps';
+import { MAP_PROVIDER } from '../utils/mapProvider';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CourseDetail, CoursePlaceItem, CoursePlaceRequest, courseApi } from '../api/course';
 import { exploreApi } from '../api/explore';
@@ -197,7 +198,7 @@ export function PublicCourseDetailScreen({ courseId, onExit, onCreateManual, onC
         )}
 
         {pinnedPlaces.length > 0 && (
-          <MapView provider={PROVIDER_GOOGLE} style={styles.map} initialRegion={ANDONG_REGION}>
+          <MapView provider={MAP_PROVIDER} style={styles.map} initialRegion={ANDONG_REGION}>
             {pinnedPlaces.length > 1 && (
               <Polyline
                 coordinates={pinnedPlaces.map((p) => ({ latitude: p.lat as number, longitude: p.lng as number }))}

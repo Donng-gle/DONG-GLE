@@ -12,7 +12,8 @@ import {
   Image,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import MapView, { Marker } from 'react-native-maps';
+import { MAP_PROVIDER } from '../utils/mapProvider';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PlaceListItem, placeApi } from '../api/place';
 import { userApi } from '../api/user';
@@ -155,7 +156,7 @@ export function PlaceMapPickerScreen({ onExit, selectedPlaces, onTogglePlace }: 
     <View style={styles.container}>
       <StatusBar style="dark" />
 
-      <MapView ref={mapRef} provider={PROVIDER_GOOGLE} style={StyleSheet.absoluteFill} initialRegion={ANDONG_REGION}>
+      <MapView ref={mapRef} provider={MAP_PROVIDER} style={StyleSheet.absoluteFill} initialRegion={ANDONG_REGION}>
         {selectedPlaces
           .filter((p) => p.lat != null && p.lng != null)
           .map((p) => (
