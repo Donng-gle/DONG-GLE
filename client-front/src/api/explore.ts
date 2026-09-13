@@ -19,6 +19,8 @@ export interface SimilarLogItem {
   // 작성자 이름+아바타에 대응
   nickname: string;
   profile_image_url: string | null;
+  // 신고/차단 대상 특정용 작성자 식별자(2026-09-14 추가, 앱스토어 심사 가이드라인 1.2 대응)
+  author_user_id: number;
 }
 
 export interface SimilarLogsResponse {
@@ -43,6 +45,8 @@ export interface SimilarCourseItem {
   place_previews: SimilarCoursePlacePreview[];
   nickname: string;
   profile_image_url: string | null;
+  // 신고/차단 대상 특정용 작성자 식별자(2026-09-14 추가, 앱스토어 심사 가이드라인 1.2 대응)
+  author_user_id: number;
 }
 
 export interface SimilarCoursesResponse {

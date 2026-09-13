@@ -3,6 +3,7 @@ import { ActivityIndicator, Alert, FlatList, Image, StyleSheet, Text, TouchableO
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SimilarLogItem, exploreApi } from '../api/explore';
+import { ReportBlockMenu } from '../components/ReportBlockMenu';
 import { StarRating } from '../components/StarRating';
 import { colors } from '../theme/colors';
 import { fonts } from '../theme/fonts';
@@ -84,7 +85,13 @@ export function ExploreScreen({ onExit }: Props) {
             viewabilityConfig={{ itemVisiblePercentThreshold: 60 }}
             onScrollToIndexFailed={() => {}}
             ListEmptyComponent={<Text style={styles.emptyText}>아직 취향이 겹치는 유저의 공개 기록이 없어요.</Text>}
-            renderItem={({ item }) => <SimilarLogCard item={item} onSelectPlace={() => setSelectedPlaceId(item.place_id)} />}
+            renderItem={({ item }) => (
+              <SimilarLogCard
+                item={item}
+                onSelectPlace={() => setSelectedPlaceId(item.place_id)}
+                onBlocked={() => setLogs((prev) => prev?.filter((l) => l.author_user_id !== item.author_user_id) ?? prev)}
+              />
+            )}
           />
 
           {logs.length > 0 && (
@@ -104,7 +111,15 @@ export function ExploreScreen({ onExit }: Props) {
   );
 }
 
-function SimilarLogCard({ item, onSelectPlace }: { item: SimilarLogItem; onSelectPlace: () => void }) {
+function SimilarLogCard({
+  item,
+  onSelectPlace,
+  onBlocked,
+}: {
+  item: SimilarLogItem;
+  onSelectPlace: () => void;
+  onBlocked: () => void;
+}) {
   return (
     <View style={styles.card}>
       <View style={styles.cardTopRow}>
@@ -121,9 +136,17 @@ function SimilarLogCard({ item, onSelectPlace }: { item: SimilarLogItem; onSelec
             )}
           </View>
         </View>
-        <TouchableOpacity style={styles.selectButton} onPress={onSelectPlace}>
-          <Text style={styles.selectButtonText}>선택</Text>
-        </TouchableOpacity>
+        <View style={styles.cardTopRowActions}>
+          <ReportBlockMenu
+            authorUserId={item.author_user_id}
+            targetType="visit_log"
+            targetId={item.log_id}
+            onBlocked={onBlocked}
+          />
+          <TouchableOpacity style={styles.selectButton} onPress={onSelectPlace}>
+            <Text style={styles.selectButtonText}>선택</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <Text style={styles.placeName}>{item.place_name}</Text>
@@ -165,6 +188,7 @@ const styles = StyleSheet.create({
 
   card: { backgroundColor: colors.white, borderRadius: 16, borderWidth: 1, borderColor: colors.border, padding: 16 },
   cardTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  cardTopRowActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   profileRow: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
   avatar: { width: 40, height: 40, borderRadius: 8 },
   avatarPlaceholder: { backgroundColor: colors.border },

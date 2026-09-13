@@ -20,6 +20,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PlaceDetail, placeApi } from '../api/place';
 import { PlaceLogsResponse, VisitLogSummary, visitLogApi } from '../api/visitLog';
 import { BookmarkIcon, HeartIcon, SearchIcon } from '../components/icons';
+import { ReportBlockMenu } from '../components/ReportBlockMenu';
 import { StarRating } from '../components/StarRating';
 import { colors } from '../theme/colors';
 import { fonts } from '../theme/fonts';
@@ -337,7 +338,17 @@ export function PlaceDetailScreen({ placeId, onExit }: Props) {
           {logs && logs.logs.length > 0 && (
             <View style={styles.reviewGrid}>
               {logs.logs.map((log) => (
-                <PhotoReviewCard key={log.id} log={log} />
+                <PhotoReviewCard
+                  key={log.id}
+                  log={log}
+                  onBlocked={() =>
+                    setLogs((prev) =>
+                      prev
+                        ? { ...prev, logs: prev.logs.filter((l) => l.author_user_id !== log.author_user_id) }
+                        : prev
+                    )
+                  }
+                />
               ))}
             </View>
           )}
@@ -376,7 +387,7 @@ function InfoRow({ label, value, onPress }: { label: string; value: string; onPr
 // 애초에 상정하지 않는 상태라(Figma에 그런 변형이 없음) 사진 없이도 카드 자체는 그리되, 어두운
 // 사진 배경이 없으니 텍스트를 흰색 대신 검정 계열로 바꿔 가독성만 확보(문의 대비 목적, 레이아웃은
 // 동일). 별점은 이 디자인엔 없어서 생략(위 파일 상단 코멘트 참고)
-function PhotoReviewCard({ log }: { log: VisitLogSummary }) {
+function PhotoReviewCard({ log, onBlocked }: { log: VisitLogSummary; onBlocked: () => void }) {
   const photo = log.photos[0];
   return (
     <View style={styles.gridCard}>
@@ -393,6 +404,16 @@ function PhotoReviewCard({ log }: { log: VisitLogSummary }) {
       ) : (
         <View style={[StyleSheet.absoluteFill, styles.gridCardPlaceholder]} />
       )}
+
+      <View style={styles.gridCardMenu}>
+        <ReportBlockMenu
+          authorUserId={log.author_user_id}
+          targetType="visit_log"
+          targetId={log.id}
+          onBlocked={onBlocked}
+          iconColor={photo ? colors.white : undefined}
+        />
+      </View>
 
       <View style={styles.gridCardProfile}>
         <View style={styles.gridCardProfileRow}>
@@ -527,6 +548,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.backgroundMuted,
   },
   gridCardPlaceholder: { backgroundColor: colors.backgroundMuted },
+  gridCardMenu: { position: 'absolute', top: 4, right: 4 },
   // Figma 실측: 카드 좌우 8, 하단 11 인셋
   gridCardProfile: { position: 'absolute', left: 8, right: 8, bottom: 11 },
   gridCardProfileRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
