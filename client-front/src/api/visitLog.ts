@@ -63,6 +63,8 @@ export interface VisitLogSummary {
   // 관광지 상세 페이지 리뷰 카드용 작성자 정보 (2026-09-09 추가, decision-log 참고)
   nickname: string;
   profile_image_url: string | null;
+  // 신고/차단 대상 특정용 작성자 식별자(2026-09-14 추가, 앱스토어 심사 가이드라인 1.2 대응)
+  author_user_id: number;
 }
 
 export interface VisitLogMapItem {
@@ -126,9 +128,10 @@ export const visitLogApi = {
 
   myLogs: (page = 1, size = 50) => apiClient.get<MyLogsResponse>(`/users/me/logs?page=${page}&size=${size}`, true),
 
-  // 비인증 허용 — 장소 상세 화면에서 누구나 볼 수 있음
+  // 비인증도 허용하지만(장소 상세 화면에서 누구나 볼 수 있음), 로그인 상태면 토큰을 실어서
+  // 서버가 차단한 유저의 기록을 걸러줄 수 있게 한다(2026-09-14, 앱스토어 심사 가이드라인 1.2 대응)
   logsForPlace: (placeId: number, page = 1, size = 20) =>
-    apiClient.get<PlaceLogsResponse>(`/places/${placeId}/logs?page=${page}&size=${size}`),
+    apiClient.get<PlaceLogsResponse>(`/places/${placeId}/logs?page=${page}&size=${size}`, true),
 
   getDetail: (logId: number) => apiClient.get<VisitLogDetail>(`/logs/${logId}`, true),
 

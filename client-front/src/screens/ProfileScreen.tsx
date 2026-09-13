@@ -24,6 +24,7 @@ import { RadarChart } from '../components/RadarChart';
 import { MOCK_ENABLED } from '../mocks/config';
 import { colors } from '../theme/colors';
 import { fonts } from '../theme/fonts';
+import { BlockedUsersScreen } from './BlockedUsersScreen';
 import { ScrapbookScreen } from './ScrapbookScreen';
 
 interface Props {
@@ -39,7 +40,7 @@ interface Props {
   onCreateAI: () => void;
 }
 
-type SubScreen = 'none' | 'likes';
+type SubScreen = 'none' | 'likes' | 'blockedUsers';
 
 const PROVIDER_LABEL: Record<UserProfile['oauth_provider'], string> = {
   kakao: '카카오 사용자',
@@ -201,6 +202,10 @@ export function ProfileScreen({
     );
   }
 
+  if (subScreen === 'blockedUsers') {
+    return <BlockedUsersScreen onExit={() => setSubScreen('none')} />;
+  }
+
   return (
     <View style={styles.container}>
       <StatusBar style="dark" />
@@ -277,6 +282,10 @@ export function ProfileScreen({
         <View style={styles.menuList}>
           <TouchableOpacity style={styles.menuItem} onPress={() => setSubScreen('likes')}>
             <Text style={styles.menuItemText}>찜한 장소 보기</Text>
+          </TouchableOpacity>
+          <View style={styles.menuDivider} />
+          <TouchableOpacity style={styles.menuItem} onPress={() => setSubScreen('blockedUsers')}>
+            <Text style={styles.menuItemText}>차단한 사용자 관리</Text>
           </TouchableOpacity>
           <View style={styles.menuDivider} />
           <TouchableOpacity style={styles.menuItem} onPress={confirmWithdraw} disabled={withdrawing}>

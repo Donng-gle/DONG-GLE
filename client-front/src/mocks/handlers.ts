@@ -72,8 +72,9 @@ function toMapItem(log: MockVisitLog): VisitLogMapItem {
 }
 
 // mine:true 기록엔 fixture에 작성자가 없어서(나 자신이니까) 목업 전용 고정 프로필을 씀 —
-// 관광지 상세 페이지 리뷰 카드(2026-09-09 추가, decision-log 참고)가 작성자 정보를 항상 요구해서 필요
-const MOCK_ME = { nickname: '나', profile_image_url: null as string | null };
+// 관광지 상세 페이지 리뷰 카드(2026-09-09 추가, decision-log 참고)가 작성자 정보를 항상 요구해서 필요.
+// id는 실제 로그인 유저 id와 겹치지 않을 만한 값을 임의로 둠(신고/차단 대상 특정용, 2026-09-14 추가)
+const MOCK_ME = { id: 0, nickname: '나', profile_image_url: null as string | null };
 
 function toSummary(log: MockVisitLog): VisitLogSummary {
   const author = findMockAuthorForLog(log);
@@ -88,6 +89,7 @@ function toSummary(log: MockVisitLog): VisitLogSummary {
     tags: log.tags,
     nickname: author?.nickname ?? MOCK_ME.nickname,
     profile_image_url: author?.profile_image_url ?? MOCK_ME.profile_image_url,
+    author_user_id: author?.id ?? MOCK_ME.id,
   };
 }
 
@@ -127,6 +129,7 @@ function toSimilarLogItem(log: MockVisitLog): SimilarLogItem {
     tags: log.tags,
     nickname: author.nickname,
     profile_image_url: author.profile_image_url,
+    author_user_id: author.id,
   };
 }
 
@@ -149,6 +152,7 @@ function toSimilarCourseItem(course: MockOtherCourse): SimilarCourseItem {
     })),
     nickname: author.nickname,
     profile_image_url: author.profile_image_url,
+    author_user_id: author.id,
   };
 }
 
