@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { ActivityIndicator, Alert, Image, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Platform, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as WebBrowser from 'expo-web-browser';
+import * as AppleAuthentication from 'expo-apple-authentication';
 import { GoogleSignin, isSuccessResponse } from '@react-native-google-signin/google-signin';
 import { authApi, UserProfile } from '../api/auth';
 import { tokenStorage } from '../auth/tokenStorage';
@@ -13,7 +14,7 @@ import { fonts } from '../theme/fonts';
 
 WebBrowser.maybeCompleteAuthSession();
 
-type Provider = 'kakao' | 'google';
+type Provider = 'kakao' | 'google' | 'apple';
 
 // TourAPI 190건 중 월영교(place.id=116)의 실제 등록 사진 — Figma 목업이 쓰던 사진은
 // 워터마크 있는 미리보기 스톡 이미지라 그대로 못 씀 (2026-08-31 결정, decision-log 참고)
@@ -84,12 +85,34 @@ export function LoginScreen({ onLoginSuccess, onGuestContinue }: Props) {
     }
   }
 
-  // provider별로 실제로는 다른 값(카카오=인가 code, 구글=ID 토큰)이지만 authApi 쪽에서 알맞게 처리함
+  // 애플은 iOS 네이티브 Sign in with Apple(expo-apple-authentication)로 로그인 — 앱스토어 심사
+  // 가이드라인 4.8 대응(2026-09-14 추가). Android에는 API 자체가 없어 버튼도 iOS에서만 노출
+  async function promptAppleLoginAsync() {
+    try {
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [AppleAuthentication.AppleAuthenticationScope.FULL_NAME, AppleAuthentication.AppleAuthenticationScope.EMAIL],
+      });
+      if (credential.identityToken) {
+        handleLogin('apple', credential.identityToken);
+      } else {
+        Alert.alert('Apple 로그인 실패', 'ID 토큰을 받지 못했습니다.');
+      }
+    } catch (e) {
+      // 사용자가 취소하면 ERR_REQUEST_CANCELED 코드로 reject됨 — 별도 처리 불필요
+      if (e instanceof Error && 'code' in e && e.code === 'ERR_REQUEST_CANCELED') return;
+      Alert.alert('Apple 로그인 실패', e instanceof Error ? e.message : '알 수 없는 오류');
+    }
+  }
+
+  // provider별로 실제로는 다른 값(카카오=인가 code, 구글/애플=ID 토큰)이지만 authApi 쪽에서 알맞게 처리함
   async function handleLogin(provider: Provider, credential: string) {
     try {
       setLoading(provider);
-      const { access_token, refresh_token } =
-        provider === 'kakao' ? await authApi.loginWithKakao(credential) : await authApi.loginWithGoogle(credential);
+      const { access_token, refresh_token } = await (provider === 'kakao'
+        ? authApi.loginWithKakao(credential)
+        : provider === 'google'
+          ? authApi.loginWithGoogle(credential)
+          : authApi.loginWithApple(credential));
 
       await tokenStorage.save(access_token, refresh_token);
       const profile = await authApi.me();
@@ -171,6 +194,25 @@ export function LoginScreen({ onLoginSuccess, onGuestContinue }: Props) {
                 </>
               )}
             </TouchableOpacity>
+
+            {/* Sign in with Apple — Android엔 API 자체가 없어 iOS 전용(2026-09-14 추가, 앱스토어
+                심사 가이드라인 4.8 대응). 애플 공식 버튼 컴포넌트를 그대로 씀(HIG 권장사항) */}
+            {Platform.OS === 'ios' && (
+              <View style={styles.appleButtonWrapper}>
+                <AppleAuthentication.AppleAuthenticationButton
+                  buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+                  buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+                  cornerRadius={6}
+                  style={styles.appleButton}
+                  onPress={() => promptAppleLoginAsync()}
+                />
+                {loading === 'apple' && (
+                  <View style={styles.appleButtonLoadingOverlay} pointerEvents="none">
+                    <ActivityIndicator color={colors.white} />
+                  </View>
+                )}
+              </View>
+            )}
 
             <View style={styles.guestRow}>
               <View style={styles.divider} />
@@ -264,7 +306,7 @@ const styles = StyleSheet.create({
   },
   kakaoSymbolBubble: { width: 11, height: 9, borderRadius: 4, backgroundColor: colors.black },
   kakaoButtonText: { fontFamily: fonts.regular, fontSize: 16, letterSpacing: -0.4, color: colors.gray700 },
-  googleButton: { backgroundColor: colors.black, marginBottom: 20 },
+  googleButton: { backgroundColor: colors.black, marginBottom: 8 },
   googleSymbol: {
     width: 20,
     height: 20,
@@ -278,6 +320,19 @@ const styles = StyleSheet.create({
   },
   googleLogoImage: { width: 12, height: 12 },
   googleButtonText: { fontFamily: fonts.regular, fontSize: 16, letterSpacing: -0.4, color: colors.white },
+  appleButtonWrapper: { marginBottom: 20 },
+  appleButton: { height: 52 },
+  appleButtonLoadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 6,
+    backgroundColor: colors.black,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   guestRow: { flexDirection: 'row', alignItems: 'center' },
   divider: { flex: 1, height: 1, backgroundColor: colors.border },
   guestText: {
