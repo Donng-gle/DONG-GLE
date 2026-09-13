@@ -5,6 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as WebBrowser from 'expo-web-browser';
 import * as AppleAuthentication from 'expo-apple-authentication';
+import Svg, { Path } from 'react-native-svg';
 import { GoogleSignin, isSuccessResponse } from '@react-native-google-signin/google-signin';
 import { authApi, UserProfile } from '../api/auth';
 import { tokenStorage } from '../auth/tokenStorage';
@@ -196,22 +197,30 @@ export function LoginScreen({ onLoginSuccess, onGuestContinue }: Props) {
             </TouchableOpacity>
 
             {/* Sign in with Apple — Android엔 API 자체가 없어 iOS 전용(2026-09-14 추가, 앱스토어
-                심사 가이드라인 4.8 대응). 애플 공식 버튼 컴포넌트를 그대로 씀(HIG 권장사항) */}
+                심사 가이드라인 4.8 대응). 카카오/구글 버튼과 동일한 "기본버튼" 디자인으로 통일
+                (Figma 330:1319 — 채널 yxe7x9t0, 2026-09-14 요청) */}
             {Platform.OS === 'ios' && (
-              <View style={styles.appleButtonWrapper}>
-                <AppleAuthentication.AppleAuthenticationButton
-                  buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
-                  buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
-                  cornerRadius={6}
-                  style={styles.appleButton}
-                  onPress={() => promptAppleLoginAsync()}
-                />
-                {loading === 'apple' && (
-                  <View style={styles.appleButtonLoadingOverlay} pointerEvents="none">
-                    <ActivityIndicator color={colors.white} />
-                  </View>
+              <TouchableOpacity
+                style={[styles.button, styles.appleButton]}
+                disabled={loading !== null}
+                onPress={() => promptAppleLoginAsync()}
+              >
+                {loading === 'apple' ? (
+                  <ActivityIndicator color={colors.gray700} />
+                ) : (
+                  <>
+                    <View style={styles.appleSymbol}>
+                      <Svg width={12} height={12} viewBox="0 0 24 24">
+                        <Path
+                          fill={colors.white}
+                          d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.05 3.19-.7.85-1.86 1.51-3 1.42-.15-1.15.41-2.35 1.11-3.11"
+                        />
+                      </Svg>
+                    </View>
+                    <Text style={styles.appleButtonText}>Apple 로그인</Text>
+                  </>
                 )}
-              </View>
+              </TouchableOpacity>
             )}
 
             <View style={styles.guestRow}>
@@ -320,19 +329,22 @@ const styles = StyleSheet.create({
   },
   googleLogoImage: { width: 12, height: 12 },
   googleButtonText: { fontFamily: fonts.regular, fontSize: 16, letterSpacing: -0.4, color: colors.white },
-  appleButtonWrapper: { marginBottom: 20 },
-  appleButton: { height: 52 },
-  appleButtonLoadingOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    borderRadius: 6,
+  appleButton: {
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: 20,
+  },
+  appleSymbol: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
     backgroundColor: colors.black,
     alignItems: 'center',
     justifyContent: 'center',
+    marginRight: 8,
   },
+  appleButtonText: { fontFamily: fonts.regular, fontSize: 16, letterSpacing: -0.4, color: colors.gray700 },
   guestRow: { flexDirection: 'row', alignItems: 'center' },
   divider: { flex: 1, height: 1, backgroundColor: colors.border },
   guestText: {
