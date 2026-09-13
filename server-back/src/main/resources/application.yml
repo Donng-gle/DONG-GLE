@@ -41,6 +41,9 @@ oauth:
     client-id: ${GOOGLE_CLIENT_ID:CHANGE_ME}
     client-secret: ${GOOGLE_CLIENT_SECRET:CHANGE_ME}
     redirect-uri: ${GOOGLE_REDIRECT_URI:CHANGE_ME}
+  apple:
+    # 앱 번들 ID 자체라 비밀값이 아님 — 기본값을 실제 값으로 둬도 무방
+    client-id: ${APPLE_CLIENT_ID:com.dongle.andong}
 
 aws:
   region: ${AWS_REGION:ap-northeast-2}

@@ -61,6 +61,7 @@ class GoogleOAuthClientTest {
         val properties = OAuthProperties(
             kakao = OAuthProperties.Provider(clientId = "kakao-client-id", redirectUri = "kakao://"),
             google = OAuthProperties.Provider(clientId = WEB_CLIENT_ID, redirectUri = "https://dong-gle.onrender.com"),
+            apple = OAuthProperties.AppleProvider(clientId = "com.dongle.andong"),
         )
         return GoogleOAuthClient(properties, builder.build()) to mockServer
     }
