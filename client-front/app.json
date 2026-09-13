@@ -18,7 +18,8 @@
               "NSIncludesSubdomains": true
             }
           }
-        }
+        },
+        "NSLocationWhenInUseUsageDescription": "지도에서 내 위치를 확인하고 주변 장소를 탐색하려면 위치 정보 접근 권한이 필요해요."
       }
     },
     "android": {
@@ -50,7 +51,8 @@
         {
           "iosUrlScheme": "com.googleusercontent.apps.633640803041-val291hsro68uoojtt5cjduqnf3jrvd0"
         }
-      ]
+      ],
+      "expo-apple-authentication"
     ],
     "owner": "donggle-andong",
     "extra": {

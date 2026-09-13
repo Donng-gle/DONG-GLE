@@ -17,7 +17,7 @@ export interface UserProfile {
   id: number;
   nickname: string;
   profile_image_url: string | null;
-  oauth_provider: 'kakao' | 'google';
+  oauth_provider: 'kakao' | 'google' | 'apple';
   has_onboarded: boolean;
   created_at: string;
 }
@@ -30,6 +30,11 @@ export const authApi = {
   // decision-log 참고) — 네이티브 Google Sign-In이 돌려주는 idToken을 그대로 보낸다
   loginWithGoogle: (idToken: string) =>
     apiClient.post<OAuthLoginResponse>('/auth/oauth/google', { id_token: idToken }),
+
+  // 구글과 동일한 ID 토큰 검증 방식 (2026-09-14 추가, 앱스토어 심사 가이드라인 4.8 대응) —
+  // 네이티브 Sign in with Apple(expo-apple-authentication)이 돌려주는 identityToken을 그대로 보낸다
+  loginWithApple: (idToken: string) =>
+    apiClient.post<OAuthLoginResponse>('/auth/oauth/apple', { id_token: idToken }),
 
   refresh: (refreshToken: string) =>
     apiClient.post<RefreshResponse>('/auth/refresh', { refresh_token: refreshToken }),
