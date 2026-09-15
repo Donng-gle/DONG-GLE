@@ -99,6 +99,17 @@ export function ScrapbookScreen({ initialTab = 'my-course', onExit, onCreateManu
     }
   }
 
+  // source:'liked'(하트로 담아온 다른 사용자 코스)만 "여행코스", 그 외(ai/ai_edited/user/journal,
+  // 즉 내가 직접 만들었거나 AI로 생성한 것)는 전부 "나의 코스"
+  const myCourses = useMemo(() => (courses ?? []).filter((c) => c.source !== 'liked'), [courses]);
+  const likedCourses = useMemo(() => (courses ?? []).filter((c) => c.source === 'liked'), [courses]);
+  const coursesForTab = tab === 'liked-course' ? likedCourses : myCourses;
+
+  const loading = tab === 'place' ? places === null : courses === null;
+
+  // ⚠️ 아래 overlay 조건부 return들은 반드시 이 위의 모든 훅(useMemo 포함) 호출 뒤에 와야 함.
+  // 훅보다 앞에 두면 overlay가 세팅된 렌더에서 아래쪽 훅들이 스킵되어 "Rendered fewer hooks than
+  // expected" 크래시가 남(2026-09-15, 실기기 QA 중 발견·수정 — 스크랩북에서 코스/장소 카드 탭 시 재현).
   if (overlay?.type === 'course-edit') {
     const { courseId } = overlay;
     return (
@@ -142,14 +153,6 @@ export function ScrapbookScreen({ initialTab = 'my-course', onExit, onCreateManu
       />
     );
   }
-
-  // source:'liked'(하트로 담아온 다른 사용자 코스)만 "여행코스", 그 외(ai/ai_edited/user/journal,
-  // 즉 내가 직접 만들었거나 AI로 생성한 것)는 전부 "나의 코스"
-  const myCourses = useMemo(() => (courses ?? []).filter((c) => c.source !== 'liked'), [courses]);
-  const likedCourses = useMemo(() => (courses ?? []).filter((c) => c.source === 'liked'), [courses]);
-  const coursesForTab = tab === 'liked-course' ? likedCourses : myCourses;
-
-  const loading = tab === 'place' ? places === null : courses === null;
 
   return (
     <View style={styles.container}>
