@@ -34,36 +34,65 @@ class ExploreService(
         limit: Int,
     ): SimilarLogsResponse {
         // 앱스토어 심사 가이드라인 1.2 대응(2026-09-14) — 차단한 유저는 후보군에서 아예 제외
-        val similarUserIds = resolveSimilarUserIds(userId, userBlockRepository.findBlockedUserIds(userId))
-            ?: return SimilarLogsResponse(logs = emptyList())
+        val blockedUserIds = userBlockRepository.findBlockedUserIds(userId)
+        val similarUserIds = resolveSimilarUserIds(userId, blockedUserIds)
 
-        val candidates = visitLogRepository.findPublicByUserIds(
-            similarUserIds,
-            PageRequest.of(0, limit * BOUNDS_FETCH_MULTIPLIER),
-        )
-
-        val withinBounds = if (swLat != null && swLng != null && neLat != null && neLng != null) {
-            candidates.filter { log ->
-                val lat = log.place.lat
-                val lng = log.place.lng
-                lat != null && lng != null && lat in swLat..neLat && lng in swLng..neLng
-            }
+        val candidates = if (similarUserIds != null) {
+            visitLogRepository.findPublicByUserIds(similarUserIds, PageRequest.of(0, limit * BOUNDS_FETCH_MULTIPLIER))
         } else {
-            candidates
+            emptyList()
         }
 
-        return SimilarLogsResponse(logs = withinBounds.take(limit).map { it.toSimilarLogItemResponse() })
+        var result = filterWithinBounds(candidates, swLat, swLng, neLat, neLng).take(limit)
+
+        // 취향 겹치는 유저가 아직 없거나(가입 초기) 그 유저들이 공개 기록을 하나도 안 남겼을 때의
+        // 콜드 스타트 대비 — 빈 추천 탭보다는 최신 공개 기록이라도 보여주는 게 낫다는 판단
+        // (2026-09-15 결정, decision-log 참고)
+        if (result.isEmpty()) {
+            val fallbackCandidates = visitLogRepository
+                .findPublicRecent(PageRequest.of(0, limit * BOUNDS_FETCH_MULTIPLIER))
+                .filter { it.user.id != userId && it.user.id !in blockedUserIds }
+            result = filterWithinBounds(fallbackCandidates, swLat, swLng, neLat, neLng).take(limit)
+        }
+
+        return SimilarLogsResponse(logs = result.map { it.toSimilarLogItemResponse() })
+    }
+
+    private fun filterWithinBounds(
+        logs: List<VisitLog>,
+        swLat: Double?,
+        swLng: Double?,
+        neLat: Double?,
+        neLng: Double?,
+    ): List<VisitLog> {
+        if (swLat == null || swLng == null || neLat == null || neLng == null) return logs
+        return logs.filter { log ->
+            val lat = log.place.lat
+            val lng = log.place.lng
+            lat != null && lng != null && lat in swLat..neLat && lng in swLng..neLng
+        }
     }
 
     // "취향 맞춤 코스" 탭 — 취향 겹치는 유저의 공개 코스 탐색(2026-09-07 결정, decision-log 참고).
     // similarLogs와 동일한 취향 겹침 판단(상위 태그 3개, 유사도 0.6 이상)을 그대로 재사용
     fun similarCourses(userId: Long, limit: Int): SimilarCoursesResponse {
-        val similarUserIds = resolveSimilarUserIds(userId, userBlockRepository.findBlockedUserIds(userId))
-            ?: return SimilarCoursesResponse(courses = emptyList())
+        val blockedUserIds = userBlockRepository.findBlockedUserIds(userId)
+        val similarUserIds = resolveSimilarUserIds(userId, blockedUserIds)
 
-        val candidates = courseRepository.findPublicByUserIds(similarUserIds, PageRequest.of(0, limit))
+        val candidates = if (similarUserIds != null) {
+            courseRepository.findPublicByUserIds(similarUserIds, PageRequest.of(0, limit))
+        } else {
+            emptyList()
+        }
 
-        return SimilarCoursesResponse(courses = candidates.map { it.toSimilarCourseItemResponse() })
+        // similarLogs와 동일한 콜드 스타트 fallback(2026-09-15 결정, decision-log 참고)
+        val result = candidates.ifEmpty {
+            courseRepository.findPublicRecent(PageRequest.of(0, limit * BOUNDS_FETCH_MULTIPLIER))
+                .filter { it.user.id != userId && it.user.id !in blockedUserIds }
+                .take(limit)
+        }
+
+        return SimilarCoursesResponse(courses = result.map { it.toSimilarCourseItemResponse() })
     }
 
     private fun resolveSimilarUserIds(userId: Long, blockedUserIds: Set<Long>): List<Long>? {
