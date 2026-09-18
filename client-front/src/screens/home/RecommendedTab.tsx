@@ -24,7 +24,11 @@ import { colors } from '../../theme/colors';
 import { fonts } from '../../theme/fonts';
 import { PlaceDetailScreen } from '../PlaceDetailScreen';
 
-const GLOBE_SIZE = Dimensions.get('window').width;
+// 정사각형(가로=세로 기준) 지구본이라 폭을 그대로 세로 크기로도 씀 — 아이패드에서 "아이폰용 앱"이
+// Stage Manager 창으로 뜰 때 창 폭이 아이폰보다 훨씬 커질 수 있어서, 430(실존 아이폰 최대 폭)으로
+// 상한을 둬서 지구본이 화면보다 커져 아래 콘텐츠를 밀어내는 걸 방지 (App Review Guideline 4 대응,
+// 2026-09-18). 모든 실제 아이폰은 폭이 430 이하라 이 변경으로 아이폰 화면은 전혀 안 바뀜
+const GLOBE_SIZE = Math.min(Dimensions.get('window').width, 430);
 
 // 카드 사진 캐러셀 한 장의 너비. listContent(paddingHorizontal 20)+card(paddingHorizontal 16)
 // 만큼 화면 폭에서 뺀 값 — JournalTab의 CARD_IMAGE_WIDTH와 같은 이유(카드마다 좌우 패딩이 달라서
