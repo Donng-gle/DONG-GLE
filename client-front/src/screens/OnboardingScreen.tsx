@@ -15,6 +15,11 @@ interface Props {
 // 직접 끝낼 수 있게 함 (자동 수렴/25장 강제 종료는 별개로 계속 동작)
 const MIN_SWIPES_TO_FINISH = 15;
 const CARD_ASPECT_RATIO = 320 / 468; // Figma 노드 501:12699 카드 비율
+
+// CourseSwipeScreen.tsx CARD_MAX_WIDTH와 동일한 이유(App Review Guideline 4 대응, 2026-09-18) —
+// 카드 폭이 cardArea(flex:1)의 100%라서 창이 아이폰보다 넓어지면 aspectRatio로 세로도 비례해서
+// 커져 아래 버튼과 겹침. 아이폰은 영향 없음
+const CARD_MAX_WIDTH = 430 - 40;
 const SWIPE_THRESHOLD = 120;
 
 export function OnboardingScreen({ onComplete }: Props) {
@@ -258,7 +263,8 @@ const styles = StyleSheet.create({
     marginBottom: 28,
   },
   cardArea: { flex: 1, paddingHorizontal: 20 },
-  cardStack: { width: '100%', aspectRatio: CARD_ASPECT_RATIO },
+  // maxWidth+alignSelf로 카드가 화면보다 커지는 걸 방지(위 CARD_MAX_WIDTH 선언부 주석 참고)
+  cardStack: { width: '100%', maxWidth: CARD_MAX_WIDTH, alignSelf: 'center', aspectRatio: CARD_ASPECT_RATIO },
   backCard: {
     position: 'absolute',
     top: 60,
