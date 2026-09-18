@@ -39,11 +39,19 @@ const WEEKDAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
 // 어긋나서 다음 이미지 앞부분이 계속 붙어 보이는 문제가 있었음 (2026-09-05, decision-log 참고)
 const HERO_IMAGE_WIDTH = Dimensions.get('window').width;
 
+// 히어로 사진 자체의 표시 폭 — 페이징 스냅 기준인 HERO_IMAGE_WIDTH(위)는 절대 안 건드리고(그러면
+// 위 주석의 어긋남 버그가 재발함), heroImageWrap의 width만 이걸로 캡핑+가운데 정렬해서 아이패드
+// Stage Manager 창처럼 화면이 아이폰보다 훨씬 넓어져도 사진이 과하게 커지지 않게 함(430=실존
+// 아이폰 최대 폭, App Review Guideline 4 대응, 2026-09-18). 아이폰에서는 항상
+// HERO_IMAGE_WIDTH <= 430이라 Math.min이 안 걸려서 기존과 완전히 동일
+const HERO_IMAGE_DISPLAY_WIDTH = Math.min(HERO_IMAGE_WIDTH, 430) - 40;
+
 // 리뷰 포토 그리드 치수 — Figma 실측(458:2474 "리뷰" 섹션, 602:15528 카드 등, 2026-09-09 재실측,
 // 채널 vvw77yh5): 2열 그리드, 카드 156x216(비율 216/156), 열/행 간격 모두 8. 화면 좌우 패딩(20씩)
-// 뺀 폭을 기기 폭에 맞춰 비율로 환산
+// 뺀 폭을 기기 폭에 맞춰 비율로 환산. 이 그리드는 페이징이 아니라 그냥 flexWrap이라 캡핑해도
+// 안전함(430 상한, App Review Guideline 4 대응, 2026-09-18)
 const REVIEW_GRID_GAP = 8;
-const REVIEW_GRID_ITEM_WIDTH = (HERO_IMAGE_WIDTH - 40 - REVIEW_GRID_GAP) / 2;
+const REVIEW_GRID_ITEM_WIDTH = (Math.min(HERO_IMAGE_WIDTH, 430) - 40 - REVIEW_GRID_GAP) / 2;
 const REVIEW_GRID_ITEM_HEIGHT = REVIEW_GRID_ITEM_WIDTH * (216 / 156);
 
 function formatHours(hours: PlaceDetail['hours']) {
@@ -472,7 +480,10 @@ const styles = StyleSheet.create({
   // height를 Figma 실측값(234)으로 고정해뒀었는데, 실기기 화면 폭이 Figma 목업 기준(360)과
   // 다르면(대부분 다름) width만 늘어나고 height는 그대로라 비율이 깨지는 버그였음(2026-09-09
   // 사용자 리포트로 발견) — height 고정 대신 실측 비율(320/234) 그대로 aspectRatio로 전환
-  heroImageWrap: { width: '100%', aspectRatio: 320 / 234, borderRadius: 20, overflow: 'hidden', backgroundColor: colors.border },
+  // width: '100%' 대신 HERO_IMAGE_DISPLAY_WIDTH로 캡핑 + alignSelf 가운데 정렬(위 상수 선언부
+  // 주석 참고) — 아이폰에서는 항상 HERO_IMAGE_DISPLAY_WIDTH === heroPage 내부 폭이라 '100%'와
+  // 결과가 동일함(2026-09-18)
+  heroImageWrap: { width: HERO_IMAGE_DISPLAY_WIDTH, alignSelf: 'center', aspectRatio: 320 / 234, borderRadius: 20, overflow: 'hidden', backgroundColor: colors.border },
   heroImagePlaceholder: { backgroundColor: colors.border },
   // 2026-09-09 재실측: 점 크기 6->8, 비활성 투명도 0.5->0.4
   dotRow: { flexDirection: 'row', justifyContent: 'center', gap: 6, marginTop: -24, marginBottom: 8 },
