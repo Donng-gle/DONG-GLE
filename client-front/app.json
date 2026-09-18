@@ -9,6 +9,7 @@
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": false,
+      "requireFullScreen": true,
       "bundleIdentifier": "com.dongle.andong",
       "config": {
         "usesNonExemptEncryption": false
