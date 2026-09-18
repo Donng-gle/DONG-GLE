@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SwipeCandidate, SwipedResultItem, SwipeTransport, swipeApi } from '../api/swipe';
@@ -244,7 +244,16 @@ export function CourseFlowScreen({ onExit, onCreateManual, onCreateAI, onProfile
         </TouchableOpacity>
       </View>
 
-      <View style={styles.content}>
+      {/* "선택하기" 버튼(actions) 뒤에 이동수단 필드가 가려지는 문제(2026-09-18 사용자 리포트) —
+          content가 스크롤 안 되는 고정 View라, 화면이 짧아지면(아이패드 호환 모드 창 등) 마지막
+          필드가 화면 밖/버튼 뒤로 밀려서 생김. ScrollView로 바꿔서 항상 끝까지 스크롤해 볼 수 있게
+          함 — 다 보이던 화면은 스크롤할 내용이 없어서 그대로 보임(뷰만 바뀌고 시각적 변화 없음) */}
+      <ScrollView
+        style={styles.content}
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
         <Text style={styles.title}>여행일정 등록</Text>
         <Text style={styles.subtitle}>선택해주신 정보들로 일정을 만들어드립니다.</Text>
 
@@ -301,7 +310,7 @@ export function CourseFlowScreen({ onExit, onCreateManual, onCreateAI, onProfile
             </View>
           )}
         </View>
-      </View>
+      </ScrollView>
 
       <View style={[styles.actions, { paddingBottom: Math.max(20, insets.bottom + 16) }]}>
         <TouchableOpacity style={styles.primaryButton} onPress={startSwipe} disabled={loading}>
@@ -340,7 +349,11 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingBottom: 8 },
   backButton: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
   backIcon: { fontSize: 20, color: colors.black },
-  content: { flex: 1, paddingHorizontal: 20, paddingTop: 12 },
+  content: { flex: 1 },
+  // 이동수단 필드가 항상 "선택하기" 버튼 위로 확실히 보이도록 하단 여유(actions 버튼 높이만큼)를
+  // 넉넉히 둠 — 다 보이던 화면(대부분의 아이폰)은 어차피 스크롤할 내용이 없어서 그냥 빈 공간이
+  // 아래 생기는 것뿐, 시각적으로 티 안 남(2026-09-18)
+  contentContainer: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 100 },
   // Figma "일정 만들기-세부 사항"(691:11920/691:12626, 채널 3ussd0cc, 2026-09-09) 실측
   title: { fontFamily: fonts.semiBold, fontSize: 20, color: colors.black },
   subtitle: { fontFamily: fonts.regular, fontSize: 15, color: colors.gray500, marginTop: 8, marginBottom: 32 },
