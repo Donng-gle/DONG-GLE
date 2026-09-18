@@ -30,8 +30,13 @@ const GLOBE_SIZE = Math.min(Dimensions.get('window').width, 430);
 
 // 카드 사진 캐러셀 한 장의 너비. listContent(paddingHorizontal 20)+card(paddingHorizontal 4)
 // 만큼 화면 폭에서 뺀 값 — PlaceDetailScreen의 HERO_IMAGE_WIDTH와 같은 이유로 하드코딩 대신
-// 실제 렌더 폭을 씀(pagingEnabled가 어긋나면 다음 사진이 붙어 보이는 문제, decision-log 참고)
+// 실제 렌더 폭을 씀(pagingEnabled가 어긋나면 다음 사진이 붙어 보이는 문제, decision-log 참고).
+// 페이징 스냅 기준이라 절대 캡핑하면 안 됨
 const CARD_IMAGE_WIDTH = Dimensions.get('window').width - 48;
+
+// RecommendedTab.tsx CARD_IMAGE_DISPLAY_WIDTH와 동일한 이유(430 상한, App Review Guideline 4
+// 대응, 2026-09-18) — CARD_IMAGE_WIDTH는 페이징용으로 그대로 두고 Image만 캡핑
+const CARD_IMAGE_DISPLAY_WIDTH = Math.min(CARD_IMAGE_WIDTH, 430 - 48);
 
 // 핸들+타이틀만 보이는 "일부만 노출" 상태의 높이. Figma 시안(506:11115)엔 접힌 상태 프레임이
 // 따로 없어서 값 자체는 임의 — 다만 핸들을 아예 안 보여주면 드래그 가능한 걸 알 기회가 없어서
@@ -303,7 +308,11 @@ function JournalLogCard({ log, onPress }: { log: VisitLogMapItem; onPress: () =>
           }
         >
           {photos.map((p, idx) => (
-            <Image key={idx} source={{ uri: p.url }} style={styles.cardImage} resizeMode="cover" />
+            // 페이지 폭은 CARD_IMAGE_WIDTH(실제 ScrollView 렌더 폭)로 고정, 안의 이미지만
+            // CARD_IMAGE_DISPLAY_WIDTH로 캡핑해 가운데 정렬 — 페이징 스냅이 안 어긋나게 함
+            <View key={idx} style={{ width: CARD_IMAGE_WIDTH, alignItems: 'center' }}>
+              <Image source={{ uri: p.url }} style={styles.cardImage} resizeMode="cover" />
+            </View>
           ))}
         </ScrollView>
       )}
@@ -474,7 +483,9 @@ const styles = StyleSheet.create({
   // 납작해 보였음(사용자 피드백 "사진 크기 좀 더 키우고")
   // 여러 장 캐러셀(가로 ScrollView) 안에 들어가서 퍼센트 대신 실제 픽셀 폭(CARD_IMAGE_WIDTH)을
   // 써야 함 — 퍼센트면 가로 스크롤 콘텐츠 크기가 잡히지 않음(2026-09-06, 여러 장 지원 추가)
-  cardImage: { width: CARD_IMAGE_WIDTH, aspectRatio: 316 / 236, borderRadius: 12 },
+  // width는 CARD_IMAGE_WIDTH(페이징 기준) 대신 캡핑된 CARD_IMAGE_DISPLAY_WIDTH — 감싸는 페이지
+  // View(width: CARD_IMAGE_WIDTH, alignItems:'center')가 페이징 폭을 그대로 유지해줌(2026-09-18)
+  cardImage: { width: CARD_IMAGE_DISPLAY_WIDTH, aspectRatio: 316 / 236, borderRadius: 12 },
   // 여러 장 스와이프 시 페이지를 나타내는 점(2026-09-05 처음 배열 기반으로 구현, 2026-09-06
   // photo_urls 여러 장 지원으로 실제로 늘어나게 됨, decision-log 참고) — photos.length만큼 점이
   // 그려지고 현재 스와이프 위치(activePhoto)에 맞는 점만 활성 스타일

@@ -32,8 +32,13 @@ const GLOBE_SIZE = Math.min(Dimensions.get('window').width, 430);
 
 // 카드 사진 캐러셀 한 장의 너비. listContent(paddingHorizontal 20)+card(paddingHorizontal 16)
 // 만큼 화면 폭에서 뺀 값 — JournalTab의 CARD_IMAGE_WIDTH와 같은 이유(카드마다 좌우 패딩이 달라서
-// 각자 계산, decision-log 참고)
+// 각자 계산, decision-log 참고). 페이징 스냅 기준(ScrollView 실제 렌더 폭)이라 절대 캡핑하면 안 됨
 const CARD_IMAGE_WIDTH = Dimensions.get('window').width - 72;
+
+// 실제로 사진을 보여줄 폭 — CARD_IMAGE_WIDTH는 그대로 두고(페이징 어긋남 방지), Image 자체만
+// 이걸로 캡핑해서 페이지 안에서 가운데 정렬(430=아이폰 최대 폭, App Review Guideline 4 대응,
+// 2026-09-18). 아이폰은 항상 CARD_IMAGE_WIDTH <= 358이라 기존과 동일
+const CARD_IMAGE_DISPLAY_WIDTH = Math.min(CARD_IMAGE_WIDTH, 430 - 72);
 
 // 아래 4개 상수는 JournalTab.tsx와 완전히 동일 — 이 탭도 "나의 일지처럼 팝업 형태로" 만들어달라는
 // 요청(2026-09-07 결정, decision-log 참고)이라 바텀시트 여닫힘 동작 자체를 그대로 재사용함
@@ -412,13 +417,17 @@ function SimilarItemCard({
               setActivePhoto(Math.round(e.nativeEvent.contentOffset.x / CARD_IMAGE_WIDTH))
             }
           >
-            {slides.map((s, idx) =>
-              s.url ? (
-                <Image key={idx} source={{ uri: s.url }} style={styles.cardImage} resizeMode="cover" />
-              ) : (
-                <View key={idx} style={[styles.cardImage, styles.cardImagePlaceholder]} />
-              ),
-            )}
+            {slides.map((s, idx) => (
+              // 페이지 폭은 CARD_IMAGE_WIDTH(실제 ScrollView 렌더 폭)로 고정, 안의 이미지만
+              // CARD_IMAGE_DISPLAY_WIDTH로 캡핑해 가운데 정렬 — 페이징 스냅이 안 어긋나게 함
+              <View key={idx} style={{ width: CARD_IMAGE_WIDTH, alignItems: 'center' }}>
+                {s.url ? (
+                  <Image source={{ uri: s.url }} style={styles.cardImage} resizeMode="cover" />
+                ) : (
+                  <View style={[styles.cardImage, styles.cardImagePlaceholder]} />
+                )}
+              </View>
+            ))}
           </ScrollView>
           {slides.length > 1 && (
             <View style={styles.dotsRow}>
@@ -537,7 +546,9 @@ const styles = StyleSheet.create({
   },
 
   photoBlock: { marginTop: 16 },
-  cardImage: { width: CARD_IMAGE_WIDTH, aspectRatio: 292 / 212, borderRadius: 16 },
+  // width는 CARD_IMAGE_WIDTH(페이징 기준) 대신 캡핑된 CARD_IMAGE_DISPLAY_WIDTH — 감싸는 페이지
+  // View(width: CARD_IMAGE_WIDTH, alignItems:'center')가 페이징 폭을 그대로 유지해줌(2026-09-18)
+  cardImage: { width: CARD_IMAGE_DISPLAY_WIDTH, aspectRatio: 292 / 212, borderRadius: 16 },
   cardImagePlaceholder: { backgroundColor: colors.border },
   dotsRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8, marginTop: 12 },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: 'rgba(0,0,0,0.2)' },
