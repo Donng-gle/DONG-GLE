@@ -21,7 +21,10 @@ import { colors } from '../../theme/colors';
 import { fonts } from '../../theme/fonts';
 import { PlaceDetailScreen } from '../PlaceDetailScreen';
 
-const GLOBE_SIZE = Dimensions.get('window').width;
+// RecommendedTab.tsx/JournalTab.tsx GLOBE_SIZE와 동일한 이유(430 상한, App Review Guideline 4
+// 대응, 2026-09-18). 아래 마커 위치 계산(baseW/anchorX 등)도 전부 이 값에 비례하므로 상한을 둬도
+// 마커 배치 자체는 그대로 맞음 — 화면보다 커지는 것만 막음. 아이폰은 영향 없음
+const GLOBE_SIZE = Math.min(Dimensions.get('window').width, 430);
 const PAGE_SIZE = 20;
 
 // 바텀시트 상수 — JournalTab.tsx("나의 일지" 탭)와 완전히 동일한 값 그대로 재사용. 사용자가

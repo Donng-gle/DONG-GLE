@@ -23,7 +23,10 @@ import { fonts } from '../../theme/fonts';
 import { JournalCourseLogCreateModal } from '../JournalCourseLogCreateModal';
 import { JournalLogCreateModal } from '../JournalLogCreateModal';
 
-const GLOBE_SIZE = Dimensions.get('window').width;
+// RecommendedTab.tsx GLOBE_SIZE와 동일한 이유(430 상한, App Review Guideline 4 대응,
+// 2026-09-18) — 정사각형 지구본 폭을 세로 크기로도 재사용해서, 아이패드 Stage Manager 창처럼
+// 폭이 아이폰보다 훨씬 큰 상황에서 지구본이 화면보다 커지는 걸 방지. 아이폰은 영향 없음
+const GLOBE_SIZE = Math.min(Dimensions.get('window').width, 430);
 
 // 카드 사진 캐러셀 한 장의 너비. listContent(paddingHorizontal 20)+card(paddingHorizontal 4)
 // 만큼 화면 폭에서 뺀 값 — PlaceDetailScreen의 HERO_IMAGE_WIDTH와 같은 이유로 하드코딩 대신
