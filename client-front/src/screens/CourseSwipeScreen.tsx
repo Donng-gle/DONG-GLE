@@ -18,6 +18,13 @@ interface Props {
 const CARD_ASPECT_RATIO = 320 / 468; // OnboardingScreen과 동일 카드 비율 사용
 const SWIPE_THRESHOLD = 120;
 
+// 카드 폭이 cardArea(flex:1)의 100%라서, 아이패드 호환 모드 창처럼 폭이 아이폰보다 넓어지면
+// aspectRatio 때문에 세로도 비례해서 커져 카드 높이가 cardArea에 안 들어가고 아래 bottomRow(꼭
+// 가기 버튼)와 겹치는 문제가 있었음(사용자 리포트, 2026-09-18) — 폭 상한을 둬서 방지.
+// 390 = 430(실존 아이폰 최대 폭) - cardArea 좌우 패딩 40. 아이폰은 항상 cardArea 폭이 390 이하라
+// maxWidth가 안 걸려서 기존과 완전히 동일
+const CARD_MAX_WIDTH = 430 - 40;
+
 // 온보딩 스와이프(OnboardingScreen)와 시각 언어는 통일하되, 여기는 3가지 결과(좋아요/넘기기/꼭 가기)가
 // 있어서 좌우 드래그(좋아요/넘기기)에 "꼭 가기" 버튼을 추가로 둠 — 디자인 시안(510:11265)이 실제로는
 // 온보딩 스와이프 프레임을 그대로 복제해둔 것뿐이라 별도 스펙이 없어 이 화면 자체 판단으로 구성함
@@ -180,7 +187,8 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   cardArea: { flex: 1, paddingHorizontal: 20 },
-  cardStack: { width: '100%', aspectRatio: CARD_ASPECT_RATIO },
+  // maxWidth+alignSelf로 카드가 화면보다 커지는 걸 방지(위 CARD_MAX_WIDTH 선언부 주석 참고)
+  cardStack: { width: '100%', maxWidth: CARD_MAX_WIDTH, alignSelf: 'center', aspectRatio: CARD_ASPECT_RATIO },
   backCard: {
     position: 'absolute',
     top: 60,
