@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Modal,
   NativeScrollEvent,
@@ -108,8 +108,13 @@ export function TimePicker({ visible, value, onClose, onConfirm }: Props) {
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose}>
-        <Pressable style={styles.sheet} onPress={() => {}}>
+      {/* 배경 탭으로 닫기용 Pressable을 시트를 감싸는 부모로 두면(예전 구조), 시트 안 휠(ScrollView)
+          드래그를 바깥 Pressable 둘이 responder로 가로채서 아이패드에서 휠이 안 움직였음(App
+          Review 2.1(a) 반려, 2026-09-19) — 배경 Pressable을 형제(absoluteFill)로 분리하고 시트는
+          그냥 View로 둬서 휠이 터치를 직접 받게 함 */}
+      <View style={styles.backdrop}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        <View style={styles.sheet}>
           <Text style={styles.title}>시간 선택</Text>
 
           <View style={styles.wheelArea}>
@@ -166,8 +171,8 @@ export function TimePicker({ visible, value, onClose, onConfirm }: Props) {
               <Text style={styles.confirmText}>선택</Text>
             </TouchableOpacity>
           </View>
-        </Pressable>
-      </Pressable>
+        </View>
+      </View>
     </Modal>
   );
 }
@@ -206,8 +211,39 @@ function WheelColumn({
     onSelect(index);
   }
 
+  // 손가락으로 밀었다 떼는 이벤트(onMomentumScrollEnd/onScrollEndDrag)에만 의존하면, 트랙패드·마우스
+  // 휠·키보드 등 다른 입력으로 스크롤할 때 그 이벤트가 안 와서 휠은 움직이는데 값이 안 바뀔 수
+  // 있음(아이패드 App Review 2.1(a) 반려, 2026-09-19) — 스크롤 도중에도 위치로 인덱스를 계산해
+  // 값이 바뀔 때마다 바로 반영. 마운트 직후 초기 위치 이벤트가 상위 state를 옛값으로 덮어쓰지
+  // 않도록, 사용자가 실제로 터치/스크롤을 시작한 뒤에만 반영함
+  const interacted = useRef(false);
+  const scrollRef = useRef<ScrollView>(null);
+  function markInteracted() {
+    interacted.current = true;
+  }
+  function handleScroll(e: NativeSyntheticEvent<NativeScrollEvent>) {
+    if (!interacted.current) return;
+    const index = clamp(Math.round(e.nativeEvent.contentOffset.y / ROW_HEIGHT), 0, items.length - 1);
+    if (index === current) return;
+    setCurrent(index);
+    onSelect(index);
+  }
+  // 줄을 탭하면 그 줄로 스크롤+선택 — 드래그가 어려운 입력 환경에서도 시간을 고를 수 있게 함
+  function handlePressRow(index: number) {
+    interacted.current = true;
+    scrollRef.current?.scrollTo({ y: index * ROW_HEIGHT, animated: true });
+    setCurrent(index);
+    onSelect(index);
+  }
+
   return (
     <ScrollView
+      ref={scrollRef}
+      onTouchStart={markInteracted}
+      onScrollBeginDrag={markInteracted}
+      onMomentumScrollBegin={markInteracted}
+      onScroll={handleScroll}
+      scrollEventThrottle={16}
       // ScrollView는 RN에서 기본적으로 flexGrow:1이 걸려있어서 width를 줘도 wheelRow(부모, flex row)
       // 안 남는 공간을 계속 채우려고 늘어남 — 실측 로그로 확인(2026-09-12, 채널 nf53k2di 대조):
       // width:38/40 선언에도 실제 렌더 폭이 79~82로 거의 2배였고, 그래서 rowWidth(구분선 길이 계산에
@@ -223,9 +259,9 @@ function WheelColumn({
       onScrollEndDrag={handleSettle}
     >
       {items.map((label, i) => (
-        <View key={label} style={styles.wheelItem}>
+        <Pressable key={label} style={styles.wheelItem} onPress={() => handlePressRow(i)}>
           <Text style={[styles.wheelText, i === current && styles.wheelTextSelected]}>{label}</Text>
-        </View>
+        </Pressable>
       ))}
     </ScrollView>
   );
