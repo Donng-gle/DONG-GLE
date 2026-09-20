@@ -6,6 +6,7 @@ import com.dongle.server.user.User
 import com.dongle.server.user.UserRepository
 import org.hamcrest.Matchers.greaterThan
 import org.hamcrest.Matchers.lessThan
+import org.hamcrest.Matchers.not
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
@@ -98,6 +99,23 @@ class OnboardingApiIntegrationTest {
                 .content("""{"card_id":${card.id},"action":"like"}""")
         )
             .andExpect(status().isConflict)
+    }
+
+    @Test
+    fun `스와이프 응답에 다음 카드가 함께 내려온다`() {
+        val first = hahoeCard()
+        val token = accessTokenFor("onboarding_user_next", "kakao-onboarding-next")
+
+        mockMvc.perform(
+            post("/onboarding/swipe")
+                .header("Authorization", "Bearer $token")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"card_id":${first.id},"action":"like"}""")
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.next_card.card.id").isNumber)
+            .andExpect(jsonPath("$.next_card.card.id").value(not(first.id.toInt())))
+            .andExpect(jsonPath("$.next_card.strategy").value("seed"))
     }
 
     @Test

@@ -498,6 +498,13 @@ components:
           format: float
           description: 최근 3장 벡터 변화량 평균. 0.03 미만 AND 최소 15장 AND 좋아요 3개 이상이면 수렴 판단.
           example: 0.032
+        next_card:
+          nullable: true
+          description: |
+            스와이프 직후 이어서 보여줄 다음 카드(GET /onboarding/next와 동일한 결과). 수렴/25장 도달/
+            남은 카드 없음이면 null(GET /onboarding/next의 204에 해당). 이 값을 쓰면 /next를 따로 호출하지 않아도 됨.
+          allOf:
+            - $ref: '#/components/schemas/OnboardingNextResponse'
 
     OnboardingStatusResponse:
       type: object
