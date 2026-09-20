@@ -45,23 +45,65 @@ Table place_image {
   }
 }
 
-Table place_emotion_tag {
-  id       bigint      [pk, increment]
-  place_id bigint      [not null, ref: > place.id]
-  tag      varchar(50) [not null]
-  count    int         [not null, default: 1, note: '1 이상, 상위 태그 선정에 사용']
+Table place_hours {
+  id         bigint   [pk, increment]
+  place_id   bigint   [not null, ref: > place.id]
+  open_day   smallint [not null, note: '0=일요일 ~ 6=토요일 (Google 기준)']
+  open_time  time     [not null]
+  close_day  smallint [note: '자정 넘어가는 영업 표현용']
+  close_time time     [note: 'close_day/close_time null이면 해당 open_day 24시간 영업']
+
+  Note: 'Google Places opening_hours.periods 기준. 브레이크타임 데이터는 소스에 사실상 없어 미반영'
 
   indexes {
-    (place_id, tag) [unique]
+    (place_id, open_day, open_time) [unique]
   }
 }
+
+Table place_semantic_vector {
+  place_id                 bigint      [pk, ref: > place.id]
+  representative_image_url text        [not null]
+  analysis_image_urls      json        [not null, default: '[]', note: 'JSONB']
+  analysis_image_count     int         [not null]
+  detail_scores            json        [not null, note: '35개 세부 태그 점수, JSONB']
+  major_scores             json        [not null, note: '7개 대분류 태그 점수, JSONB. docs/ssot.md 감성태그셋 참고']
+  summary                  text
+  model_name               text        [not null]
+  prompt_version           text        [not null]
+  tag_schema_version       text        [not null]
+  qdrant_point_id          text        [not null, note: '대표 이미지 Qdrant point id (이미지 단위 색인 기준)']
+  analyzed_at              timestamptz [not null, default: `now()`]
+
+  Note: '장소별 VLM(GPT Vision) semantic 분석 raw score. 장소당 최신 분석 결과 1행만 유지. place_image_semantic_vector(이미지별 원본)를 평균 낸 장소 단위 집계값 — 백엔드는 이 집계를 읽음. Qdrant 추천/대체 검색은 이미지 point를 사용(장소 집계는 Qdrant 미적재). log_emotion_tag와는 별개 신호. 데이터 파트 배치 스크립트로만 적재됨, 백엔드는 읽기 전용'
+}
+
+Table place_image_semantic_vector {
+  place_id           bigint      [not null, ref: > place.id]
+  image_url          text        [not null]
+  detail_scores      json        [not null, note: '35개 세부 태그 점수 (이 이미지 1장 기준), JSONB']
+  major_scores       json        [not null, note: '7개 대분류 태그 점수 (이 이미지 1장 기준), JSONB']
+  summary            text
+  model_name         text        [not null]
+  prompt_version     text        [not null]
+  tag_schema_version text        [not null]
+  analyzed_at        timestamptz [not null, default: `now()`]
+
+  Note: '장소 이미지별 VLM(GPT Vision) semantic 분석 raw score. place_semantic_vector(장소 단위 집계)의 원본 데이터. 재분석 시 (place_id, image_url) 기준 최신 버전만 유지. Qdrant 추천 검색은 이 원본에 대응하는 이미지 point를 색인함. 데이터 파트 배치 스크립트로만 적재됨, 백엔드는 읽지 않음'
+
+  indexes {
+    (place_id, image_url) [pk]
+  }
+}
+
+// place_emotion_tag 테이블은 2026-09-02 제거됨 — 장소별 방문 로그 누적 감성 태그는 이제 저장된
+// 카운터 없이 log_emotion_tag를 조회 시점에 직접 집계함 (decision-log 참고)
 
 Table user {
   id                bigint       [pk, increment]
   user_id           varchar(50)  [not null, unique, note: '서비스 사용자 ID']
   nickname          varchar(50)  [not null]
   email             varchar(200)
-  oauth_provider    varchar(20)  [not null, note: "CHECK: 'kakao' | 'google'"]
+  oauth_provider    varchar(20)  [not null, note: "CHECK: 'kakao' | 'google' | 'apple'"]
   oauth_id          varchar(100) [not null]
   profile_image_url text
   has_onboarded     boolean      [not null, default: false, note: '앱 재시작 시 온보딩 완료 여부 판단']
@@ -71,6 +113,16 @@ Table user {
   indexes {
     (oauth_provider, oauth_id) [unique]
   }
+}
+
+Table refresh_token {
+  id         bigint       [pk, increment]
+  user_id    bigint       [not null, ref: > user.id]
+  token      varchar(500) [not null, unique]
+  expires_at timestamp    [not null]
+  created_at timestamp    [not null, default: `now()`]
+
+  Note: '로그아웃 시 무효화 처리용 서버 측 화이트리스트'
 }
 
 Table user_preference {
@@ -100,10 +152,23 @@ Table visit_log {
   id         bigint       [pk, increment]
   user_id    bigint       [not null, ref: > user.id]
   place_id   bigint       [not null, ref: > place.id]
-  photo_url  text
+  course_id  bigint       [ref: > course.id, note: '코스 단위 기록(장소 2개 이상)일 때만 값 있음, nullable. 같은 course_id를 공유하는 visit_log들을 "나의 일지"에서 하나의 코스 카드로 묶어서 보여줌. 2026-09-08 추가, decision-log 참고']
+  title      varchar(50)  [note: '기록 제목. 2026-09-05 추가(메인 페이지-나의 일지-기록하기), decision-log 참고']
   one_line   varchar(100)
+  weather    varchar(20)  [note: '자유 입력 텍스트(선택지 코드 없음). 2026-09-05 추가, decision-log 참고']
+  rating     smallint     [note: '별점(1~5), 선택 입력. 2026-09-05 추가, decision-log 참고']
   is_public  boolean      [not null, default: true, note: '유사 사용자 탐색(GET /explore/similar-logs)에서 공개 기록만 노출']
   visited_at timestamp    [not null, default: `now()`]
+}
+
+// 방문 기록 사진 (여러 장). 이전엔 visit_log.photo_url 단일 컬럼이었음(사진 1장만 가능).
+// place_image와 동일한 패턴(부모 테이블 + sort_order)으로 확장 (2026-09-06 결정, decision-log 참고)
+Table visit_log_photo {
+  id           bigint [pk, increment]
+  visit_log_id bigint [not null, ref: > visit_log.id]
+  photo_url    text   [not null]
+  sort_order   int    [not null, default: 0, note: '0 이상']
+  caption      text   [note: '사진별 캡션(선택). 취향 맞춤 코스 카드 사진 캐러셀용, 2026-09-07 결정, decision-log 참고']
 }
 
 // 온보딩 카드 (AI 파트가 사전 분석하여 적재. 온보딩 런타임에 AI 호출 없음)
@@ -129,10 +194,29 @@ Table onboarding_card {
   }
 }
 
+// 온보딩 스와이프 이력 (진행 상태 복원 + 수렴 판정용. 최근 3장 변화량 계산에 사용)
+// onboarding/reset 시 유저의 이 이력 전체를 삭제하고 재시작
+Table onboarding_swipe_log {
+  id            bigint      [pk, increment]
+  user_id       bigint      [not null, ref: > user.id]
+  card_id       bigint      [not null, ref: > onboarding_card.id]
+  action        varchar(10) [not null, note: "CHECK: 'like' | 'dislike'"]
+  change_amount float       [not null, note: '이번 스와이프로 인한 벡터 변화량 Σ|after-before|/7']
+  created_at    timestamp   [not null, default: `now()`]
+
+  indexes {
+    (user_id, card_id) [unique]
+    (user_id, created_at)
+  }
+}
+
 Table log_emotion_tag {
-  id           bigint      [pk, increment]
-  visit_log_id bigint      [not null, ref: > visit_log.id]
-  tag          varchar(50) [not null]
+  id           bigint           [pk, increment]
+  visit_log_id bigint           [not null, ref: > visit_log.id]
+  tag          varchar(50)      [not null]
+  score        double precision [not null, note: 'AI 확신도(0.0~1.0). 실제 Supabase엔 이미 있었는데 문서 반영이 안 돼 있던 걸 뒤늦게 맞춤(2026-09-03)']
+
+  Note: '방문 기록 사진 AI 분석으로 자동 부여. 장소의 상위 태그(place.top_tags)는 이 테이블을 SUM(score) 기준으로 조회 시점에 직접 집계해서 계산함(별도 카운터 테이블 없음, 2026-09-02 결정 / score 가중치는 2026-09-03 추가)'
 
   indexes {
     (visit_log_id, tag) [unique]
@@ -143,21 +227,103 @@ Table course {
   id          bigint       [pk, increment]
   user_id     bigint       [not null, ref: > user.id]
   title       varchar(200) [not null]
-  source      varchar(20)  [not null, note: "CHECK: 'ai' | 'ai_edited' | 'user'"]
+  source      varchar(20)  [not null, note: "CHECK: 'ai' | 'ai_edited' | 'user' | 'journal' | 'liked'. journal=나의 일지 기록하기에서 사후 생성(2026-09-08 결정), liked=다른 사용자 공개 코스를 하트로 복제 저장(2026-09-11 추가, decision-log 참고)"]
   travel_date date
+  end_date    date         [note: '여러 날 범위 지원. "직접 코스 만들기"에서만 입력받음(2026-09-06 결정, decision-log 참고)']
+  transport   varchar(10)  [note: "CHECK: 'car' | 'walk' | 'public', 구글맵 경로 재계산용. nullable(과거 데이터/미입력 허용)"]
   created_at  timestamp    [not null, default: `now()`]
   updated_at  timestamp    [not null, default: `now()`, note: 'UPDATE 시 자동 갱신']
+  is_public   boolean      [not null, default: true, note: '취향 맞춤 코스 탭(GET /explore/similar-courses)에서 공개 코스만 노출, 2026-09-07 결정, decision-log 참고']
 }
 
 Table course_place {
   id           bigint [pk, increment]
   course_id    bigint [not null, ref: > course.id]
   place_id     bigint [not null, ref: > place.id]
-  visit_order  int    [not null, note: '1 이상']
+  visit_order  int    [not null, note: '1 이상, 코스 전체를 통틀은 전역 순서']
   planned_time time
+  visit_date   date   [note: '며칠째 방문지인지, 여러 날 코스 지원(2026-09-06). 직접 코스 만들기만 채움']
 
   indexes {
     (course_id, visit_order) [unique]
     (place_id)
+  }
+}
+
+// 알림 설정 (유저당 1행). push_enabled=false면 나머지 값과 무관하게 알림 미발송
+Table notification_setting {
+  id              bigint    [pk, increment]
+  user_id         bigint    [not null, unique, ref: > user.id]
+  push_enabled    boolean   [not null, default: false]
+  event_alert     boolean   [not null, default: true]
+  course_reminder boolean   [not null, default: true]
+  updated_at      timestamp [not null, default: `now()`, note: 'UPDATE 시 자동 갱신']
+}
+
+// FCM 디바이스 토큰. 플랫폼별 최신 토큰만 유지(덮어씀)
+Table device_token {
+  id         bigint       [pk, increment]
+  user_id    bigint       [not null, ref: > user.id]
+  platform   varchar(10)  [not null, note: "CHECK: 'ios' | 'android'"]
+  fcm_token  varchar(500) [not null]
+  updated_at timestamp    [not null, default: `now()`]
+
+  indexes {
+    (user_id, platform) [unique]
+  }
+}
+
+// 스와이프 세션 (일정짜기 화면. POST /swipe/candidates 발급, 24시간 유효)
+// id는 애플리케이션에서 'swipe_session_' + UUID로 생성 (세션 토큰 성격, 순번 노출 방지)
+Table swipe_session {
+  id          varchar(50) [pk]
+  user_id     bigint      [not null, ref: > user.id]
+  travel_date date        [not null]
+  transport   varchar(10) [not null, note: "CHECK: 'car' | 'walk' | 'public'"]
+  expires_at  timestamp   [not null]
+  created_at  timestamp   [not null, default: `now()`]
+}
+
+// 스와이프 세션의 후보 카드 (발급 시점 순서 고정). action이 NULL이면 아직 스와이프 안 한 잔여 후보
+Table swipe_session_candidate {
+  id         bigint      [pk, increment]
+  session_id varchar(50) [not null, ref: > swipe_session.id]
+  place_id   bigint      [not null, ref: > place.id]
+  sort_order int         [not null]
+  action     varchar(10) [note: "CHECK: 'like' | 'skip' | 'must', NULL = 미스와이프"]
+  swiped_at  timestamp
+
+  indexes {
+    (session_id, place_id) [unique]
+    (session_id, sort_order)
+  }
+}
+
+// 사용자 차단 (앱스토어 심사 가이드라인 1.2 대응, 2026-09-14)
+Table user_block {
+  id              bigint    [pk, increment]
+  blocker_user_id bigint    [not null, ref: > user.id]
+  blocked_user_id bigint    [not null, ref: > user.id]
+  created_at      timestamp [not null, default: `now()`]
+
+  indexes {
+    (blocker_user_id, blocked_user_id) [unique]
+  }
+}
+
+// 콘텐츠 신고 (앱스토어 심사 가이드라인 1.2 대응, 2026-09-14) — 운영자 대응은 별도 어드민 패널
+// 없이 status를 팀이 직접 확인/갱신하는 방식(이 프로젝트 규모의 최소 구현)
+Table content_report {
+  id          bigint      [pk, increment]
+  reporter_id bigint      [not null, ref: > user.id]
+  target_type varchar(20) [not null, note: "CHECK: 'visit_log' | 'course'"]
+  target_id   bigint      [not null, note: '대상 테이블은 target_type으로 결정 — FK 없음']
+  reason      varchar(20) [not null, note: "CHECK: 'inappropriate' | 'spam' | 'abuse' | 'other'"]
+  detail      text
+  status      varchar(20) [not null, default: 'pending', note: "CHECK: 'pending' | 'reviewed' | 'rejected'"]
+  created_at  timestamp   [not null, default: `now()`]
+
+  indexes {
+    status
   }
 }

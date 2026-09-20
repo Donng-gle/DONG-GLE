@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>동글 개인정보처리방침</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Noto+Sans+KR:wght@400;500;600;700&family=Squada+One&display=swap">
+<style>
+  :root {
+    --bg: #f7f7fb;
+    --surface: #ffffff;
+    --text: #111111;
+    --text-muted: #505050;
+    --text-faint: #767676;
+    --border: #e5e5ec;
+    --divider: #eeeef3;
+    --accent: #0066ff;
+    --accent-tint: #eaf2ff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #131316;
+      --surface: #1b1b1f;
+      --text: #f2f2f5;
+      --text-muted: #b7b8c2;
+      --text-faint: #8b8c96;
+      --border: #2c2c34;
+      --divider: #26262d;
+      --accent: #5b9bff;
+      --accent-tint: #16233b;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #131316;
+    --surface: #1b1b1f;
+    --text: #f2f2f5;
+    --text-muted: #b7b8c2;
+    --text-faint: #8b8c96;
+    --border: #2c2c34;
+    --divider: #26262d;
+    --accent: #5b9bff;
+    --accent-tint: #16233b;
+  }
+
+  * { box-sizing: border-box; }
+  html { color-scheme: light dark; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Noto Sans KR", "Pretendard", -apple-system, sans-serif;
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wordmark {
+    font-family: "Squada One", "Noto Sans KR", sans-serif;
+    letter-spacing: 0.02em;
+  }
+
+  header.top {
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .top-inner {
+    max-width: 920px;
+    margin: 0 auto;
+    padding: 28px 24px;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .top-inner .wordmark {
+    font-size: 22px;
+    color: var(--text);
+  }
+  .eff-date {
+    font-size: 13px;
+    color: var(--text-faint);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .hero {
+    max-width: 920px;
+    margin: 0 auto;
+    padding: 56px 24px 40px;
+  }
+  .hero h1 {
+    font-family: "Gowun Batang", serif;
+    font-size: clamp(28px, 4vw, 40px);
+    margin: 0 0 14px;
+    text-wrap: balance;
+  }
+  .hero p {
+    max-width: 62ch;
+    color: var(--text-muted);
+    font-size: 15.5px;
+    margin: 0;
+  }
+
+  .layout {
+    max-width: 920px;
+    margin: 0 auto;
+    padding: 0 24px 100px;
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    gap: 48px;
+    align-items: start;
+  }
+  @media (max-width: 720px) {
+    .layout { grid-template-columns: 1fr; }
+    nav.toc { display: none; }
+  }
+
+  nav.toc {
+    position: sticky;
+    top: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 13px;
+  }
+  nav.toc a {
+    color: var(--text-faint);
+    text-decoration: none;
+    padding: 7px 10px;
+    border-radius: 7px;
+    border-left: 2px solid transparent;
+  }
+  nav.toc a:hover,
+  nav.toc a:focus-visible {
+    color: var(--accent);
+    background: var(--accent-tint);
+    border-left-color: var(--accent);
+  }
+
+  main { min-width: 0; }
+
+  section.article {
+    padding: 30px 0;
+    border-bottom: 1px solid var(--divider);
+    scroll-margin-top: 20px;
+  }
+  section.article:last-of-type { border-bottom: none; }
+
+  .article-num {
+    font-family: "Gowun Batang", serif;
+    color: var(--accent);
+    font-size: 13px;
+    letter-spacing: 0.04em;
+    margin: 0 0 6px;
+  }
+  .article h2 {
+    font-family: "Gowun Batang", serif;
+    font-size: 20px;
+    margin: 0 0 14px;
+    text-wrap: balance;
+  }
+  .article p {
+    margin: 0 0 12px;
+    max-width: 66ch;
+    color: var(--text);
+    font-size: 15px;
+  }
+  .article p.muted { color: var(--text-muted); font-size: 13.5px; }
+  .article ul {
+    margin: 0 0 14px;
+    padding-left: 20px;
+    max-width: 66ch;
+  }
+  .article li { margin-bottom: 8px; font-size: 15px; }
+  .article li::marker { color: var(--text-faint); }
+
+  table.data-table {
+    width: 100%;
+    max-width: 66ch;
+    border-collapse: collapse;
+    margin: 4px 0 18px;
+    font-size: 14px;
+  }
+  table.data-table th,
+  table.data-table td {
+    text-align: left;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    vertical-align: top;
+  }
+  table.data-table th {
+    background: var(--divider);
+    font-weight: 600;
+    width: 32%;
+  }
+
+  .contact-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px 22px;
+    max-width: 66ch;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .contact-card .row {
+    display: flex;
+    gap: 10px;
+    font-size: 14.5px;
+  }
+  .contact-card .row span:first-child {
+    color: var(--text-faint);
+    min-width: 84px;
+    flex-shrink: 0;
+  }
+  .contact-card a { color: var(--accent); text-decoration: none; }
+  .contact-card a:hover { text-decoration: underline; }
+
+  footer.bottom {
+    max-width: 920px;
+    margin: 0 auto;
+    padding: 32px 24px 64px;
+    color: var(--text-faint);
+    font-size: 12.5px;
+  }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="top-inner">
+    <span class="wordmark">Dong_Gle</span>
+    <span class="eff-date">시행일자 2026. 9. 14.</span>
+  </div>
+</header>
+
+<div class="hero">
+  <h1>개인정보처리방침</h1>
+  <p>
+    동글(DONG-GLE, 이하 "서비스")은 이용자의 개인정보를 소중히 다루며, 「개인정보 보호법」 등
+    관련 법령을 준수합니다. 본 방침은 서비스가 어떤 개인정보를 어떻게 수집·이용·보관하는지
+    안내합니다.
+  </p>
+</div>
+
+<div class="layout">
+  <nav class="toc" aria-label="목차">
+    <a href="#a1">제1조 목적</a>
+    <a href="#a2">제2조 수집 항목</a>
+    <a href="#a3">제3조 이용 목적</a>
+    <a href="#a4">제4조 보유 기간</a>
+    <a href="#a5">제5조 제3자 제공</a>
+    <a href="#a6">제6조 처리 위탁</a>
+    <a href="#a7">제7조 이용자 권리</a>
+    <a href="#a8">제8조 안전성 확보</a>
+    <a href="#a9">제9조 자동 수집 장치</a>
+    <a href="#a10">제10조 보호책임자</a>
+    <a href="#a11">제11조 고지 의무</a>
+  </nav>
+
+  <main>
+    <section class="article" id="a1">
+      <p class="article-num">제1조</p>
+      <h2>목적</h2>
+      <p>
+        이 방침은 동글 앱(iOS/Android)이 제공하는 안동 여행 코스 추천 서비스 이용 과정에서
+        수집하는 개인정보의 항목, 수집 및 이용 목적, 보유 기간과 이용자의 권리를 규정합니다.
+      </p>
+    </section>
+
+    <section class="article" id="a2">
+      <p class="article-num">제2조</p>
+      <h2>수집하는 개인정보의 항목 및 수집방법</h2>
+      <p>서비스는 아래와 같이 개인정보를 수집합니다.</p>
+      <table class="data-table">
+        <tr><th>소셜 로그인 (카카오·구글·애플)</th><td>이메일, 닉네임, 프로필 사진</td></tr>
+        <tr><th>취향 온보딩</th><td>스와이프로 선택한 사진 기반 감성 취향 데이터</td></tr>
+        <tr><th>방문 기록</th><td>방문 장소, 사진, 한 줄 리뷰, 방문 일시</td></tr>
+        <tr><th>서비스 이용</th><td>찜한 장소, 생성·저장한 여행 코스</td></tr>
+        <tr><th>자동 수집</th><td>접속 로그, 기기 모델·OS 버전, 앱 버전</td></tr>
+      </table>
+      <p class="muted">
+        위치 정보는 지도에서 내 위치를 표시하는 용도로만 기기 OS가 요청하며, 서버에 별도로
+        저장하지 않습니다.
+      </p>
+    </section>
+
+    <section class="article" id="a3">
+      <p class="article-num">제3조</p>
+      <h2>개인정보의 수집 및 이용 목적</h2>
+      <ul>
+        <li>회원 식별 및 소셜 로그인 인증</li>
+        <li>취향 기반 개인화 여행 코스 추천</li>
+        <li>방문 기록·리뷰 저장 및 나의 여행 일지 제공</li>
+        <li>서비스 오류 대응 및 이용 통계 분석을 통한 품질 개선</li>
+      </ul>
+    </section>
+
+    <section class="article" id="a4">
+      <p class="article-num">제4조</p>
+      <h2>개인정보의 보유 및 이용 기간</h2>
+      <p>
+        회원 탈퇴 시 이용자의 개인정보(로그인 정보, 방문 기록, 취향 데이터, 업로드한 사진 포함)는
+        지체 없이 완전히 삭제됩니다. 별도 보관을 요하는 법령이 있는 경우 그 기간 동안만
+        예외적으로 보관합니다.
+      </p>
+    </section>
+
+    <section class="article" id="a5">
+      <p class="article-num">제5조</p>
+      <h2>개인정보의 제3자 제공</h2>
+      <p>
+        서비스는 이용자의 개인정보를 원칙적으로 외부에 제공하지 않습니다. 다만 이용자가
+        직접 공개로 설정한 방문 기록·여행 코스는 다른 이용자에게 닉네임·프로필 사진과 함께
+        노출될 수 있습니다.
+      </p>
+    </section>
+
+    <section class="article" id="a6">
+      <p class="article-num">제6조</p>
+      <h2>개인정보 처리의 위탁</h2>
+      <p>원활한 서비스 제공을 위해 아래와 같이 개인정보 처리 업무를 위탁하고 있습니다.</p>
+      <table class="data-table">
+        <tr><th>Amazon Web Services</th><td>업로드 사진 파일 저장(S3)</td></tr>
+        <tr><th>Supabase</th><td>데이터베이스 호스팅</td></tr>
+        <tr><th>Render</th><td>서버 애플리케이션 호스팅</td></tr>
+      </table>
+    </section>
+
+    <section class="article" id="a7">
+      <p class="article-num">제7조</p>
+      <h2>이용자의 권리와 행사방법</h2>
+      <p>
+        이용자는 언제든지 앱 내 마이페이지에서 본인의 개인정보를 열람·수정할 수 있으며,
+        회원 탈퇴를 통해 삭제를 요청할 수 있습니다. 제10조의 연락처로도 열람·정정·삭제를
+        요청할 수 있습니다.
+      </p>
+    </section>
+
+    <section class="article" id="a8">
+      <p class="article-num">제8조</p>
+      <h2>개인정보의 안전성 확보조치</h2>
+      <ul>
+        <li>비밀번호를 저장하지 않는 소셜 로그인 방식 사용</li>
+        <li>인증 토큰의 기기 내 암호화 저장(SecureStore)</li>
+        <li>전송 구간 HTTPS 암호화 적용</li>
+      </ul>
+    </section>
+
+    <section class="article" id="a9">
+      <p class="article-num">제9조</p>
+      <h2>개인정보 자동 수집 장치의 설치·운영 및 거부에 관한 사항</h2>
+      <p>
+        서비스는 웹 쿠키를 사용하지 않습니다. 로그인 상태 유지를 위한 인증 토큰만 기기 내
+        보안 저장소에 저장하며, 로그아웃 시 즉시 삭제됩니다.
+      </p>
+    </section>
+
+    <section class="article" id="a10">
+      <p class="article-num">제10조</p>
+      <h2>개인정보 보호책임자</h2>
+      <div class="contact-card">
+        <div class="row"><span>운영 주체</span><span>DONG-GLE</span></div>
+        <div class="row"><span>이메일</span><span><a href="mailto:tjfakstn04@gmail.com">tjfakstn04@gmail.com</a></span></div>
+      </div>
+      <p class="muted" style="margin-top:14px;">
+        개인정보 관련 문의, 불만 처리, 피해 구제 등을 위 이메일로 접수하시면 신속히 답변
+        드리겠습니다.
+      </p>
+    </section>
+
+    <section class="article" id="a11">
+      <p class="article-num">제11조</p>
+      <h2>고지의 의무</h2>
+      <p>
+        본 방침의 내용 추가, 삭제 및 수정이 있을 경우 시행 최소 7일 전에 앱 내 공지사항을
+        통해 고지합니다.
+      </p>
+    </section>
+  </main>
+</div>
+
+<footer class="bottom">
+  <p>부칙 — 이 방침은 2026년 9월 14일부터 시행됩니다.</p>
+</footer>
+
+</body>
+</html>

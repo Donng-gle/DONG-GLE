@@ -1,0 +1,19 @@
+# AI 개발 중 생성되는 비밀·가상환경·캐시·실험 결과 파일을 Git에서 제외한다.
+
+.venv/
+.env
+.env.*
+!.env.example
+__pycache__/
+.pytest_cache/
+.coverage
+htmlcov/
+dist/
+output/
+data/
+review_range_experiments/
+*.egg-info/
+*.py[cod]
+.DS_Store
+secrets/
+*.pem

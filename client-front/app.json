@@ -1,0 +1,67 @@
+{
+  "expo": {
+    "name": "동글",
+    "slug": "dongle",
+    "scheme": "dongle",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.dongle.andong",
+      "config": {
+        "usesNonExemptEncryption": false
+      },
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSExceptionDomains": {
+            "visitkorea.or.kr": {
+              "NSExceptionAllowsInsecureHTTPLoads": true,
+              "NSIncludesSubdomains": true
+            }
+          }
+        },
+        "NSLocationWhenInUseUsageDescription": "지도에서 내 위치를 확인하고 주변 장소를 탐색하려면 위치 정보 접근 권한이 필요해요."
+      }
+    },
+    "android": {
+      "package": "com.dongle.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-web-browser",
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "방문 기록에 사진을 남기려면 사진 보관함 접근 권한이 필요해요.",
+          "cameraPermission": "방문 기록에 사진을 남기려면 카메라 접근 권한이 필요해요.",
+          "microphonePermission": false
+        }
+      ],
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.633640803041-val291hsro68uoojtt5cjduqnf3jrvd0"
+        }
+      ],
+      "expo-apple-authentication"
+    ],
+    "owner": "donggle-andong",
+    "extra": {
+      "eas": {
+        "projectId": "25d738cb-597e-431d-a6fc-2ebdbc534bb9"
+      }
+    }
+  }
+}

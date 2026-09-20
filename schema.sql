@@ -45,16 +45,74 @@ CREATE TABLE place_image (
 CREATE INDEX idx_place_image_place ON place_image (place_id);
 
 
--- 감성 태그 (방문 로그 AI 분석 결과 누적)
-CREATE TABLE place_emotion_tag (
-    id       BIGSERIAL PRIMARY KEY,
-    place_id BIGINT      NOT NULL REFERENCES place (id) ON DELETE CASCADE,
-    tag      VARCHAR(50) NOT NULL,
-    count    INT         NOT NULL DEFAULT 1 CHECK (count >= 1),  -- 해당 태그가 이 장소에 붙은 횟수, 상위 태그 선정에 사용
-    UNIQUE (place_id, tag)
+-- 영업시간 (Google Places opening_hours.periods 기준 + TourAPI 텍스트 파싱 보완)
+-- 브레이크타임 등 세부 휴게시간 데이터는 소스(TourAPI/Google) 어디에도 사실상 없어 미반영 (decision-log 참고)
+-- close_day/close_time이 NULL이면 해당 open_day는 24시간 영업
+CREATE TABLE place_hours (
+    id         BIGSERIAL PRIMARY KEY,
+    place_id   BIGINT    NOT NULL REFERENCES place (id) ON DELETE CASCADE,
+    open_day   SMALLINT  NOT NULL CHECK (open_day BETWEEN 0 AND 6),  -- 0=일요일 ~ 6=토요일 (Google 기준)
+    open_time  TIME      NOT NULL,
+    close_day  SMALLINT  CHECK (close_day BETWEEN 0 AND 6),          -- 자정 넘어가는 영업(예: 금 22:00~토 02:00) 표현용
+    close_time TIME,
+    UNIQUE (place_id, open_day, open_time)
 );
 
-CREATE INDEX idx_place_emotion_tag_place ON place_emotion_tag (place_id);
+CREATE INDEX idx_place_hours_place ON place_hours (place_id);
+
+
+-- 장소별 VLM(GPT Vision) semantic 분석 raw score (장소 공식 사진 기반, 정적 기준선)
+-- 장소당 최신 분석 결과 1행만 유지. model_name/prompt_version/tag_schema_version이 바뀌면 재분석 대상.
+-- 아래 place_image_semantic_vector(이미지별 원본 점수)를 평균 낸 장소 단위 집계값.
+-- 백엔드(코스 후보 major_scores 등)는 이 집계 테이블을 읽음.
+-- Qdrant 추천/대체 검색은 이미지 단위 point를 사용한다(장소 집계 벡터는 Qdrant에 올리지 않음).
+-- log_emotion_tag(방문 로그 누적, 조회 시점에 직접 집계함 — 2026-09-02 결정)와는 별개 신호,
+-- 하나가 다른 하나를 대체하지 않음 (decision-log 2026-08-21 참고)
+-- 데이터 파트 배치 스크립트(data/pipeline/semantic_vector_sync.py)로만 적재됨, 백엔드는 읽기 전용
+CREATE TABLE place_semantic_vector (
+    place_id                 BIGINT      PRIMARY KEY REFERENCES place (id) ON DELETE CASCADE,
+    representative_image_url TEXT        NOT NULL,
+    analysis_image_urls      JSONB       NOT NULL DEFAULT '[]'::jsonb,
+    analysis_image_count     INTEGER     NOT NULL,
+    detail_scores            JSONB       NOT NULL,  -- 35개 세부 태그 점수
+    major_scores             JSONB       NOT NULL,  -- 7개 대분류 태그 점수 (docs/ssot.md 감성태그셋 참고)
+    summary                  TEXT,
+    model_name               TEXT        NOT NULL,
+    prompt_version           TEXT        NOT NULL,
+    tag_schema_version       TEXT        NOT NULL,
+    qdrant_point_id          TEXT        NOT NULL,  -- 대표 이미지 Qdrant point id (이미지 단위 색인 기준)
+    analyzed_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_place_semantic_vector_prompt_version ON place_semantic_vector (prompt_version);
+CREATE INDEX idx_place_semantic_vector_analyzed_at ON place_semantic_vector (analyzed_at DESC);
+
+
+-- 장소 이미지별 VLM(GPT Vision) semantic 분석 raw score (이미지 1장 단위)
+-- 위 place_semantic_vector(장소 단위 집계)의 원본 데이터. 온보딩 카드 대표 사진 선정처럼 이미지별 원본 점수가 필요한 곳에 사용
+-- 재분석 시 (place_id, image_url) 기준으로 최신 버전만 유지(UPSERT).
+-- Qdrant 추천 검색은 이 원본과 대응하는 이미지 point를 색인한다(장소 집계 point는 없음).
+-- 데이터 파트 배치 스크립트(data/pipeline/semantic_vector_sync.py)로만 적재됨, 백엔드는 읽지 않음
+CREATE TABLE place_image_semantic_vector (
+    place_id             BIGINT      NOT NULL REFERENCES place (id) ON DELETE CASCADE,
+    image_url            TEXT        NOT NULL,
+    detail_scores        JSONB       NOT NULL,  -- 35개 세부 태그 점수 (이 이미지 1장 기준)
+    major_scores         JSONB       NOT NULL,  -- 7개 대분류 태그 점수 (이 이미지 1장 기준)
+    summary               TEXT,
+    model_name            TEXT        NOT NULL,
+    prompt_version        TEXT        NOT NULL,
+    tag_schema_version    TEXT        NOT NULL,
+    analyzed_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (place_id, image_url)
+);
+
+CREATE INDEX idx_place_image_semantic_vector_place ON place_image_semantic_vector (place_id);
+
+
+-- (place_emotion_tag 테이블은 2026-09-02 제거됨 — 장소별 방문 로그 누적 감성 태그는 이제 저장된
+-- 카운터 없이 log_emotion_tag를 조회 시점에 직접 집계함. AI가 log_emotion_tag에 직접 배치로
+-- 적재하기 시작하면서 별도 카운터(count)를 누가 갱신할지 애매해졌던 문제를 이 방식으로 없앰.
+-- LogEmotionTagRepository.countTagsByPlaceId, decision-log 2026-09-02 참고)
 
 
 -- 사용자
@@ -63,7 +121,7 @@ CREATE TABLE "user" (
     user_id           VARCHAR(50)  NOT NULL UNIQUE,
     nickname          VARCHAR(50)  NOT NULL,
     email             VARCHAR(200),
-    oauth_provider    VARCHAR(20)  NOT NULL CHECK (oauth_provider IN ('kakao', 'google')),
+    oauth_provider    VARCHAR(20)  NOT NULL CHECK (oauth_provider IN ('kakao', 'google', 'apple')),
     oauth_id          VARCHAR(100) NOT NULL,
     profile_image_url TEXT,
     has_onboarded     BOOLEAN      NOT NULL DEFAULT FALSE,  -- 앱 재시작 시 온보딩 완료 여부 판단
@@ -71,6 +129,18 @@ CREATE TABLE "user" (
     updated_at        TIMESTAMP    NOT NULL DEFAULT NOW(),
     UNIQUE (oauth_provider, oauth_id)
 );
+
+
+-- 리프레시 토큰 (로그아웃 시 무효화 처리용 서버 측 화이트리스트)
+CREATE TABLE refresh_token (
+    id         BIGSERIAL    PRIMARY KEY,
+    user_id    BIGINT       NOT NULL REFERENCES "user" (id) ON DELETE CASCADE,
+    token      VARCHAR(500) NOT NULL UNIQUE,
+    expires_at TIMESTAMP    NOT NULL,
+    created_at TIMESTAMP    NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_refresh_token_user ON refresh_token (user_id);
 
 
 -- 사용자 취향 (온보딩 스와이프 결과)
@@ -100,26 +170,50 @@ CREATE INDEX idx_place_like_place ON place_like (place_id);
 
 
 -- 방문 로그
+-- course_id: 코스 단위 기록(장소 2개 이상)일 때만 값 있음, nullable. course 테이블이 아래에서
+-- 정의되므로 FK 제약은 course 생성 뒤에 별도 ALTER로 추가함. 2026-09-08 추가, decision-log 참고
 CREATE TABLE visit_log (
     id         BIGSERIAL    PRIMARY KEY,
     user_id    BIGINT       NOT NULL REFERENCES "user" (id) ON DELETE CASCADE,
     place_id   BIGINT       NOT NULL REFERENCES place (id) ON DELETE CASCADE,
-    photo_url  TEXT,
+    course_id  BIGINT,
+    title      VARCHAR(50),   -- 기록 제목. 2026-09-05 추가(메인 페이지-나의 일지-기록하기), decision-log 참고
     one_line   VARCHAR(100),
+    weather    VARCHAR(20),   -- 자유 입력 텍스트(선택지 코드 없음). 2026-09-05 추가, decision-log 참고
+    rating     SMALLINT     CHECK (rating BETWEEN 1 AND 5),  -- 별점(1~5), 선택 입력. 2026-09-05 추가, decision-log 참고
     is_public  BOOLEAN      NOT NULL DEFAULT TRUE,  -- 유사 사용자 탐색(GET /explore/similar-logs)에서 공개 기록만 노출
     visited_at TIMESTAMP    NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX idx_visit_log_user    ON visit_log (user_id);
 CREATE INDEX idx_visit_log_place   ON visit_log (place_id);
+CREATE INDEX idx_visit_log_course  ON visit_log (course_id);
 CREATE INDEX idx_visit_log_visited ON visit_log (visited_at);
 
 
+-- 방문 기록 사진 (여러 장). 이전엔 visit_log.photo_url 단일 컬럼이었는데(사진 1장만 가능),
+-- place_image와 동일한 패턴(부모 테이블 + sort_order)으로 확장 (2026-09-06 결정, decision-log 참고)
+-- caption: 사진별 캡션(선택). "취향 맞춤 코스" 카드가 사진을 넘기면 그 사진에 달린 글로 바뀌게
+-- 하기 위해 추가 (2026-09-07 결정, decision-log 참고)
+CREATE TABLE visit_log_photo (
+    id           BIGSERIAL PRIMARY KEY,
+    visit_log_id BIGINT    NOT NULL REFERENCES visit_log (id) ON DELETE CASCADE,
+    photo_url    TEXT      NOT NULL,
+    sort_order   INT       NOT NULL DEFAULT 0 CHECK (sort_order >= 0),
+    caption      TEXT
+);
+
+CREATE INDEX idx_visit_log_photo_log ON visit_log_photo (visit_log_id);
+
+
 -- 로그 감성 태그 (AI 분석)
+-- score: AI가 이 태그를 얼마나 확신했는지(0.0~1.0). 실제 Supabase엔 이미 있었는데 이 문서/백엔드
+-- 엔티티에 반영이 안 돼 있던 걸 뒤늦게 맞춤 (2026-09-03 발견, decision-log 참고)
 CREATE TABLE log_emotion_tag (
-    id           BIGSERIAL   PRIMARY KEY,
-    visit_log_id BIGINT      NOT NULL REFERENCES visit_log (id) ON DELETE CASCADE,
-    tag          VARCHAR(50) NOT NULL,
+    id           BIGSERIAL        PRIMARY KEY,
+    visit_log_id BIGINT           NOT NULL REFERENCES visit_log (id) ON DELETE CASCADE,
+    tag          VARCHAR(50)      NOT NULL,
+    score        DOUBLE PRECISION NOT NULL,
     UNIQUE (visit_log_id, tag)
 );
 
@@ -127,18 +221,26 @@ CREATE INDEX idx_log_emotion_tag_log ON log_emotion_tag (visit_log_id);
 
 
 -- 코스
--- source: 'ai'=AI 추천 저장, 'ai_edited'=AI 추천 후 유저 수정, 'user'=유저 직접 생성
+-- source: 'ai'=AI 추천 저장, 'ai_edited'=AI 추천 후 유저 수정, 'user'=유저 직접 생성,
+-- 'journal'=나의 일지 기록하기에서 사후 생성(2026-09-08 추가), 'liked'=다른 사용자 공개 코스를
+-- 하트로 복제 저장(2026-09-11 추가) — 이 파일이 실제 운영 DB보다 오래 뒤처져있던 걸 이번에 맞춤
 CREATE TABLE course (
     id          BIGSERIAL    PRIMARY KEY,
     user_id     BIGINT       NOT NULL REFERENCES "user" (id) ON DELETE CASCADE,
     title       VARCHAR(200) NOT NULL,
-    source      VARCHAR(20)  NOT NULL CHECK (source IN ('ai', 'ai_edited', 'user')),
+    source      VARCHAR(20)  NOT NULL CHECK (source IN ('ai', 'ai_edited', 'user', 'journal', 'liked')),
     travel_date DATE,
+    end_date    DATE,  -- 여러 날 범위 지원. "직접 코스 만들기"에서만 입력받음(2026-09-06 결정, decision-log 참고)
+    transport   VARCHAR(10)  CHECK (transport IN ('car', 'walk', 'public')),  -- 구글맵 경로 재계산용, nullable(과거 데이터/미입력 허용)
     created_at  TIMESTAMP    NOT NULL DEFAULT NOW(),
-    updated_at  TIMESTAMP    NOT NULL DEFAULT NOW()
+    updated_at  TIMESTAMP    NOT NULL DEFAULT NOW(),
+    is_public   BOOLEAN      NOT NULL DEFAULT TRUE  -- 취향 맞춤 코스 탭(GET /explore/similar-courses)에서 공개 코스만 노출 (2026-09-07 결정, decision-log 참고)
 );
 
 CREATE INDEX idx_course_user ON course (user_id);
+
+-- visit_log.course_id는 course보다 먼저 정의돼서 인라인 FK를 못 걸었음 — 여기서 추가
+ALTER TABLE visit_log ADD CONSTRAINT fk_visit_log_course FOREIGN KEY (course_id) REFERENCES course (id) ON DELETE SET NULL;
 
 
 -- 코스 장소 (TMAP 경로는 장기 저장 안 함 → 코스 열 때 재호출)
@@ -146,13 +248,37 @@ CREATE TABLE course_place (
     id           BIGSERIAL PRIMARY KEY,
     course_id    BIGINT    NOT NULL REFERENCES course (id) ON DELETE CASCADE,
     place_id     BIGINT    NOT NULL REFERENCES place (id) ON DELETE CASCADE,
-    visit_order  INT       NOT NULL CHECK (visit_order >= 1),
+    visit_order  INT       NOT NULL CHECK (visit_order >= 1),  -- 코스 전체를 통틀은 전역 순서(날짜 안 나뉨)
     planned_time TIME,
+    visit_date   DATE,  -- 며칠째 방문지인지(여러 날 코스 지원, 2026-09-06 결정, decision-log 참고). "직접 코스 만들기"에서만 채워짐, null이면 날짜 구분 없음
     UNIQUE (course_id, visit_order)
 );
 
 CREATE INDEX idx_course_place_course ON course_place (course_id);
 CREATE INDEX idx_course_place_place ON course_place (place_id);
+
+
+-- 알림 설정 (유저당 1행, GET/PATCH /users/me/notification)
+-- push_enabled=false면 event_alert/course_reminder 값과 무관하게 알림 미발송
+CREATE TABLE notification_setting (
+    id              BIGSERIAL PRIMARY KEY,
+    user_id         BIGINT    NOT NULL UNIQUE REFERENCES "user" (id) ON DELETE CASCADE,
+    push_enabled    BOOLEAN   NOT NULL DEFAULT FALSE,
+    event_alert     BOOLEAN   NOT NULL DEFAULT TRUE,
+    course_reminder BOOLEAN   NOT NULL DEFAULT TRUE,
+    updated_at      TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+
+-- FCM 디바이스 토큰 (플랫폼별 최신 토큰만 유지, POST /users/me/device-token)
+CREATE TABLE device_token (
+    id         BIGSERIAL    PRIMARY KEY,
+    user_id    BIGINT       NOT NULL REFERENCES "user" (id) ON DELETE CASCADE,
+    platform   VARCHAR(10)  NOT NULL CHECK (platform IN ('ios', 'android')),
+    fcm_token  VARCHAR(500) NOT NULL,
+    updated_at TIMESTAMP    NOT NULL DEFAULT NOW(),
+    UNIQUE (user_id, platform)
+);
 
 
 -- 온보딩 카드 (AI 파트가 사전 분석하여 적재. 온보딩 런타임에 AI 호출 없음)
@@ -175,6 +301,79 @@ CREATE TABLE onboarding_card (
 
 CREATE INDEX idx_onboarding_card_seed  ON onboarding_card (is_seed);
 CREATE INDEX idx_onboarding_card_place ON onboarding_card (place_id);
+
+
+-- 온보딩 스와이프 이력 (진행 상태 복원 + 수렴 판정용. 최근 3장 변화량 계산에 사용)
+-- onboarding/reset 시 유저의 이 이력 전체를 삭제하고 재시작
+CREATE TABLE onboarding_swipe_log (
+    id            BIGSERIAL    PRIMARY KEY,
+    user_id       BIGINT       NOT NULL REFERENCES "user" (id) ON DELETE CASCADE,
+    card_id       BIGINT       NOT NULL REFERENCES onboarding_card (id) ON DELETE CASCADE,
+    action        VARCHAR(10)  NOT NULL CHECK (action IN ('like', 'dislike')),
+    change_amount FLOAT        NOT NULL,  -- 이번 스와이프로 인한 벡터 변화량 Σ|after-before|/7
+    created_at    TIMESTAMP    NOT NULL DEFAULT NOW(),
+    UNIQUE (user_id, card_id)
+);
+
+CREATE INDEX idx_onboarding_swipe_log_user ON onboarding_swipe_log (user_id, created_at);
+
+
+-- 스와이프 세션 (일정짜기 화면. POST /swipe/candidates 발급, 24시간 유효)
+-- id는 애플리케이션에서 'swipe_session_' + UUID로 생성해서 저장 (세션 토큰 성격, 순번 노출 방지)
+CREATE TABLE swipe_session (
+    id          VARCHAR(50) PRIMARY KEY,
+    user_id     BIGINT      NOT NULL REFERENCES "user" (id) ON DELETE CASCADE,
+    travel_date DATE        NOT NULL,
+    transport   VARCHAR(10) NOT NULL CHECK (transport IN ('car', 'walk', 'public')),
+    expires_at  TIMESTAMP   NOT NULL,
+    created_at  TIMESTAMP   NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_swipe_session_user ON swipe_session (user_id);
+
+
+-- 스와이프 세션의 후보 카드 (발급 시점 순서 고정)
+-- action이 NULL이면 아직 스와이프 안 한 잔여 후보, 값이 있으면 이미 제출된 결과
+CREATE TABLE swipe_session_candidate (
+    id         BIGSERIAL   PRIMARY KEY,
+    session_id VARCHAR(50) NOT NULL REFERENCES swipe_session (id) ON DELETE CASCADE,
+    place_id   BIGINT      NOT NULL REFERENCES place (id) ON DELETE CASCADE,
+    sort_order INT         NOT NULL,
+    action     VARCHAR(10) CHECK (action IN ('like', 'skip', 'must')),
+    swiped_at  TIMESTAMP,
+    UNIQUE (session_id, place_id)
+);
+
+CREATE INDEX idx_swipe_session_candidate_session ON swipe_session_candidate (session_id, sort_order);
+
+
+-- 사용자 차단 (앱스토어 심사 가이드라인 1.2 대응, 2026-09-14)
+CREATE TABLE user_block (
+    id              BIGSERIAL PRIMARY KEY,
+    blocker_user_id BIGINT    NOT NULL REFERENCES "user" (id) ON DELETE CASCADE,
+    blocked_user_id BIGINT    NOT NULL REFERENCES "user" (id) ON DELETE CASCADE,
+    created_at      TIMESTAMP NOT NULL DEFAULT NOW(),
+    UNIQUE (blocker_user_id, blocked_user_id),
+    CHECK (blocker_user_id <> blocked_user_id)
+);
+
+CREATE INDEX idx_user_block_blocker ON user_block (blocker_user_id);
+
+
+-- 콘텐츠 신고 (앱스토어 심사 가이드라인 1.2 대응, 2026-09-14) — 운영자 대응은 별도 어드민 패널
+-- 없이 status를 팀이 직접 확인/갱신하는 방식(이 프로젝트 규모의 최소 구현, decision-log 참고 예정)
+CREATE TABLE content_report (
+    id          BIGSERIAL PRIMARY KEY,
+    reporter_id BIGINT      NOT NULL REFERENCES "user" (id) ON DELETE CASCADE,
+    target_type VARCHAR(20) NOT NULL CHECK (target_type IN ('visit_log', 'course')),
+    target_id   BIGINT      NOT NULL,
+    reason      VARCHAR(20) NOT NULL CHECK (reason IN ('inappropriate', 'spam', 'abuse', 'other')),
+    detail      TEXT,
+    status      VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'reviewed', 'rejected')),
+    created_at  TIMESTAMP   NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_content_report_status ON content_report (status);
 
 
 -- 공통 updated_at 자동 갱신
