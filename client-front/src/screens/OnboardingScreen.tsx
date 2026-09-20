@@ -3,6 +3,7 @@ import { ActivityIndicator, Alert, Animated, Image, PanResponder, StyleSheet, Te
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SwipeHintOverlay, useSwipeHint } from '../components/SwipeHint';
 import { OnboardingCard, OnboardingSwipeResponse, onboardingApi } from '../api/onboarding';
 import { colors } from '../theme/colors';
 import { fonts } from '../theme/fonts';
@@ -43,9 +44,14 @@ export function OnboardingScreen({ onComplete }: Props) {
   const position = useRef(new Animated.ValueXY()).current;
   const rotate = position.x.interpolate({ inputRange: [-300, 0, 300], outputRange: ['-12deg', '0deg', '12deg'] });
 
+  const hint = useSwipeHint('dongle.swipeHint.onboarding', position, !!card && !loading);
+  const hintDismissRef = useRef(hint.dismiss);
+  hintDismissRef.current = hint.dismiss;
+
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => !swipingRef.current && !!cardRef.current,
+      onPanResponderGrant: () => hintDismissRef.current(),
       onPanResponderMove: Animated.event([null, { dx: position.x, dy: position.y }], { useNativeDriver: false }),
       onPanResponderRelease: (_, gesture) => {
         if (gesture.dx > SWIPE_THRESHOLD) {
@@ -218,6 +224,7 @@ export function OnboardingScreen({ onComplete }: Props) {
             <Image source={{ uri: card.image_url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
             <LinearGradient colors={['transparent', 'rgba(0,0,0,0.35)']} style={StyleSheet.absoluteFill} />
           </Animated.View>
+          <SwipeHintOverlay visible={hint.visible} />
           {swiping && (
             <View style={[StyleSheet.absoluteFill, styles.swipingOverlay]} pointerEvents="none">
               <ActivityIndicator color={colors.white} />

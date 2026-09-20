@@ -3,6 +3,7 @@ import { ActivityIndicator, Alert, Animated, Image, PanResponder, StyleSheet, Te
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SwipeHintOverlay, useSwipeHint } from '../components/SwipeHint';
 import { SwipeAction, SwipeCandidate, SwipedResultItem, swipeApi } from '../api/swipe';
 import { colors } from '../theme/colors';
 import { fonts } from '../theme/fonts';
@@ -64,9 +65,14 @@ export function CourseSwipeScreen({ sessionId, candidates, initialResults = [], 
   const position = useRef(new Animated.ValueXY()).current;
   const rotate = position.x.interpolate({ inputRange: [-300, 0, 300], outputRange: ['-12deg', '0deg', '12deg'] });
 
+  const hint = useSwipeHint('dongle.swipeHint.course', position, !!current && !submitting);
+  const hintDismissRef = useRef(hint.dismiss);
+  hintDismissRef.current = hint.dismiss;
+
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => !submittingRef.current && !!currentRef.current,
+      onPanResponderGrant: () => hintDismissRef.current(),
       onPanResponderMove: Animated.event([null, { dx: position.x, dy: position.y }], { useNativeDriver: false }),
       onPanResponderRelease: (_, gesture) => {
         if (gesture.dx > SWIPE_THRESHOLD) {
@@ -155,6 +161,7 @@ export function CourseSwipeScreen({ sessionId, candidates, initialResults = [], 
               {current.tags.length > 0 && <Text style={styles.placeTags}>{current.tags.join(' · ')}</Text>}
             </View>
           </Animated.View>
+          <SwipeHintOverlay visible={hint.visible} subText="아래 '꼭 가기' 버튼으로 꼭 가고 싶은 곳을 표시해요" />
         </View>
       </View>
 
