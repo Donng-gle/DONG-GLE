@@ -54,6 +54,13 @@ export function CourseSwipeScreen({ sessionId, candidates, initialResults = [], 
     resultsRef.current = results;
   }, [results]);
 
+  // 다음 몇 장의 이미지를 미리 받아둬서 넘긴 직후 사진이 늦게 뜨는 지연을 없앤다
+  useEffect(() => {
+    candidates
+      .slice(index + 1, index + 4)
+      .forEach((c) => c.main_image_url && Image.prefetch(c.main_image_url).catch(() => {}));
+  }, [index, candidates]);
+
   const position = useRef(new Animated.ValueXY()).current;
   const rotate = position.x.interpolate({ inputRange: [-300, 0, 300], outputRange: ['-12deg', '0deg', '12deg'] });
 
