@@ -4,7 +4,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
 import { UserProfile, authApi } from './src/api/auth';
-import { registerSessionExpiredListener } from './src/api/client';
+import { ApiError, registerSessionExpiredListener } from './src/api/client';
 import { tokenStorage } from './src/auth/tokenStorage';
 import { SplashLogo } from './src/components/SplashLogo';
 import { colors } from './src/theme/colors';
@@ -45,13 +45,25 @@ export default function App() {
       return;
     }
 
-    try {
-      setProfile(await authApi.me());
-    } catch {
-      await tokenStorage.clear();
-    } finally {
-      setCheckingSession(false);
+    // Render 서버가 잠들어 있으면 깨는 데 최대 1~2분 걸려서 /users/me가 네트워크 오류로 실패할 수
+    // 있음. 예전엔 이런 일시적 실패까지 세션 만료로 취급해 토큰을 지워버려서, 서버가 콜드스타트인
+    // 타이밍에 앱을 열면 멀쩡한 로그인이 날아가고 카카오 동의 화면부터 매번 다시 봐야 했음
+    // (2026-09-21 사용자 리포트). 실제 인증 실패(401)일 때만 지우고, 그 외엔 몇 번 재시도한다.
+    const retryDelaysMs = [0, 3000, 8000, 15000];
+    for (const delay of retryDelaysMs) {
+      if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay));
+      try {
+        setProfile(await authApi.me());
+        setCheckingSession(false);
+        return;
+      } catch (e) {
+        if (e instanceof ApiError && e.status === 401) {
+          await tokenStorage.clear();
+          break;
+        }
+      }
     }
+    setCheckingSession(false);
   }
 
   if (checkingSession || !fontsLoaded || !splashAnimDone) {
