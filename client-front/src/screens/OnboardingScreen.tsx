@@ -3,7 +3,8 @@ import { ActivityIndicator, Alert, Animated, Image, PanResponder, StyleSheet, Te
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { OnboardingCard, onboardingApi } from '../api/onboarding';
+import { SwipeHintOverlay, useSwipeHint } from '../components/SwipeHint';
+import { OnboardingCard, OnboardingSwipeResponse, onboardingApi } from '../api/onboarding';
 import { colors } from '../theme/colors';
 import { fonts } from '../theme/fonts';
 
@@ -27,6 +28,7 @@ export function OnboardingScreen({ onComplete }: Props) {
   const [card, setCard] = useState<OnboardingCard | null>(null);
   const [loading, setLoading] = useState(true); // 최초 로딩/리셋 전용 — 스와이프 사이에는 안 씀
   const [swiping, setSwiping] = useState(false);
+  const [cardHidden, setCardHidden] = useState(false);
   const [totalSeen, setTotalSeen] = useState(0);
 
   // PanResponder는 마운트 시 한 번만 생성되므로, 콜백 안에서 최신 state를 읽으려면 ref로 미러링해야 함
@@ -42,9 +44,14 @@ export function OnboardingScreen({ onComplete }: Props) {
   const position = useRef(new Animated.ValueXY()).current;
   const rotate = position.x.interpolate({ inputRange: [-300, 0, 300], outputRange: ['-12deg', '0deg', '12deg'] });
 
+  const hint = useSwipeHint('dongle.swipeHint.onboarding', position, !!card && !loading);
+  const hintDismissRef = useRef(hint.dismiss);
+  hintDismissRef.current = hint.dismiss;
+
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => !swipingRef.current && !!cardRef.current,
+      onPanResponderGrant: () => hintDismissRef.current(),
       onPanResponderMove: Animated.event([null, { dx: position.x, dy: position.y }], { useNativeDriver: false }),
       onPanResponderRelease: (_, gesture) => {
         if (gesture.dx > SWIPE_THRESHOLD) {
@@ -100,35 +107,33 @@ export function OnboardingScreen({ onComplete }: Props) {
   }
 
   function forceSwipe(action: 'like' | 'dislike') {
+    const curr = cardRef.current;
+    if (!curr) return;
     setSwiping(true);
+    // 스와이프 저장 요청을 카드가 날아가는 220ms 애니메이션과 동시에 시작해서 대기시간을 겹친다
+    const pending = onboardingApi.swipe(curr.id, action);
+    pending.catch(() => {});
     Animated.timing(position, {
       toValue: { x: action === 'like' ? 500 : -500, y: 0 },
       duration: 220,
       useNativeDriver: false,
     }).start(() => {
       position.setValue({ x: 0, y: 0 });
-      handleSwipe(action);
+      // 날아간 카드가 제자리로 돌아와 다시 보이지 않도록 다음 카드가 준비될 때까지 숨김
+      setCardHidden(true);
+      handleSwipe(pending);
     });
   }
 
-  async function handleSwipe(action: 'like' | 'dislike') {
-    // panResponder는 마운트 시(카드가 아직 null인 첫 렌더) 한 번만 생성돼서 이 함수를 클로저로
-    // 캡처한다. 클로저 변수를 직접 읽으면 그 시점 값에 고정되는 stale closure 버그가 나서
-    // card는 cardRef로 최신값을 읽는다.
+  async function handleSwipe(pending: Promise<OnboardingSwipeResponse>) {
+    // panResponder는 마운트 시 한 번만 생성돼서 forceSwipe를 클로저로 캡처하므로 card는 cardRef로 읽는다.
     //
-    // (참고) 다음 카드를 스와이프 확정 전에 미리 받아두는 프리패치를 시도했다가 되돌렸음 —
-    // 서버 GET /onboarding/next는 실제 스와이프 로그가 반영된 것만 "이미 본 카드"로 제외하는데,
-    // 스와이프 응답을 기다리기 전에 먼저 호출하면 서버 입장에서 아무것도 안 바뀐 상태라 방금
-    // 보여준 카드를 그대로 또 돌려줌(특히 시드 카드 7장은 결정적으로 골라서 100% 재현됨).
-    // 그래서 다음 카드는 반드시 swipe() 응답을 받은 뒤에만 요청해야 함 — 대신 그 사이엔 화면
-    // 전체를 로딩 화면으로 덮지 않고(아래 렌더 로직 참고) 카드 위에 작은 스피너만 겹쳐서
-    // 화면이 붕 뜨는 느낌만 없앤다.
-    const curr = cardRef.current;
-    if (!curr) return;
-
-    setSwiping(true);
+    // (참고) getNext를 스와이프 응답 전에 미리 호출하는 프리패치는 하면 안 됨 — 서버 GET /onboarding/next는
+    // 스와이프 로그가 반영된 것만 "이미 본 카드"로 제외해서, 먼저 호출하면 방금 본 카드를 또 돌려줌.
+    // 그래서 swipe 저장(애니메이션과 병렬) → getNext 순서는 유지하고, 다음 카드 이미지를 표시 전에
+    // 미리 받아둬서 카드가 뜬 뒤 이미지가 늦게 채워지는 지연을 없앤다.
     try {
-      const result = await onboardingApi.swipe(curr.id, action);
+      const result = await pending;
       setTotalSeen(result.total_seen);
 
       if (result.is_converged) {
@@ -136,7 +141,8 @@ export function OnboardingScreen({ onComplete }: Props) {
         return;
       }
 
-      const next = await onboardingApi.getNext();
+      // 서버가 swipe 응답에 다음 카드를 같이 내려줌(요청 1번 절약) — 필드가 없는 구버전 서버면 /next로 폴백
+      const next = result.next_card !== undefined ? result.next_card : await onboardingApi.getNext();
       if (!next) {
         if (result.total_seen < MIN_SWIPES_TO_FINISH) {
           Alert.alert(
@@ -147,11 +153,16 @@ export function OnboardingScreen({ onComplete }: Props) {
         await finishOnboarding();
         return;
       }
+      await Promise.race([
+        Image.prefetch(next.card.image_url).catch(() => false),
+        new Promise((resolve) => setTimeout(resolve, 4000)),
+      ]);
       setCard(next.card);
     } catch (e) {
       Alert.alert('스와이프에 실패했어요', e instanceof Error ? e.message : '알 수 없는 오류');
     } finally {
       setSwiping(false);
+      setCardHidden(false);
     }
   }
 
@@ -208,11 +219,12 @@ export function OnboardingScreen({ onComplete }: Props) {
           <View style={styles.backCard} />
           <Animated.View
             {...panResponder.panHandlers}
-            style={[styles.frontCard, { transform: [...position.getTranslateTransform(), { rotate }] }]}
+            style={[styles.frontCard, { opacity: cardHidden ? 0 : 1, transform: [...position.getTranslateTransform(), { rotate }] }]}
           >
             <Image source={{ uri: card.image_url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
             <LinearGradient colors={['transparent', 'rgba(0,0,0,0.35)']} style={StyleSheet.absoluteFill} />
           </Animated.View>
+          <SwipeHintOverlay visible={hint.visible} />
           {swiping && (
             <View style={[StyleSheet.absoluteFill, styles.swipingOverlay]} pointerEvents="none">
               <ActivityIndicator color={colors.white} />

@@ -41,7 +41,10 @@ class OnboardingService(
     }
 
     fun getNextCard(userId: Long): OnboardingNextResponse? {
-        val logs = onboardingSwipeLogRepository.findByUserIdOrderByCreatedAtDesc(userId)
+        return selectNextCard(userId, onboardingSwipeLogRepository.findByUserIdOrderByCreatedAtDesc(userId))
+    }
+
+    private fun selectNextCard(userId: Long, logs: List<OnboardingSwipeLog>): OnboardingNextResponse? {
         val totalSeen = logs.size
         val likeCount = logs.count { it.action == OnboardingAction.like }
 
@@ -90,6 +93,7 @@ class OnboardingService(
             totalSeen = totalSeen,
             isConverged = isConverged(totalSeen, likeCount, recentChange),
             recentChange = recentChange,
+            nextCard = selectNextCard(userId, allLogs),
         )
     }
 

@@ -32,6 +32,8 @@ export interface OnboardingSwipeResponse {
   total_seen: number;
   is_converged: boolean;
   recent_change: number;
+  // 수렴/종료 시 null — /onboarding/next를 따로 호출하지 않아도 됨
+  next_card?: OnboardingNextResponse | null;
 }
 
 export interface OnboardingCompleteResponse {
