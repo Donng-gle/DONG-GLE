@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SwipeHintOverlay, useSwipeHint } from '../components/SwipeHint';
+import { ApiError } from '../api/client';
 import { SwipeAction, SwipeCandidate, SwipedResultItem, swipeApi } from '../api/swipe';
 import { colors } from '../theme/colors';
 import { fonts } from '../theme/fonts';
@@ -113,7 +114,19 @@ export function CourseSwipeScreen({ sessionId, candidates, initialResults = [], 
 
     setSubmitting(true);
     try {
-      await swipeApi.submitResults(sessionId, { swipes: next });
+      // 20장을 넘기는 동안 서버 요청이 없어서 iOS가 이미 끊긴 연결을 재사용하다 "네트워크 연결이
+      // 유실되었습니다"로 실패하는 경우가 실기기에서 리포트됨(2026-09-21). 서버 응답 자체(ApiError)가
+      // 아닌 전송 실패면 잠깐 뒤 재시도 — 새 연결로 보내면 대부분 성공한다
+      const retryDelaysMs = [0, 1500, 3000];
+      for (let attempt = 0; ; attempt++) {
+        try {
+          await swipeApi.submitResults(sessionId, { swipes: next });
+          break;
+        } catch (e) {
+          if (e instanceof ApiError || attempt >= retryDelaysMs.length - 1) throw e;
+          await new Promise((resolve) => setTimeout(resolve, retryDelaysMs[attempt + 1]));
+        }
+      }
       onDone();
     } catch (e) {
       Alert.alert('결과 제출에 실패했어요', e instanceof Error ? e.message : '알 수 없는 오류');
@@ -135,7 +148,7 @@ export function CourseSwipeScreen({ sessionId, candidates, initialResults = [], 
     <View style={styles.container}>
       <StatusBar style="dark" />
 
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <Text style={styles.title}>가고 싶은 곳을 골라주세요</Text>
         <Text style={styles.subtitle}>
           마음에 드는 장소는 오른쪽으로, 넘길 장소는 왼쪽으로{'\n'}스와이프해주세요
