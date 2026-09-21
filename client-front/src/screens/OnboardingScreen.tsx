@@ -44,7 +44,7 @@ export function OnboardingScreen({ onComplete }: Props) {
   const position = useRef(new Animated.ValueXY()).current;
   const rotate = position.x.interpolate({ inputRange: [-300, 0, 300], outputRange: ['-12deg', '0deg', '12deg'] });
 
-  const hint = useSwipeHint('dongle.swipeHint.onboarding', position, !!card && !loading);
+  const hint = useSwipeHint(position, !!card && !loading);
   const hintDismissRef = useRef(hint.dismiss);
   hintDismissRef.current = hint.dismiss;
 
