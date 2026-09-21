@@ -65,7 +65,7 @@ export function CourseSwipeScreen({ sessionId, candidates, initialResults = [], 
   const position = useRef(new Animated.ValueXY()).current;
   const rotate = position.x.interpolate({ inputRange: [-300, 0, 300], outputRange: ['-12deg', '0deg', '12deg'] });
 
-  const hint = useSwipeHint('dongle.swipeHint.course', position, !!current && !submitting);
+  const hint = useSwipeHint(position, !!current && !submitting);
   const hintDismissRef = useRef(hint.dismiss);
   hintDismissRef.current = hint.dismiss;
 
