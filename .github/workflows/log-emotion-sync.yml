@@ -1,0 +1,41 @@
+name: log-emotion-sync
+
+# 방문 기록 사진(visit_log_photo)을 GPT Vision으로 분석해 log_emotion_tag에 적재하는 배치를
+# 주기적으로 돌린다. 백엔드/인프라 배포(Render)와는 무관한 순수 데이터 파이프라인 작업이라
+# 별도 서버 없이 GitHub Actions로 처리한다 (2026-09-10 결정, decision-log 참고).
+#
+# 처리할 미분석 방문기록이 없으면 스크립트가 바로 종료되므로 평소엔 실행 시간이 짧다.
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install python-dotenv requests psycopg2-binary \
+            openai pydantic pydantic-settings qdrant-client httpx
+
+      - name: Run log_emotion sync
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_MODEL: gpt-4.1-mini
+          # 이 스크립트는 Qdrant를 쓰지 않지만(analyze_place_with_details persist=False),
+          # SemanticVectorConfig가 QDRANT_URL을 필수 필드로 요구해서 값만 채워둔다.
+          QDRANT_URL: ${{ secrets.QDRANT_URL }}
+          SEMANTIC_PROMPT_VERSION: semantic-image-v4.1
+          SEMANTIC_TAG_SCHEMA_VERSION: tourism-semantic-tags-v1
+        run: python scripts/auto_sync_log_emotion.py
