@@ -9,6 +9,7 @@ import { BookmarkIcon, DistanceIcon, HeartIcon, MapPinOutlineIcon, SearchIcon, W
 import { FloatingNav } from '../components/FloatingNav';
 import { colors } from '../theme/colors';
 import { fonts } from '../theme/fonts';
+import { formatPlannedTime } from '../utils/formatPlannedTime';
 import { SearchScreen } from './SearchScreen';
 
 interface Props {
@@ -229,9 +230,14 @@ export function CourseDetailScreen({ courseId, onEdit, onDeleted, onExit, onCrea
                   ) : (
                     <View style={[styles.placeThumbnail, styles.placeThumbnailPlaceholder]} />
                   )}
-                  <Text style={styles.placeName} numberOfLines={1}>
-                    {place.name}
-                  </Text>
+                  <View style={styles.placeNameCol}>
+                    {formatPlannedTime(place.planned_time) && (
+                      <Text style={styles.placeTime}>{formatPlannedTime(place.planned_time)}</Text>
+                    )}
+                    <Text style={styles.placeName} numberOfLines={1}>
+                      {place.name}
+                    </Text>
+                  </View>
                 </View>
                 {place.distance_from_prev_km != null && (
                   <View style={styles.placeMetaRow}>
@@ -329,6 +335,8 @@ const styles = StyleSheet.create({
   placeCard: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   placeThumbnail: { width: 48, height: 48, borderRadius: 4 },
   placeThumbnailPlaceholder: { backgroundColor: colors.border },
+  placeNameCol: { flex: 1 },
+  placeTime: { fontFamily: fonts.medium, fontSize: 12, letterSpacing: -0.3, color: colors.gray500 },
   placeName: { flex: 1, fontFamily: fonts.medium, fontSize: 16, letterSpacing: -0.4, color: colors.black },
   // Figma: 거리/시간 메타 행은 이름 텍스트가 아니라 썸네일 왼쪽 끝(콘텐츠 컬럼 시작점)에 맞춰
   // 들여쓰기 없이 시작함 — marginLeft 60(썸네일+gap만큼 들여쓰기)으로 잘못 맞췄던 것 정정(2026-09-09)
