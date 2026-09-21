@@ -11,6 +11,7 @@ import { FloatingNav } from '../components/FloatingNav';
 import { MapPin } from '../components/MapPin';
 import { colors } from '../theme/colors';
 import { fonts } from '../theme/fonts';
+import { formatPlannedTime } from '../utils/formatPlannedTime';
 
 interface Props {
   sessionId: string;
@@ -251,6 +252,9 @@ export function CourseResultScreen({
                     <View style={[styles.placeThumbnail, styles.placeThumbnailPlaceholder]} />
                   )}
                   <View style={styles.placeNameCol}>
+                    {formatPlannedTime(place.planned_time) && (
+                      <Text style={styles.placeTime}>{formatPlannedTime(place.planned_time)}</Text>
+                    )}
                     <Text style={styles.placeName} numberOfLines={1}>
                       {place.name}
                     </Text>
@@ -351,6 +355,7 @@ const styles = StyleSheet.create({
   placeName: { fontFamily: fonts.medium, fontSize: 16, letterSpacing: -0.4, color: colors.black },
   // Figma 실측(510:11285): 이름 바로 아래 카테고리 텍스트, 위아래 여백 없이 바짝 붙음(2026-09-11
   // category 필드 추가하면서 반영 — 백엔드에 필드 없던 때는 생략돼있었음)
+  placeTime: { fontFamily: fonts.medium, fontSize: 12, letterSpacing: -0.3, color: colors.gray500 },
   placeCategory: { fontFamily: fonts.regular, fontSize: 12, letterSpacing: -0.3, color: colors.gray400 },
   placeMetaRow: {
     flexDirection: 'row',
